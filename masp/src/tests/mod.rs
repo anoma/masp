@@ -5,7 +5,7 @@ use masp_primitives::constants::{
     PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
 };
 
-use crate::{libmasp_new_asset_identifier, libmasp_asset_from_name_and_nonce};
+use crate::{libmasp_asset_from_name_and_nonce, libmasp_new_asset_identifier};
 use libc::c_uchar;
 
 mod key_agreement;

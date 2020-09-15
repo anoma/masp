@@ -1,9 +1,9 @@
 [workspace]
 members = [
+    "masp",
     "components/equihash",
-    "zcash_client_backend",
-    "zcash_client_sqlite",
-    "zcash_history",
+    "masp_proofs",
+    "masp_primitives",
     "zcash_primitives",
     "zcash_proofs",
 ]

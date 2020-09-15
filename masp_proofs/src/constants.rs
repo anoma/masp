@@ -5,7 +5,7 @@ use group::{Curve, Group};
 use lazy_static::lazy_static;
 use masp_primitives::constants::PEDERSEN_HASH_GENERATORS;
 use zcash_primitives::constants::PEDERSEN_HASH_CHUNKS_PER_GENERATOR;
-use zcash_proofs::constants::{FixedGeneratorOwned, to_montgomery_coords};
+use zcash_proofs::constants::{to_montgomery_coords, FixedGeneratorOwned};
 
 /// The number of chunks needed to represent a full scalar during fixed-base
 /// exponentiation.

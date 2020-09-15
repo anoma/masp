@@ -644,7 +644,7 @@ fn notes() {
             ],
         },
     ];
-    
+
     let asset_identifier =
         b"sO\x0e\xc5os\x1e\x02\xccs~ki=\xb5+\x82\x1fonL\xd7\xfe<vCS\xf2cf\x9f\xbe"; // b'default' under repeated hashing
 
