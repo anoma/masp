@@ -29,7 +29,7 @@ lazy_static = "1"
 minreq = { version = "2", features = ["https"], optional = true }
 rand_core = "0.5.1"
 wagyu-zcash-parameters = { version = "0.2", optional = true }
-masp_primitives = { version = "0.3", path = "../masp_primitives" }
+masp_primitives = { version = "0.4", path = "../masp_primitives" }
 zcash_primitives = { path = "../zcash_primitives" }
 zcash_proofs = { path = "../zcash_proofs" }
 
