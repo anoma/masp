@@ -37,8 +37,8 @@ const SAPLING_SPEND_NAME: &str = "sapling-spend.params";
 const SAPLING_OUTPUT_NAME: &str = "sapling-output.params";
 
 // Circuit hashes
-const SAPLING_SPEND_HASH: &str = "8270785a1a0d0bc77196f000ee6d221c9c9894f55307bd9357c3f0105d31ca63991ab91324160d8f53e2bbd3c2633a6eb8bdf5205d822e7f3f73edac51b2b70c";
-const SAPLING_OUTPUT_HASH: &str = "657e3d38dbb5cb5e7dd2970e8b03d69b4787dd907285b5a7f0790dcc8072f60bf593b32cc2d1c030e00ff5ae64bf84c5c3beb84ddc841d48264b4a171744d028";
+const SAPLING_SPEND_HASH: &str = "5523057113d7daa078714f9859ea03da3c959f4fe3756a0ace4eb25f7cf41d1e21099dac768c2e0045400fee03c1f8bc14eeac2190c3f282e0092419d3b967e5";
+const SAPLING_OUTPUT_HASH: &str = "89fe551ad6c0281aebb857eb203dbf35854979503d374c83b12512dcd737e12a255869a34e3ff0f6609b78accc81ea5f5e94202e124a590730494eeeee86e755";
 
 #[cfg(feature = "download-params")]
 const DOWNLOAD_URL: &str = "https://download.z.cash/downloads";
