@@ -241,6 +241,13 @@ pub extern "C" fn libmasp_check_diversifier(diversifier: *const [c_uchar; 11]) -
 }
 
 #[no_mangle]
+pub extern "C" fn libmasp_check_asset_identifier(
+    asset_identifier: *const [c_uchar; ASSET_IDENTIFIER_LENGTH],
+) -> bool {
+    AssetType::from_identifier(&unsafe { *asset_identifier }).is_some()
+}
+
+#[no_mangle]
 pub extern "C" fn libmasp_ivk_to_pkd(
     ivk: *const [c_uchar; 32],
     diversifier: *const [c_uchar; 11],

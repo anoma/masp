@@ -38,6 +38,8 @@ extern "C" {
 
     bool libmasp_check_diversifier(const unsigned char *diversifier);
 
+    bool libmasp_check_asset_identifier(const unsigned char *asset_identifier);
+
     bool libmasp_ivk_to_pkd(const unsigned char *ivk, const unsigned char *diversifier, unsigned char *result);
 
     /// Loads the zk-SNARK parameters into memory and saves
