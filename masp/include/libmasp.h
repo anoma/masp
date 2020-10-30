@@ -22,11 +22,11 @@ extern "C" {
 
     /// Derives an asset identifier without a starting nonce
     /// Not constant-time as it uses rejection sampling
-    bool libmasp_new_asset_identifier(const unsigned char *name, size_t name_length, unsigned char *identifier_result, uint8_t* nonce_result);
+    bool libmasp_new_asset_identifier(const unsigned char *name, size_t name_length, unsigned char *identifier_result, int32_t* nonce_result);
 
     /// Derives an asset identifier
     /// Not yet constant-time; assume not constant-time
-    bool libmasp_asset_from_name_and_nonce(const unsigned char *name, size_t name_length, uint8_t nonce, unsigned char *result);
+    bool libmasp_asset_from_name_and_nonce(const unsigned char *name, size_t name_length, int32_t nonce, unsigned char *result);
 
     void libmasp_to_scalar(const unsigned char *input, unsigned char *result);
 
