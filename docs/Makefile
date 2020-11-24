@@ -18,41 +18,17 @@ NOCRUFT?=|gawk '{gsub(/[({<][/][^ ]* ?/,"")}1' |gsed '/name{index:.*} has been r
 
 .PHONY: all-specs all
 all-specs: Makefile.uptodate
-	$(MAKE) nufour.pdf heartwood.pdf blossom.pdf sapling.pdf sprout.pdf
+	$(MAKE) sapling.pdf
 
 all: Makefile.uptodate
-	$(MAKE) nufour heartwood blossom sapling sprout
+	$(MAKE) sapling
 
 Makefile.uptodate: Makefile
 	$(MAKE) clean
 	touch Makefile.uptodate
 
-sprout.pdf: protocol.tex zcash.bib incremental_merkle.png key_components.png
-	$(MAKE) sprout
-
 sapling.pdf: protocol.tex zcash.bib incremental_merkle.png key_components_sapling.png
 	$(MAKE) sapling
-
-blossom.pdf: protocol.tex zcash.bib incremental_merkle.png key_components_sapling.png
-	$(MAKE) blossom
-
-heartwood.pdf: protocol.tex zcash.bib incremental_merkle.png key_components_sapling.png
-	$(MAKE) heartwood
-
-nufour.pdf: protocol.tex zcash.bib incremental_merkle.png key_components_sapling.png
-	$(MAKE) nufour
-
-.PHONY: auxsprout
-auxsprout:
-	printf '\\renewcommand{\\docversion}{Version %s [\\SproutSpec]}' "$$(git describe --tags --abbrev=6)" |tee protocol.ver
-	mkdir -p aux
-	rm -f aux/sprout.* aux/protocol.*
-	$(LATEXMK) -jobname=sprout -auxdir=aux -outdir=aux $(EXTRAOPT) protocol $(NOCRUFT)
-
-.PHONY: sprout
-sprout:
-	$(MAKE) auxsprout
-	mv -f aux/sprout.pdf .
 
 .PHONY: auxsapling
 auxsapling:
@@ -66,55 +42,6 @@ sapling:
 	$(MAKE) auxsapling
 	mv -f aux/sapling.pdf .
 
-.PHONY: auxblossom
-auxblossom:
-	printf '\\toggletrue{isblossom}\n\\renewcommand{\\docversion}{Version %s [\\BlossomSpec]}' "$$(git describe --tags --abbrev=6)" |tee protocol.ver
-	mkdir -p aux
-	rm -f aux/blossom.*
-	$(LATEXMK) -jobname=blossom -auxdir=aux -outdir=aux $(EXTRAOPT) protocol $(NOCRUFT)
-
-.PHONY: blossom
-blossom:
-	$(MAKE) auxblossom
-	mv -f aux/blossom.pdf .
-
-.PHONY: auxheartwood
-auxheartwood:
-	printf '\\toggletrue{isheartwood}\n\\renewcommand{\\docversion}{Version %s [\\HeartwoodSpec]}' "$$(git describe --tags --abbrev=6)" |tee protocol.ver
-	mkdir -p aux
-	rm -f aux/heartwood.*
-	$(LATEXMK) -jobname=heartwood -auxdir=aux -outdir=aux $(EXTRAOPT) protocol $(NOCRUFT)
-
-.PHONY: heartwood
-heartwood:
-	$(MAKE) auxheartwood
-	mv -f aux/heartwood.pdf .
-	cp -f heartwood.pdf protocol.pdf
-
-.PHONY: auxnufour
-auxnufour:
-	printf '\\toggletrue{isnufour}\n\\renewcommand{\\docversion}{Version %s [\\NufourSpec]}' "$$(git describe --tags --abbrev=6)" |tee protocol.ver
-	mkdir -p aux
-	rm -f aux/nufour.*
-	$(LATEXMK) -jobname=nufour -auxdir=aux -outdir=aux $(EXTRAOPT) protocol $(NOCRUFT)
-
-.PHONY: nufour
-nufour:
-	$(MAKE) auxnufour
-	mv -f aux/nufour.pdf .
-
-.PHONY: nolatexmk-sprout
-nolatexmk-sprout:
-	printf '\\renewcommand{\\docversion}{Version %s [\\SproutSpec]}' "$$(git describe --tags --abbrev=6)" |tee protocol.ver
-	# If $(LATEX) fails, touch an input so that 'make' won't think it is up-to-date next time.
-	rm -f sprout.aux sprout.bbl sprout.blg sprout.brf sprout.bcf
-	$(LATEX) -jobname=sprout protocol.tex || { touch incremental_merkle.png; exit 1; }
-	biber sprout
-	$(LATEX) -jobname=sprout protocol.tex || { touch incremental_merkle.png; exit 1; }
-	$(LATEX) -jobname=sprout protocol.tex || { touch incremental_merkle.png; exit 1; }
-	sh mymakeindex.sh -o sprout.ind sprout.idx
-	$(LATEX) -jobname=sprout protocol.tex || { touch incremental_merkle.png; exit 1; }
-
 .PHONY: nolatexmk-sapling
 nolatexmk-sapling:
 	printf '\\toggletrue{issapling}\n\\renewcommand{\\docversion}{Version %s [\\SaplingSpec]}' "$$(git describe --tags --abbrev=6)" |tee protocol.ver
@@ -126,43 +53,6 @@ nolatexmk-sapling:
 	$(LATEX) -jobname=sapling protocol.tex || { touch incremental_merkle.png; exit 1; }
 	sh mymakeindex.sh -o sapling.ind sapling.idx
 	$(LATEX) -jobname=sapling protocol.tex || { touch incremental_merkle.png; exit 1; }
-
-.PHONY: nolatexmk-blossom
-nolatexmk-blossom:
-	printf '\\toggletrue{isblossom}\n\\renewcommand{\\docversion}{Version %s [\\BlossomSpec]}' "$$(git describe --tags --abbrev=6)" |tee protocol.ver
-	# If $(LATEX) fails, touch an input so that 'make' won't think it is up-to-date next time.
-	rm -f blossom.aux blossom.bbl blossom.blg blossom.brf blossom.bcf
-	$(LATEX) -jobname=blossom protocol.tex || { touch incremental_merkle.png; exit 1; }
-	biber blossom
-	$(LATEX) -jobname=blossom protocol.tex || { touch incremental_merkle.png; exit 1; }
-	$(LATEX) -jobname=blossom protocol.tex || { touch incremental_merkle.png; exit 1; }
-	sh mymakeindex.sh -o blossom.ind blossom.idx
-	$(LATEX) -jobname=blossom protocol.tex || { touch incremental_merkle.png; exit 1; }
-	cp -f blossom.pdf protocol.pdf
-
-.PHONY: nolatexmk-heartwood
-nolatexmk-heartwood:
-	printf '\\toggletrue{isheartwood}\n\\renewcommand{\\docversion}{Version %s [\\HeartwoodSpec]}' "$$(git describe --tags --abbrev=6)" |tee protocol.ver
-	# If $(LATEX) fails, touch an input so that 'make' won't think it is up-to-date next time.
-	rm -f heartwood.aux heartwood.bbl heartwood.blg heartwood.brf heartwood.bcf
-	$(LATEX) -jobname=heartwood protocol.tex || { touch incremental_merkle.png; exit 1; }
-	biber heartwood
-	$(LATEX) -jobname=heartwood protocol.tex || { touch incremental_merkle.png; exit 1; }
-	$(LATEX) -jobname=heartwood protocol.tex || { touch incremental_merkle.png; exit 1; }
-	sh mymakeindex.sh -o heartwood.ind heartwood.idx
-	$(LATEX) -jobname=heartwood protocol.tex || { touch incremental_merkle.png; exit 1; }
-
-.PHONY: nolatexmk-nufour
-nolatexmk-nufour:
-	printf '\\toggletrue{isnufour}\n\\renewcommand{\\docversion}{Version %s [\\NufourSpec]}' "$$(git describe --tags --abbrev=6)" |tee protocol.ver
-	# If $(LATEX) fails, touch an input so that 'make' won't think it is up-to-date next time.
-	rm -f nufour.aux nufour.bbl nufour.blg nufour.brf nufour.bcf
-	$(LATEX) -jobname=nufour protocol.tex || { touch incremental_merkle.png; exit 1; }
-	biber nufour
-	$(LATEX) -jobname=nufour protocol.tex || { touch incremental_merkle.png; exit 1; }
-	$(LATEX) -jobname=nufour protocol.tex || { touch incremental_merkle.png; exit 1; }
-	sh mymakeindex.sh -o nufour.ind nufour.idx
-	$(LATEX) -jobname=nufour protocol.tex || { touch incremental_merkle.png; exit 1; }
 
 .PHONY: clean
 clean:
