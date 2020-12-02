@@ -1,5 +1,7 @@
 # MASP Rust crates
 
+![MASP Logo](https://github.com/metastatedev/masp/blob/main/docs/logo.png)
+
 This repository contains a (work-in-progress) set of Rust crates for
 working with the Multi Asset Shielded Pool extensions of the Sapling circuits from Zcash.
 
