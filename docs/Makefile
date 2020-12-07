@@ -18,7 +18,7 @@ NOCRUFT?=|gawk '{gsub(/[({<][/][^ ]* ?/,"")}1' |gsed '/name{index:.*} has been r
 
 .PHONY: all-specs all
 all-specs: Makefile.uptodate
-	$(MAKE) sapling.pdf
+	$(MAKE) multi-asset-shielded-pool.pdf
 
 all: Makefile.uptodate
 	$(MAKE) sapling
@@ -27,7 +27,7 @@ Makefile.uptodate: Makefile
 	$(MAKE) clean
 	touch Makefile.uptodate
 
-sapling.pdf: protocol.tex #zcash.bib incremental_merkle.png key_components_sapling.png
+multi-asset-shielded-pool.pdf: protocol.tex #zcash.bib incremental_merkle.png key_components_sapling.png
 	$(MAKE) sapling
 
 .PHONY: auxsapling
@@ -40,7 +40,7 @@ auxsapling:
 .PHONY: sapling
 sapling:
 	$(MAKE) auxsapling
-	mv -f aux/sapling.pdf .
+	mv -f aux/sapling.pdf multi-asset-shielded-pool.pdf
 
 .PHONY: nolatexmk-sapling
 nolatexmk-sapling:
@@ -56,4 +56,4 @@ nolatexmk-sapling:
 
 .PHONY: clean
 clean:
-	rm -f aux/* html/* protocol.ver protocol.pdf
+	rm -f aux/* html/* multi-asset-shielded-pool.ver multi-asset-shielded-pool.pdf
