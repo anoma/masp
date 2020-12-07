@@ -1,3 +1,5 @@
+![MASP Logo](https://github.com/metastatedev/masp/blob/main/docs/logo.png)
+
 # MASP Rust crates
 
 This repository contains a (work-in-progress) set of Rust crates for
