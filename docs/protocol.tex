@@ -96,7 +96,7 @@
 
 \usepackage[style=alphabetic,maxbibnames=99,dateabbrev=false,urldate=edtf,seconds=true,
             backref=true,backrefstyle=none,backend=biber]{biblatex}
-\addbibresource{zcash.bib}
+%\addbibresource{zcash.bib}
 
 % Fonts
 \usepackage{lmodern}
@@ -480,7 +480,7 @@
 \newcommand{\sbitbox}[2]{\bitbox{#1}{\strut #2}}
 
 
-\newcommand{\docversion}{Version unavailable (check protocol.ver)}
+\newcommand{\docversion}{}
 \newcommand{\SproutSpec}{Sprout}
 \newcommand{\SaplingSpec}{Overwinter+Sapling}
 \newcommand{\BlossomSpec}{Overwinter+Sapling+Blossom}
@@ -496,7 +496,7 @@
 \togglefalse{isnufour}
 \InputIfFileExists{protocol.ver}{}{}
 
-\newcommand{\doctitle}{Zcash Protocol Specification (Metastate AG MASP changes BETA)}
+\newcommand{\doctitle}{Multi-Asset Shielded Pool Specification}
 \newcommand{\leadauthor}{Daira Hopwood}
 \newcommand{\coauthora}{Sean Bowe}
 \newcommand{\coauthorb}{Taylor Hornby}
@@ -2087,14 +2087,18 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \usepackage{soul}
 %\newcommand{\masp}[1]{\texorpdfstring{{\hl{#1}}}{#1}}
 \newcommand{\masp}[1]{\texorpdfstring{{\color{purple}{#1}}}{#1}}
+\newcommand{\maspaddition}[1]{\texorpdfstring{{\color{blue}{#1}}}{#1}}
     
 \begin{document}
 
 \title{\textbf{\doctitle} \\
-\Large \docversion}
-\author{ based on original spec by:
+\Large by Metastate AG \\
+ \vspace{12pt}
+\author{ based on the original Zcash spec by: \\
 \Large \leadauthor\hairspace\thanks{\;Electric Coin Company} \\
 \Large \coauthora\affiliation — \coauthorb\affiliation — \coauthorc\affiliation}
+%\Large extended by Joseph Bebel\hairspace\thanks{\;Metastate AG}
+}
 \date{\today}
 \maketitle
 \vspace{-6ex}\sprout{\vspace{-3ex}}
@@ -2110,7 +2114,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \renewcommand{\abstractname}{}
 \begin{abstract}
 \normalsize \noindent \textbf{Abstract.}
-Changes to the Sapling protocol to support UDAs. Research and experimental.
+Changes to the Sapling protocol to support multiple asset types. Research and experimental.
 
 \sprout{\vspace{1ex}}\notsprout{\vspace{2.5ex}}
 \noindent \textbf{Keywords:}~ \StrSubstitute[0]{\keywords}{,}{, }.
@@ -2142,13 +2146,25 @@ The following discussions, proposals, and demos provide background and context f
 \item \url{https://github.com/str4d/librustzcash/tree/funweek-uda-demo} 
 \end{itemize}
 
-As well as the original \Sapling specification. Where possible, sections copied from the original \Sapling specification have changes \masp{highlighted in purple}.
+As well as the original \Sapling specification. Where possible, sections copied from the original \Sapling specification have changes \masp{highlighted in purple} and additional comments \maspaddition{highlighted in blue}.
 
 \lsubsection{Overview and Approach}{overview}
 
 The \Sapling circuits rely on homomorphic Pedersen commitments to represent the value of a shielded \Note. The homomorphic Pedersen commitment requires two  generators of the same subgroup: one to serve as the value base, and another as the randomness base. For security, no discrete log relationship should be known between these two generators. In \Sapling, both generators are carefully constructed and fixed outside of the circuits as images of a \pseudoRandomFunction.
 
  User-defined assets may be added by varying the generator used as the value base, using a custom asset generator for each distinct asset type. However, since the value base generator is no longer a fixed constant, each asset generator must be dynamically constructed with similar security properties to the construction of the original fixed generator of \Sapling.
+ 
+ \maspaddition{This approach has several significant advantages:
+ 
+ \begin{itemize}
+ \item Based on the preliminary approach proposed in the ZIP
+\item Allows most of the extensive Sapling feature set to be extended to multiple assets
+ \item Leverages the significant effort invested in developing and auditing the high quality Sapling specification and codebase by making as few changes as possible
+ \item General enough that the same multi-asset circuits can be reused in different contexts
+ \end{itemize}
+ 
+ 
+ }
  
 \lsubsection{Asset Types: Notation and Nomenclature}{notation}
 
@@ -2168,7 +2184,7 @@ An \textit{asset type} is an abstract property added to a \Sapling \Note, in add
 \item Only a constant fraction (approximately 45\%) of 32 byte strings will be valid asset identifiers
 \item The asset \textit{identifier} is always the Blake2s preimage of the asset \textit{generator} (defined next)
 \end{enumerate}
-\item The asset \textit{generator} (also known as the \textit{value base}) is a JubJub point whose compressed bit representation is the Blake2s image of the asset \textit{identifier}
+\item The asset \textit{generator} (also known as the \textit{value base}) is a valid \ctEdwardsCurve point on the \jubjubCurve, whose compressed bit representation is the $\BlakeTwosGeneric$ image of the asset \textit{identifier}
 \end{itemize}
 
 The exact contents of the \textit{asset name} may be defined outside of the circuit specifications. The asset name could include the output of a random beacon or other unpredictable randomness to prevent the possibility of precomputation attacks against a particular asset type. 
@@ -2179,11 +2195,25 @@ The asset \textit{generator} will be derived via a \pseudoRandomFunction from th
 
 Asset types may also be associated with a \textit{human-readable asset name} and/or a \textit{asset symbol}. The human-readable asset name and asset symbol may be used for user-facing presentations of the asset type, particularly if the \textit{asset name} is not suitable for this purpose. Assignment and use of human-readable asset names and asset symbols are outside the scope of this document.
 
+\maspaddition{The 32 byte size of the asset identifier is somewhat arbitrary, but strongly motivated by the following observations:
+
+\begin{itemize}
+\item The asset identifier length should be constant size; this simplifies the circuit design, and also the encrypted note should use a constant size field to represent the asset type.
+\item The asset identifier length should not be longer than 64 bytes unless explicitly necessary; otherwise the cost of hashing in the Output circuit increases significantly with every additional 64 byte input block. Additionally, if encrypted notes represent the note's asset type with an asset identifier field, longer asset identifiers increase the encrypted note size and use more storage space on the block chain.
+\item The benefits of asset identifier length shorter than 32 bytes are not significant. There is insignificant benefit in the cost of the Output circuit, as the in-circuit hash uses  at least one 32 byte input block. If a shorter asset type representation is implementation-desired (e.g. for encrypted notes), the implementation could use a shorter asset name, truncated asset identifier, lookup table of assets, etc., as appropriate for the application.
+\item The asset identifier should be long enough to include added entropy, if desired. For example, adding entropy from a randomness beacon (discussed later) to add to the unpredictability of the asset generator. A 32 byte asset identifier accommodates a large amount of potential added entropy without going over the 64 byte block input size.
+
+\end{itemize}
+}
+
 \lsubsection{Derivation of Asset Generator from Asset Identifer}{derivation}
 
 The asset generator associated with each asset type must be derived in such a way that plausibly no discrete log relationship is known between every two distinct asset types (or between an asset generator and the common randomness base generator).
 
 In this specification, the asset generator associated with a given asset identifier is derived using a \pseudoRandomFunction; specifically, instantiating $\PRFvcgMASP{}$ with $\BlakeTwosGeneric$ similar to how other \pseudoRandomFunctions are instantiated in the original \Sapling specification. Therefore, the asset generator associated with asset identifier $\NoteToken$ should be $\reprJ(\PRFvcgMASP{\NoteToken})$, if it exists, and this derivation is verified in at least one circuit.
+
+\maspaddition{The \pseudoRandomFunction $\PRFvcgMASP{}$ should take as input the 32 byte asset identifier, and produce as output a (potential) 32 byte \ctEdwardsCompressedEncoding on the \jubjubCurve. The output must be verified to be a valid \ctEdwardsCurve point, and when instantiated with $\BlakeTwosGeneric$, use a distinct personalization from the other \pseudoRandomFunctions used in the original Sapling specification and this specification.
+}
 
 One may wonder if it is necessary to verify the derivation of the asset generator from the asset identifier in circuit. The answer is ``yes'': if the asset generator was witnessed to the circuit's private inputs without checking its validity as an asset generator, then someone may witness the negation of an asset generator and produce notes with negative value of the actual asset (and therefore, creating notes of arbitrarily positive value that homomorphically balance with the negative value note)
 
@@ -2191,17 +2221,21 @@ One may also wonder if a Pedersen hash may be used instead (particularly as it i
 
 \lsubsection{Rejection Sampling of Asset Identifiers Hashing to Curve Point}{rejection}
 
- The asset identifier should be deterministically derived from the asset name. Since there is some probability of deriving an invalid asset identifier, one potential approach is to try potential asset identifiers, rejecting invalid ones, until a valid asset identifier that properly hashes to an asset generator. We can describe such a process as \textit{rejection sampling}.
+\maspaddition{The previous section noted that the asset generator associated with asset identifier $\NoteToken$ should be $\reprJ(\PRFvcgMASP{\NoteToken})$. However, $\reprJ(\PRFvcgMASP{\NoteToken})$ may not exist, in which case $\NoteToken$ is an \textit{invalid} asset identifier. To avoid excessive computation in the Output circuit, such invalid $\NoteToken$ identifiers should always be rejected by the Output circuit, and all external implementations should only use valid asset identifiers exclusively.}
 
-     Hashing an identifier bytestring to a group element (point on the JubJub curve) can fail in one of three ways:
+ The asset identifier should be deterministically derived from the asset name. Since there is some probability of deriving an invalid asset identifier, one potential approach is to try potential asset identifiers, rejecting invalid ones, until a valid asset identifier that properly hashes to an asset generator. We can describe such a process as \textit{rejection sampling}.
+ 
+ \maspaddition{$\GroupJHash{\URS}$, which is used to find generators for Pedersen commitments and hashes in $\Sapling$, may also be used to derive the asset identifier. In this case $\GroupJHash{\URS}\Of{\text{asset name}}$ may be the asset generator associated with some asset name; the asset identifier would be the preimage of the resulting asset generator (computed as an intermediate step of $\GroupJHash{\URS}$). Alternatively, the asset name may be hashed repeatedly until a valid asset identifier is found. The size of a 32 byte asset identifier is also intended to facilitate derivation of an asset identifier as the image of a hash function. }
+
+     Hashing  \maspaddition{a uniformly random asset} identifier bytestring to a group element, a \ctEdwardsCurve point on the \jubjubCurve, can fail in one of three ways:
 
 \begin{enumerate}
 
-\item The identifier could hash to a small order point on the curve. Since the JubJub curve is the direct sum of a small order subgroup with a large prime order subgroup, the $\BlakeTwosGeneric$ image of the identifier may be the y  coordinate of a small order point on the curve, and so when  multiplied by the cofactor gives the identity. The small order subgroup contains very few elements, so the probability of hashing to one of these  points is extremely small (exponentially small).
+\item The identifier could hash to a small order point on the curve. Since the \jubjubCurve is the direct sum of a small order subgroup with a large prime order subgroup, the $\BlakeTwosGeneric$ image of the identifier may be the y  coordinate of a small order point on the curve, and so when  multiplied by the cofactor gives the identity. The small order subgroup contains very few elements, so the probability of hashing to one of these  points is extremely small (exponentially small).
 
 Identifiers whose $\BlakeTwosGeneric$ hash is a small order point are rejected.
 
-\item The identifier could hash to 256 bits, of which the leading 255 bits encode an integer that is at least the order of the underlying field of the JubJub curve, and therefore is not a  valid field element unless taken modulo the order of the field (which we cannot do, if we desire a uniformly random curve point in the random oracle model).
+\item The identifier could hash to 256 bits, of which the leading 255 bits encode an integer that is at least the order of the underlying field of the \jubjubCurve, and therefore is not a  valid field element unless taken modulo the order of the field (which we cannot do, if we desire a uniformly random curve point in the random oracle model).
 
  The probability of this event is approximately 9.431\% and so it occurs reasonably often.
     
@@ -2211,7 +2245,7 @@ Identifiers whose $\BlakeTwosGeneric$ hash is a small order point are rejected.
 
 The probability of this event is approximately (but not precisely) 1/2
 
-Identifiers whose $\BlakeTwosGeneric$ hash is not the compressed representation of some JubJub curve point are rejected.
+Identifiers whose $\BlakeTwosGeneric$ hash is not the compressed representation of some \jubjubCurve point are rejected.
 \end{enumerate}
 
 The overall probability that a uniformly random identifier hashes successfully is approximately 0.5 * 0.9057 = 0.453 and so the expected number of identifiers tried is approximately 2.2.
@@ -2222,25 +2256,109 @@ Some theoretical attacks against the asset identifier generation process are not
 \item An attacker may attempt to find asset names that generate long sequences of invalid asset identifiers before finding a valid one. Extremely long sequences are likely infeasible to precompute but shorter sequences are more feasible, causing the asset identifier generation process to use more computation than average for a certain asset.
 \end{enumerate}
 
+\maspaddition{
+\lsubsection{Hash-to-curve RFC}{rfc}
+
+There exists a draft RFC (\url{https://datatracker.ietf.org/doc/draft-irtf-cfrg-hash-to-curve/}) for hashing data to curves which differs substantially from the methods described to derive the asset generator. Indeed, the RFC explicitly disallows the use of rejection sampling. There are several advantages of using the RFC hash-to-curve methods:
+
+\begin{enumerate}
+\item The RFC describes a well documented and well analyzed approach to hash-to-curve 
+\item The RFC hash-to-curve is designed to be implemented in constant time, mitigating certain information leakage
+\item The RFC hash-to-curve may later be used in other projects and there is potential value in standardization
+\end{enumerate}
+
+However, there are also factors in favor of the rejection sampling approach:
+
+\begin{enumerate}
+\item Rejection sampling is conceptually somewhat simpler and easier to reason about
+\item Rejection sampling is typically less expensive in total circuit operations, reducing the total cost
+\item Rejection sampling primarily uses well-audited primitives and existing code/gadgets; potentially less novel code and fewer bugs than implementing new gadgets
+\item Rejection sapling is already used widely in  $\Sapling$ to derive group hashes (for Pedersen hashes and commitments. In particular, the circuits permit using exactly the existing $\Sapling$ $\GroupJHash{}$ to derive the asset generator (among other possible choices) while the RFC is a draft.
+\end{enumerate}
+
+Unfortunately, supporting both RFC and rejection sampling based asset generator derivation in the same circuits appears impractical at the moment. At minimum, the added complexity of supporting both would increase the potential for implementation bugs. 
+
+Implementation of RFC compatible hash-to-curve gadgets in the bellman library would allow the use of RFC hash-to-curve inside the circuits; however such an implementation still adds significant complexity and requires significant effort to achieve the same level of analysis and scrutiny that the simpler rejection sampling method would. The MASP demo only supports rejection sampling based asset generator derivation.
+
+Not using the RFC hash-to-curve method does introduce some concrete risks. The asset generator derivation is now likely not constant time, introducing potential for side channel attacks and information leakage. It should be noted that constant time implementation and side channel attack prevention is not a goal of the MASP demo. Side channel and information leakage should be avoided by typical isolation of private data and computation as much as possible. 
+
+Side channel information leakage and timing attacks may be slightly mitigated by observing that asset identifier derivation is a public process (in order to allow shielding/unshielding of transparent balance) and does not use private data. In this way the situation is slightly different than if private data is hashed to curve. Implementations could store derived asset identifiers and hash those in constant time to asset generators. It should be noted that since asset names are not specified in the circuits or this document that variable length asset names (or other properties of the asset identifier derivation process) may leak additional information besides timing. 
+
+}
 \lsubsection{Security}{security}
 
 The homomorphic Pedersen value commitments are constructed similarly to the original Sapling circuit and should be similarly \textit{value hiding} (infeasible to recover the value from the commitment without knowledge of the trapdoor randomness) and \textit{non-forgeable} (infeasible to open the value commitment to another value). This requires that no discrete log relationship is known between the \textit{value base} (in this case, the \textit{asset generator}) and the \textit{randomness trapdoor generator}.
 
  When there are multiple assets, the value commitment should also be \textit{asset hiding} and \textit{non-exchangeable}: it should be infeasible to recover the asset type without knowledge of the trapdoor, and it should be infeasible to open the value commitment to another asset.  This requires that no discrete log relationship is known between every pair of asset generators. If asset generators are derived in a uniformly random way, then deriving a discrete log relationship between asset generators should be approximately as difficult as finding a discrete log relationship between a constant value base and fixed randomness base generator.
  
-The security of these multiple asset value commitments relies on similar assumptions underlying the security of the homomorphic Pedersen commitments and Pedersen hashes of the original \Sapling circuits. 
+The security of these multiple asset value commitments relies on similar assumptions underlying the security of the homomorphic Pedersen commitments and Pedersen hashes of the original $\Sapling$ circuits. 
 
 The security of those commitments and hashes is based on the hardness of the discrete log problem over a given elliptic curve group. For expository purposes, here is an informal argument sketch: Let $G_1, \ldots, G_k$ be $k$ uniformly random elliptic curve points. Assume there is an algorithm that finds a discrete log relationship between a single pair $G_i, G_j$ faster than finding a discrete log relationship between two chosen points $P, Q$. Then by choosing $2k$ uniformly random elements $a_i, b_i$ of the finite field of the same order as the curve, finding a discrete log relationship among a single pair of $R_i = [ a_i ] P + [ b_i ] Q$ should reveal a discrete log relationship between $P,Q$. A more rigorous proof may be found in the literature.
 
+\maspaddition{Recall the use of a $\pseudoRandomFunction$ to derive the asset generator from the asset identifier. Continuing the example from earlier, it should be infeasible for someone to find two asset identifiers whose images are points $P$ and $[-1] P$; otherwise an unlimited amount of those assets can be created in notes that balance homomorphically to zero in a single transaction. In the concrete case of $\BlakeTwosGeneric$ and the $\jubjubCurve$, the points $P$ and $[-1] P$ differ by a single bit in the compressed point representation (the sign of the $x$ coordinate) and share the other 255 bits (the $y$ coordinate). Therefore, the non-forgeability of assets depends on the infeasibility of finding two $\BlakeTwosGeneric$ preimages that differ only in one (positioned) bit.
+
+The (in)ability to witness the negation of an asset generator is one specific example of the security requirements from the $\pseudoRandomFunction$. This example is a particularly dramatic one, as well, since witnessing a valid asset identifier and the negation of its asset generator will potentially satisfy all constraints in the Output circuit except for a \textit{single bit} equality check (the sign bit). 
+
+It is similarly important that for every pair of asset generators, no discrete log relationship should be feasibly known between them. Otherwise, the non-exchangeability or non-forgeability of those assets become broken; either a positive amount of one asset may be converted into a positive amount of the other asset, or positive amounts of both assets may be created from an overall zero incoming note value (depending on the exact discrete log relationship known). Therefore, a critically important security property of the $\BlakeTwosGeneric$ hash is \textit{Discrete Logarithm Independence} of its outputs interpreted as curve points. As the original $\Sapling$ specification describes, Discrete Logarithm Independence holds almost surely for a random oracle, and is stronger than (and implies) collision resistance. 
+
+For the purposes of analyzing the security of the circuits, the desired security property is that it is infeasible to (adversarially) find two asset identifiers with a known discrete log relationship between their corresponding asset generators. The security of the circuits will be based on that hardness assumption. The security assumption may be weakened by not allowing the asset identifier to be selected entirely freely (e.g. including a randomness beacon, as in the $\Sapling$ $\GroupJHash{}$. 
+
+}
+
 \lsubsection{Multiple Asset Heterogenous Transactions}{multipleassets}
 
-As in the single asset Sapling model, a transaction may consist of some number of incoming notes and some number of outgoing notes (typically at least two of each) such that the sum of values of outgoing (created) notes minus the sum of values of incoming (spent) notes is equal to the change in the total transparent value of the pool. In the case of multiple assets, this sum should be balanced independently across all possible asset types. While every note has only one asset type, it is possible that transactions may contain notes of different asset types (\textit{heterogenous transactions}). The use of homomorphic Pedersen commitments allows the sum to be balanced verifiably outside of the circuits even when the asset types of the notes are unknown.
+As in the single asset $\Sapling$ model, a transaction may consist of some number of incoming notes and some number of outgoing notes (typically at least two of each) such that the sum of values of outgoing (created) notes minus the sum of values of incoming (spent) notes is equal to the change in the total transparent value of the pool. In the case of multiple assets, this sum should be balanced independently across all possible asset types. While every note has only one asset type, it is possible that transactions may contain notes of different asset types (\textit{heterogenous transactions}). The use of homomorphic Pedersen commitments allows the sum to be balanced verifiably outside of the circuits even when the asset types of the notes are unknown.
 
-CAUTION: The circuits accept the value of a $\Note$ as a 64-bit unsigned integer. In addition to this limit on the maximum value of a given note, the external protocol or contract should be aware that issuing large value notes may theoretically allow overflow of the Pedersen commitment. While likely impractical, there is nothing in this specification or these circuits prohibiting transactions with total value exceeding the order of the JubJub curve. This may be addressed outside of the circuit by the implementing protocol or contract.
+\maspaddition{Since every asset generator is prime order, the theoretical possibility exists of overflow of the value field when notes are balanced in a transaction. It is not possible to externally observe overflow, as it may occur even if the value commitments balance. For example, in a transaction, the sum of incoming note values could equal 0, and the sum of outgoing note values could be some integer multiple of the prime order. Opening this transparent value change commitment to $0$ modulo the prime order would violating the desired non-forgeable property. This attack is likely impractical due to the limitation of each note value to an unsigned 64-bit integer; however there is no restriction inside the circuit to prevent overflow. The number of notes used in a transaction should be limited to a safe value to further mitigate this issue. The original Zcash $\Sapling$ protocol addresses this issue by limiting the maximum transaction size. 
+
+Additionally, it should be noted that the binding signature in the original $\Sapling$ protocol only supports a single asset generator, and so only a single asset type can be shielded or unshielded with a nonzero transparent balance change in a given transaction. While this behavior is logical in the single asset shielded pool, in the multiple asset shielded pool this is an unnecessary restriction. Binding signatures for nonzero transparent balance change for multiple assets in a single transaction is a potential feature that can be implemented entirely outside of the circuits.
+}
+
+%CAUTION: The circuits \maspaddition{input} the value of a $\Note$ as a 64-bit unsigned integer. In addition to this limit on the maximum value of a given note, the external protocol or contract should be aware that issuing large value notes may theoretically allow overflow of the Pedersen commitment. While likely impractical, there is nothing in this specification or these circuits prohibiting transactions with total value exceeding the order of the \jubjubCurve. This may be addressed outside of the circuit by the implementing protocol or contract.
 
 \lsubsection{Random beacon}{randombeacon}
 
 Derivation of an asset identifier from a name may include the input of a random beacon, to lower the probability that some party did precomputation on the resulting asset generator prior to the asset name becoming public (or some other point in time). Various preexisting random beacons can be used, or new randomness beacons can be used for this purpose, or even dynamically used every time a new asset type is created.
+
+\maspaddition{Since there is no provision inside of the circuits for an entropy source, all entropy that will be included in the final asset generator must be included in the asset identifier.  A randomness beacon is not used to derive the asset generator from the asset identifier inside the circuit because:
+
+\begin{itemize}
+\item Adding another 32 byte input block to the $\BlakeTwosGeneric$ hash inside the circuit would significantly increase the size of the Output circuit with a corresponding performance penalty.
+\item A 32 byte asset identifier can contain a reasonable amount of entropy from a randomness beacon used to derive the asset identifier; therefore, the entropy from a beacon can be inserted in the asset identifier derivation, outside of the circuit, while still influencing the final asset generator.
+\item The randomness beacon used to (ultimately) derive a particular asset generator does not need to be known at the time of circuit creation. New asset types could use a fresh randomness beacon, or randomness generated in some other way, depending on the specific case.
+\end{itemize}
+
+The randomness beacons used in the original \sapling system are based on hashes of specified bitcoin blocks; subsequently the entropy available from this source has slightly decreased and other randomness beacon sources (e.g. \url{https://blog.cloudflare.com/league-of-entropy/}) have become available.
+}
+
+\maspaddition{
+
+\lsubsection{Personalizations}{personalizations}
+
+The original \Sapling circuits and accompanying out-of-circuit implementations use unique personalizations for each instantiation of a pseudorandom function or collision resistant hash function. Each personalization is an 8 byte string prefixed by the 5 bytes ``Zcash''. The personalizations in the MASP beta demo version of librustzcash are modified to be the exact same strings prefixed by the 5 bytes ``MASP\_'' to add domain separation from the Zcash protocol, with the exceptions of the value base (now ``MASP\_\_v\_''), and of the randomness base (now ``MASP\_\_r\_'') 
+
+}
+
+\maspaddition{
+\lsubsection{Risks}{risks}
+
+The following (non-exhaustive) risks are noted and should be considered in all uses of the MASP demo:
+
+\begin{itemize}
+\item The use of non-constant time operations such as rejection sampling could allow side channel attacks and information leakage
+\item The Discrete Log Independence assumption necessary for non-forgeability and non-exchangeability properties of a given asset may not hold, either because of implementation errors or because the assumptions are false for the $\pseudoRandomFunction$ used.
+\item Other newly introduced implementation errors from the incorrect use of existing circuit constructs or gadgets 
+\item Unintentional and unexpected behavior of the $\Sapling$ protocol when used in a multiple asset context
+\item Unintentional and unexpected behavior of the $\Sapling$ protocol when used with assets with unlimited token issuance
+\item Potential unknown design or implementation flaws preexisting in the $\Sapling$ protocol
+\item Failure of the trusted setup process if Groth16 is used as the proving scheme for the Spend and Output circuits
+\item High levels of effort required to patch even minor bugs in the Spend and Output circuits, because of the repeated trusted setup required
+\item Catastrophic failures of even minor bugs, since bugs may be actively exploited for an indefinite period of time without publicly discovery, because of the zero knowledge properties of the proving system.
+\item Bugs or vulnerabilities may not be publicly discovered until the entire shielded pool has been drained of assets
+\item Privacy may be compromised by side channel attacks, information leakage, metadata and traffic analysis of transactions, payment of transparent fees to use the shielded pool, and other potential sources of information
+\end{itemize}
+
+}
 
 \lsubsection{\Notes}{notes}
 
@@ -2310,7 +2428,7 @@ on the \blockchain.
 \introlist
 Let $\DiversifyHash$ be as defined in the original \Sapling specification. %\crossref{concretediversifyhash}.
 
-A \Sapling{} \noteCommitment on a \note 
+A \Sapling{} \noteCommitment on a \note  
 \masp{$\NoteTuple{} = (\Diversifier, \DiversifiedTransmitPublic, \Value, \NoteCommitRand, \NoteToken)$} is computed as
 
 \begin{formulae}
@@ -2431,7 +2549,7 @@ performs the following steps:
         \end{tabular}
 
 \masp{
-  \item Check that $\scalarmult{\ParamJ{h}} {\PRFvcgMASP{\NoteToken}}$ is of type $\KASaplingPublicPrimeOrder$, i.e.\ it
+  \item Check that $\scalarmult{\ParamJ{h}} { \reprJ(\PRFvcgMASP{\NoteToken})}$ is of type $\KASaplingPublicPrimeOrder$, i.e.\ it
         is a valid \ctEdwardsCurve point on the \jubjubCurve (as defined in the original \Sapling specification)
         not equal to $\ZeroJ$.  If it is equal to $\ZeroJ$, $\NoteToken$ is an invalid \textit{asset identifier}. 
         
@@ -2439,7 +2557,7 @@ performs the following steps:
         \begin{tabular}{@{\hskip 2em}r@{\;}l}
 %          $\cvNew{}$ &$:= \ValueCommit{\ValueCommitRandNew{}}(\ValueNew{})$ \\[1ex]$
 	$\NoteValueBase$ &$:= \reprJ(\PRFvcgMASP{\NoteToken}) $\\[1ex]
-          $\cvNew{}$ &$:= \scalarmult{\ValueNew{}\ParamJ{h}}{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \GroupJHash{\URS}\Of{\ascii{tzMASP\_r},\ascii{r}}} $ \\[1ex]
+          $\cvNew{}$ &$:= \scalarmult{\ValueNew{}\ParamJ{h}}{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $ \\[1ex]
           $\cmNew{}$ &$:= \NoteCommitSapling{\NoteCommitRandNew{}}(\reprJ\Of{\DiversifiedTransmitBase},
                                                                    \reprJ\Of{\DiversifiedTransmitPublic},
                                                                    \ValueNew{},\NoteValueBase)$
@@ -2468,7 +2586,7 @@ scope of this specification. The encoded \transaction is submitted to the networ
 } %sapling
 
 
-\introsection
+%\introsection
 \lsubsection{\DummyNotes}{\sprout{sproutdummynotes}\notsprout{dummynotes}}
 
 \sapling{
@@ -2500,7 +2618,7 @@ A \dummy{} \Sapling input \note is constructed as follows:
                                     = \NoteCommitSapling{\NoteCommitRand}(\reprJ\Of{\DiversifiedTransmitBase},
                                                                           \reprJ\Of{\DiversifiedTransmitPublic},
                                                                           \vOld{},
-                                                                           \GroupJHash{\URS}\Of{\ascii{tzMASP\_r},\ascii{r}})$.}
+                                                                           \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}})$.}
   \item Compute $\nfOld{} = \PRFnfSapling{\AuthProvePublicRepr}(\reprJ(\NoteAddressRand))$.
   \item Construct a \dummy \merklePath $\TreePath{}$ for use in the
         \auxiliaryInput to the \spendStatement (this will not be checked, because $\vOld{} = 0$).
@@ -2945,7 +3063,7 @@ as defined in the original \Sapling specification, from $\cmU = \ExtractJ(\cmOld
 
 \snarkcondition{Value commitment integrity}{spendvaluecommitmentintegrity}
 %$\cvOld{} = \ValueCommit{\ValueCommitRandOld{}}(\vOld{})$.
-\masp{$\cvOld{} = \scalarmult{\ValueNew{} \ParamJ{h} }{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \GroupJHash{\URS}\Of{\ascii{tzMASP\_r},\ascii{r}}} $}
+\masp{$\cvOld{} = \scalarmult{\ValueNew{} \ParamJ{h} }{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $}
 
 \snarkcondition{Small order checks}{spendnonsmall}
 $\DiversifiedTransmitBase$ and $\AuthSignPublic$ \masp{and $\NoteValueBase$}
@@ -2992,7 +3110,7 @@ $\DiversifiedTransmitPublic = \scalarmult{\InViewingKey}{\DiversifiedTransmitBas
         ($\AuthSignBase$ is as defined in the original \Sapling specifcation.)
         
         \item \masp{
-        Note that the asset identifier is \textit{not} witnessed in the \SpendStatement. Since the validity of $\NoteValueBase$ is witnessed in the \OutputStatement and included in the \Note commitment, the asset generator is validated when the \Note commitment is validated.
+        Note that the asset identifier is \textit{not} witnessed in the $\SpendStatement$. Since the validity of $\NoteValueBase$ is witnessed in the $\OutputStatement$ and included in the $\Note$ commitment, the asset generator is validated when the $\Note$ commitment is validated.
         }
 \end{pnotes}
 } %sapling
@@ -3042,7 +3160,7 @@ where $\DiversifiedTransmitBaseRepr = \reprJ\Of{\DiversifiedTransmitBase}$\,.
 
 \snarkcondition{Value commitment integrity}{outputvaluecommitmentintegrity}
 %$\cvNew{} = \ValueCommit{\ValueCommitRandNew{}}(\vNew{})$.
-\masp{$\cvNew{} =  \scalarmult{\ValueNew{} \ParamJ{h}}{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \GroupJHash{\URS}\Of{\ascii{tzMASP\_r},\ascii{r}}} $  }
+\masp{$\cvNew{} =  \scalarmult{\ValueNew{} \ParamJ{h}}{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $  }
 
 \masp{
 \snarkcondition{Value base integrity}{outputvaluebaseintegrity}

@@ -27,7 +27,7 @@ Makefile.uptodate: Makefile
 	$(MAKE) clean
 	touch Makefile.uptodate
 
-sapling.pdf: protocol.tex zcash.bib incremental_merkle.png key_components_sapling.png
+sapling.pdf: protocol.tex #zcash.bib incremental_merkle.png key_components_sapling.png
 	$(MAKE) sapling
 
 .PHONY: auxsapling
