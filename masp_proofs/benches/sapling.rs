@@ -35,12 +35,14 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("sapling", |b| {
         let value_commitment = ValueCommitment {
+            // asset_generator: jubjub::ExtendedPoint::identity(),
+            asset_generator: jubjub::ExtendedPoint::random(rng.clone()),
             value: 1,
-            randomness: jubjub::Fr::random(rng),
+            randomness: jubjub::Fr::random(rng.clone()),
         };
 
-        let nsk = jubjub::Fr::random(rng);
-        let ak = jubjub::SubgroupPoint::random(rng);
+        let nsk = jubjub::Fr::random(rng.clone());
+        let ak = jubjub::SubgroupPoint::random(rng.clone());
 
         let proof_generation_key = ProofGenerationKey {
             ak: ak.clone(),
@@ -64,11 +66,11 @@ fn criterion_benchmark(c: &mut Criterion) {
             }
         }
 
-        let commitment_randomness = jubjub::Fr::random(rng);
+        let commitment_randomness = jubjub::Fr::random(rng.clone());
         let auth_path =
-            vec![Some((bls12_381::Scalar::random(rng), rng.next_u32() % 2 != 0)); TREE_DEPTH];
-        let ar = jubjub::Fr::random(rng);
-        let anchor = bls12_381::Scalar::random(rng);
+            vec![Some((bls12_381::Scalar::random(rng.clone()), rng.clone().next_u32() % 2 != 0)); TREE_DEPTH];
+        let ar = jubjub::Fr::random(rng.clone());
+        let anchor = bls12_381::Scalar::random(rng.clone());
 
         b.iter(|| {
             create_random_proof(
