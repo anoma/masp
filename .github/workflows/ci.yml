@@ -173,3 +173,16 @@ jobs:
         with:
           command: doc
           args: --all --document-private-items
+
+  security:
+    name: Security - Cargo Audit
+    runs-on: ubuntu-latest
+    container:
+      image: rustlang/rust:nightly
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+    - name: Cargo Audit
+      run: cargo audit
+
