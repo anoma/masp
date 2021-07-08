@@ -92,7 +92,7 @@ fn sapling_generators() {
         asset_name.as_ptr(),
         33,
         &mut identifier_result,
-        &mut nonce_result as *mut i32
+        &mut nonce_result as &mut i32
     ));
     assert_eq!(
         identifier_result,
