@@ -92,7 +92,7 @@ fn sapling_generators() {
         asset_name.as_ptr(),
         33,
         &mut identifier_result,
-        &mut nonce_result as *mut u8
+        &mut nonce_result as *mut i32
     ));
     assert_eq!(
         identifier_result,
@@ -109,7 +109,7 @@ fn sapling_generators() {
     assert!(libmasp_asset_from_name_and_nonce(
         asset_name.as_ptr(),
         33,
-        nonce_result,
+        nonce_result as i32,
         &mut identifier_result_2
     ));
 
