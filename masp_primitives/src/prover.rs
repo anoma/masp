@@ -23,7 +23,7 @@ pub trait TxProver {
     /// [`SpendDescription`], while accumulating its value commitment randomness inside
     /// the context for later use.
     ///
-    /// [`SpendDescription`]: crate::transaction::components::SpendDescription
+    /// [`SpendDescription`]: zcash_primitives::transaction::components::SpendDescription
     fn spend_proof(
         &self,
         ctx: &mut Self::SaplingProvingContext,
