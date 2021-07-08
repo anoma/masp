@@ -41,7 +41,7 @@ pub trait TxProver {
     /// while accumulating its value commitment randomness inside the context for later
     /// use.
     ///
-    /// [`OutputDescription`]: crate::transaction::components::OutputDescription
+    /// [`OutputDescription`]: zcash_primitives::transaction::components::OutputDescription
     fn output_proof(
         &self,
         ctx: &mut Self::SaplingProvingContext,
