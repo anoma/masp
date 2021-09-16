@@ -93,7 +93,7 @@ impl Hashable for Node {
 
 impl From<Node> for bls12_381::Scalar {
     fn from(node: Node) -> Self {
-        bls12_381::Scalar::from_repr(node.repr).expect("Tree nodes should be in the prime field")
+        bls12_381::Scalar::from_repr(node.repr).unwrap()
     }
 }
 

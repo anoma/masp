@@ -459,7 +459,7 @@ impl Circuit<bls12_381::Scalar> for Output {
             // Witness the sign bit
             let sign_bit = boolean::Boolean::from(boolean::AllocatedBit::alloc(
                 cs.namespace(|| "pk_d bit of u"),
-                pk_d.map(|e| e.get_u().is_odd()),
+                pk_d.map(|e| e.get_u().is_odd().into()),
             )?);
 
             // Extend the note with pk_d representation
@@ -512,7 +512,7 @@ impl Circuit<bls12_381::Scalar> for Output {
 #[test]
 fn test_input_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use ff::Field;
+    use ff::{Field, PrimeFieldBits};
     use group::Group;
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
@@ -595,10 +595,14 @@ fn test_input_circuit_with_bls12_381() {
 
                 cur = jubjub::ExtendedPoint::from(pedersen_hash::pedersen_hash(
                     pedersen_hash::Personalization::MerkleTree(i),
-                    lhs.into_iter()
+                    lhs.iter()
+                        .by_val()
                         .take(bls12_381::Scalar::NUM_BITS as usize)
-                        .chain(rhs.into_iter().take(bls12_381::Scalar::NUM_BITS as usize))
-                        .cloned(),
+                        .chain(
+                            rhs.iter()
+                                .by_val()
+                                .take(bls12_381::Scalar::NUM_BITS as usize),
+                        ),
                 ))
                 .to_affine()
                 .get_u();
@@ -658,7 +662,7 @@ fn test_input_circuit_with_bls12_381() {
 #[test]
 fn test_input_circuit_with_bls12_381_external_test_vectors() {
     use bellman::gadgets::test::*;
-    use ff::Field;
+    use ff::{Field, PrimeFieldBits};
     use group::Group;
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
@@ -703,7 +707,7 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
     for i in 0..10 {
         let value_commitment = ValueCommitment {
             value: i,
-            randomness: jubjub::Fr::from_str(&(1000 * (i + 1)).to_string()).unwrap(),
+            randomness: jubjub::Fr::from_str_vartime(&(1000 * (i + 1)).to_string()).unwrap(),
         };
 
         let nsk = jubjub::Fr::random(&mut rng);
@@ -743,11 +747,11 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
                 jubjub::ExtendedPoint::from(value_commitment.commitment()).to_affine();
             assert_eq!(
                 expected_value_commitment.get_u(),
-                bls12_381::Scalar::from_str(&expected_commitment_us[i as usize]).unwrap()
+                bls12_381::Scalar::from_str_vartime(&expected_commitment_us[i as usize]).unwrap()
             );
             assert_eq!(
                 expected_value_commitment.get_v(),
-                bls12_381::Scalar::from_str(&expected_commitment_vs[i as usize]).unwrap()
+                bls12_381::Scalar::from_str_vartime(&expected_commitment_vs[i as usize]).unwrap()
             );
             let note = Note {
                 value: value_commitment.value,
@@ -775,10 +779,14 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
 
                 cur = jubjub::ExtendedPoint::from(pedersen_hash::pedersen_hash(
                     pedersen_hash::Personalization::MerkleTree(i),
-                    lhs.into_iter()
+                    lhs.iter()
+                        .by_val()
                         .take(bls12_381::Scalar::NUM_BITS as usize)
-                        .chain(rhs.into_iter().take(bls12_381::Scalar::NUM_BITS as usize))
-                        .cloned(),
+                        .chain(
+                            rhs.iter()
+                                .by_val()
+                                .take(bls12_381::Scalar::NUM_BITS as usize),
+                        ),
                 ))
                 .to_affine()
                 .get_u();
