@@ -145,7 +145,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: tarpaulin
-          args: --release --timeout 600 --out Xml
+          args: --release --timeout 600 --out Xml --avoid-cfg-tarpaulin
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1.0.3
         with:
