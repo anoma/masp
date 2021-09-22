@@ -86,14 +86,13 @@ fn sapling_generators() {
 
     let asset_name: [c_uchar; 33] = *b"libmasp_new_asset_identifier test";
     let mut identifier_result: [c_uchar; ASSET_IDENTIFIER_LENGTH] = [0u8; ASSET_IDENTIFIER_LENGTH];
-    let nonce_result = 0u8;
+    let mut nonce_result = 0i32;
 
     assert!(libmasp_new_asset_identifier(
         asset_name.as_ptr(),
         33,
         &mut identifier_result,
-        // &mut nonce_result as &mut i32:from(nonce_result)
-        &mut i32::from(nonce_result) //as &mut i32
+        &mut nonce_result as *mut i32
     ));
     assert_eq!(
         identifier_result,

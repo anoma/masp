@@ -1,7 +1,7 @@
 [package]
 name = "libmasp"
 description = "Rust experimental MASP FFI"
-version = "0.2.0"
+version = "0.2.1"
 authors = [
     "Sean Bowe <ewillbefull@gmail.com>",
     "Jack Grigg <jack@z.cash>",
@@ -21,21 +21,21 @@ path = "src/rustmasp.rs"
 crate-type = ["staticlib"]
 
 [dependencies]
-bellman = { version = "0.8", default-features = false, features = ["groth16"] }
+bellman = { version = "0.11.1", default-features = false, features = ["groth16"] }
 blake2b_simd = "0.5"
 blake2s_simd = "0.5"
-bls12_381 = "0.3.1"
-ff = "0.8"
-group = "0.8"
-jubjub = "0.5.1"
+bls12_381 = "0.6"
+ff = "0.11"
+group = "0.11"
+jubjub = "0.8"
 libc = "0.2"
 lazy_static = "1"
-rand_core = "0.5.1"
+rand_core = "0.6"
 zcash_primitives = { path = "../zcash_primitives" }
 masp_primitives = { path = "../masp_primitives" }
 masp_proofs = { path = "../masp_proofs" }
 itertools = "0.9"
-subtle = "2.2.1"
+subtle = "2.2.3"
 
 [badges]
 maintenance = { status = "actively-developed" }

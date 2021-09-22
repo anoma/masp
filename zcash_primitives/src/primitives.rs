@@ -73,7 +73,7 @@ impl ViewingKey {
         // Drop the most significant five bits, so it can be interpreted as a scalar.
         h[31] &= 0b0000_0111;
 
-        jubjub::Fr::from_repr(h).expect("should be a valid scalar")
+        Option::from(jubjub::Fr::from_repr(h)).expect("should be a valid scalar")
     }
 
     pub fn to_payment_address(&self, diversifier: Diversifier) -> Option<PaymentAddress> {

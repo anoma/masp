@@ -380,7 +380,7 @@ fn parse_note_plaintext_without_memo<P: consensus::Parameters>(
         .expect("slice is the correct length");
 
     let rseed = if plaintext[0] == 0x01 {
-        let rcm = jubjub::Fr::from_repr(r)?;
+        let rcm = Option::from(jubjub::Fr::from_repr(r))?;
         Rseed::BeforeZip212(rcm)
     } else {
         Rseed::AfterZip212(r)
@@ -534,11 +534,11 @@ pub fn try_sapling_output_recovery_with_ock<P: consensus::Parameters>(
         pk_d.unwrap()
     };
 
-    let esk = jubjub::Fr::from_repr(
+    let esk = Option::from(jubjub::Fr::from_repr(
         op[32..OUT_PLAINTEXT_SIZE]
             .try_into()
             .expect("slice is the correct length"),
-    )?;
+    ))?;
 
     let shared_secret = sapling_ka_agree(&esk, &pk_d.into());
     let key = kdf_sapling(shared_secret, &epk);
@@ -572,7 +572,7 @@ pub fn try_sapling_output_recovery_with_ock<P: consensus::Parameters>(
         .expect("slice is the correct length");
 
     let rseed = if plaintext[0] == 0x01 {
-        let rcm = jubjub::Fr::from_repr(r)?;
+        let rcm = Option::from(jubjub::Fr::from_repr(r))?;
         Rseed::BeforeZip212(rcm)
     } else {
         Rseed::AfterZip212(r)
