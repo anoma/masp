@@ -54,10 +54,8 @@ jobs:
       - name: Fetch path to Zcash parameters
         working-directory: ./zcash_proofs
         run: echo "ZCASH_PARAMS=$(cargo run --release --example get-params-path --features directories)" >> $GITHUB_ENV
-      - name: Debug github_env
-        run: echo "GITHUB_ENV is ${GITHUB_ENV}"
-      - name: Debug env.zcash_params
-        run: echo ${{ env.ZCASH_PARAMS }}
+      - name: Debug zcash_params_cmd
+        run: echo "GITHUB_ENV is ${cargo run --release --example get-params-path --features directories}"
       - name: Cache Zcash parameters
         id: cache-params
         uses: actions/cache@v2
@@ -134,10 +132,8 @@ jobs:
       - name: Fetch path to Zcash parameters
         working-directory: ./zcash_proofs
         run: echo "ZCASH_PARAMS=$(cargo run --release --example get-params-path --features directories)" >> $GITHUB_ENV; echo $GITHUB_ENV
-      - name: Debug github_env
-        run: echo "GITHUB_ENV is ${GITHUB_ENV}"
-      - name: Debug env.zcash_params
-        run: echo ${{ env.ZCASH_PARAMS }}
+      - name: Debug zcash_params_cmd
+        run: echo "GITHUB_ENV is ${cargo run --release --example get-params-path --features directories}"
       - name: Cache Zcash parameters
         id: cache-params
         uses: actions/cache@v2
