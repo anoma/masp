@@ -21,7 +21,7 @@ blake2b_simd = "=0.5"
 bls12_381 = "=0.6"
 byteorder = "=1"
 directories = { version = "=3", optional = true }
-ff = "=0.11"
+ff = "0.11"
 group = "=0.11"
 itertools = "=0.9"
 jubjub = "=0.8"
