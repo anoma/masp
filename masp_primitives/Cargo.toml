@@ -16,33 +16,33 @@ edition = "2018"
 all-features = true
 
 [dependencies]
-aes = "0.7"
-bitvec = "0.22"
-blake2b_simd = "0.5"
-blake2s_simd = "0.5"
-bls12_381 = "0.6"
-byteorder = "1"
-crypto_api_chachapoly = "0.4"
-equihash = { version = "0.1", path = "../components/equihash" }
-ff = "0.11"
-fpe = "0.5"
-group = "0.11"
-hex = "0.4"
-jubjub = "0.8"
-lazy_static = "1"
-log = "0.4"
-rand = "0.8"
-rand_core = "0.6"
-ripemd160 = { version = "0.9", optional = true }
-secp256k1 = { version = "0.20", optional = true }
-sha2 = "0.9"
-subtle = "2.2.3"
+aes = "=0.7"
+bitvec = "=0.22"
+blake2b_simd = "=0.5"
+blake2s_simd = "=0.5"
+bls12_381 = "=0.6"
+byteorder = "=1"
+crypto_api_chachapoly = "=0.4"
+equihash = { version = "=0.1", path = "../components/equihash" }
+ff = "=0.11"
+fpe = "=0.5"
+group = "=0.11"
+hex = "=0.4"
+jubjub = "=0.8"
+lazy_static = "=1"
+log = "=0.4"
+rand = "=0.8"
+rand_core = "=0.6"
+ripemd160 = { version = "=0.9", optional = true }
+secp256k1 = { version = "=0.20", optional = true }
+sha2 = "=0.9"
+subtle = "=2.2.3"
 zcash_primitives = { path = "../zcash_primitives" }
 
 [dev-dependencies]
-criterion = "0.3"
-hex-literal = "0.3"
-rand_xorshift = "0.3"
+criterion = "=0.3"
+hex-literal = "=0.3"
+rand_xorshift = "=0.3"
 
 [features]
 transparent-inputs = ["ripemd160", "secp256k1"]
