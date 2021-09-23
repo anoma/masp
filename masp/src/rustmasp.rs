@@ -976,7 +976,7 @@ pub extern "C" fn libmasp_new_asset_identifier(
     name: *const c_uchar,
     name_length: size_t,
     identifier_result: *mut [c_uchar; ASSET_IDENTIFIER_LENGTH],
-    nonce_result: *mut i32,
+    nonce_result: *mut u8,
 ) -> bool {
     let asset_type = match AssetType::new(&unsafe { std::slice::from_raw_parts(name, name_length) })
     {
@@ -1000,7 +1000,7 @@ pub extern "C" fn libmasp_new_asset_identifier(
 pub extern "C" fn libmasp_asset_from_name_and_nonce(
     name: *const c_uchar,
     name_length: size_t,
-    nonce: i32,
+    nonce: u8,
     result: *mut [c_uchar; ASSET_IDENTIFIER_LENGTH],
 ) -> bool {
     if let Some(asset_type) = AssetType::new_with_nonce(

@@ -102,15 +102,15 @@ mod tests {
     fn edwards_d() {
         // d = -(10240/10241)
         assert_eq!(
-            -Scalar::from_str("10240").unwrap()
-                * Scalar::from_str("10241").unwrap().invert().unwrap(),
+            -Scalar::from_str_vartime("10240").unwrap()
+                * Scalar::from_str_vartime("10241").unwrap().invert().unwrap(),
             EDWARDS_D
         );
     }
 
     #[test]
     fn montgomery_a() {
-        assert_eq!(Scalar::from_str("40962").unwrap(), MONTGOMERY_A);
+        assert_eq!(Scalar::from_str_vartime("40962").unwrap(), MONTGOMERY_A);
     }
 
     #[test]
