@@ -42,7 +42,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        # os: [ubuntu-latest, windows-latest, macOS-latest]
+        os: [ubuntu-latest, macOS-latest]
 
     steps:
       - uses: actions/checkout@v1
@@ -129,7 +130,7 @@ jobs:
 
       - name: Fetch path to Zcash parameters
         working-directory: ./masp_proofs
-        run: echo "ZCASH_PARAMS=$(cargo run --release --example get-params-path --features directories)" >> $GITHUB_ENV; echo $GITHUB_ENV
+        run: echo "ZCASH_PARAMS=$(cargo run --release --example get-params-path --features directories)" >> $GITHUB_ENV
       - name: Debug zcash_params_cmd
         run: echo "..is $(cargo run --release --example get-params-path --features directories)"
       - name: Cache Zcash parameters
