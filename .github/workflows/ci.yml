@@ -52,10 +52,8 @@ jobs:
           override: true
 
       - name: Fetch path to Zcash parameters
-        working-directory: ./zcash_proofs
+        working-directory: ./masp_proofs
         run: echo "ZCASH_PARAMS=$(cargo run --release --example get-params-path --features directories)" >> $GITHUB_ENV
-      - name: Debug zcash_params_cmd
-        run: echo "..is $(cargo run --release --example get-params-path --features directories)"
       - name: Cache Zcash parameters
         id: cache-params
         uses: actions/cache@v2
@@ -130,7 +128,7 @@ jobs:
           args: cargo-tarpaulin
 
       - name: Fetch path to Zcash parameters
-        working-directory: ./zcash_proofs
+        working-directory: ./masp_proofs
         run: echo "ZCASH_PARAMS=$(cargo run --release --example get-params-path --features directories)" >> $GITHUB_ENV; echo $GITHUB_ENV
       - name: Debug zcash_params_cmd
         run: echo "..is $(cargo run --release --example get-params-path --features directories)"
