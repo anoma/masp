@@ -9,7 +9,7 @@ use group::{cofactor::CofactorGroup, Group, GroupEncoding};
 #[derive(Debug)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
-    nonce: Option<u8>,
+    nonce: Option<i32>,
 }
 
 // Abstract type representing an asset
@@ -17,7 +17,7 @@ impl AssetType {
     /// Create a new AsstType from a unique asset name
     /// Not constant-time, uses rejection sampling
     pub fn new(name: &[u8]) -> Result<AssetType, ()> {
-        let mut nonce = 0u8;
+        let mut nonce = 0;
         loop {
             if let Some(asset_type) = AssetType::new_with_nonce(name, nonce) {
                 return Ok(asset_type);
@@ -28,9 +28,7 @@ impl AssetType {
 
     /// Attempt to create a new AssetType from a unique asset name and fixed nonce
     /// Not yet constant-time; assume not-constant-time
-    pub fn new_with_nonce(name: &[u8], nonce: u8) -> Option<AssetType> {
-        use std::slice::from_ref;
-
+    pub fn new_with_nonce(name: &[u8], nonce: i32) -> Option<AssetType> {
         // Check the personalization is acceptable length
         assert_eq!(ASSET_IDENTIFIER_PERSONALIZATION.len(), 8);
 
@@ -41,7 +39,7 @@ impl AssetType {
             .to_state()
             .update(GH_FIRST_BLOCK)
             .update(&name)
-            .update(from_ref(&nonce))
+            .update(&nonce.to_le_bytes())
             .finalize();
 
         // If the hash state is a valid asset identifier, use it
@@ -135,7 +133,7 @@ impl AssetType {
         }
     }
 
-    pub fn get_nonce(&self) -> Option<u8> {
+    pub fn get_nonce(&self) -> Option<i32> {
         return self.nonce;
     }
 }
