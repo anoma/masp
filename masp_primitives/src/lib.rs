@@ -1,7 +1,7 @@
-//! *General Zcash primitives.*
+//! *General MASP primitives.*
 //!
-//! `zcash_primitives` is a library that provides the core structs and functions necessary
-//! for working with Zcash.
+//! `masp_primitives` is a library that provides the core structs and functions necessary
+//! for working with MASP based on Zcash Sapling.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 // Catch documentation errors caused by code changes.
@@ -11,7 +11,6 @@ pub mod asset_type;
 pub mod constants;
 pub mod keys;
 pub mod merkle_tree;
-//pub mod note_encryption;
 pub mod pedersen_hash;
 pub mod primitives;
 pub mod prover;
