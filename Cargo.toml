@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "masp",
-    "components/equihash",
     "masp_proofs",
     "masp_primitives",
     "zcash_primitives",

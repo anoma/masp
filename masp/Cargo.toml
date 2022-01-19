@@ -7,10 +7,10 @@ authors = [
     "Jack Grigg <jack@z.cash>",
     "Jay Graber <jay@z.cash>",
     "Simon Liu <simon@z.cash>",
-    "joe <joe@cryptium.ch>"
+    "joe <joe@heliax.dev>"
 ]
-#homepage = "https://github.com/zcash/librustzcash"
-#repository = "https://github.com/zcash/librustzcash"
+homepage = "https://github.com/anoma/masp"
+repository = "https://github.com/anoma/masp"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 edition = "2018"

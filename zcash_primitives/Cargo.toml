@@ -22,7 +22,7 @@ blake2s_simd = "0.5"
 bls12_381 = "0.6"
 byteorder = "1"
 crypto_api_chachapoly = "0.4"
-equihash = { version = "0.1", path = "../components/equihash" }
+equihash = { version = "0.1", git = "https://github.com/zcash/librustzcash/" }
 ff = "0.11"
 fpe = "0.5"
 group = "0.11"

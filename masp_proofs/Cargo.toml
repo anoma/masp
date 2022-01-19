@@ -1,13 +1,13 @@
 [package]
 name = "masp_proofs"
 description = "Experimental MASP zk-SNARK circuits and proving APIs, based on zcash_proofs"
-version = "0.4.0"
+version = "0.4.2"
 authors = [
     "Jack Grigg <jack@z.cash>",
-    "joe <joe@cryptium.ch>",
+    "joe <joe@heliax.dev>",
 ]
-#homepage = "https://github.com/zcash/librustzcash"
-#repository = "https://github.com/zcash/librustzcash"
+homepage = "https://github.com/anoma/masp"
+repository = "https://github.com/anoma/masp"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 edition = "2018"
@@ -17,10 +17,10 @@ all-features = true
 
 [dependencies]
 bellman = { version = "0.11.1", default-features = false, features = ["groth16"] }
-blake2b_simd = "0.5"
+blake2b_simd = "1.0.0"
 bls12_381 = "0.6"
 byteorder = "1"
-directories = { version = "3", optional = true }
+directories = { version = "4.0.1", optional = true }
 ff = "0.11"
 group = "0.11"
 itertools = "0.10.1"
