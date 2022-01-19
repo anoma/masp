@@ -6,7 +6,8 @@ use bls12_381::Bls12;
 use criterion::Criterion;
 use ff::Field;
 use group::Group;
-use masp_primitives::primitives::{Diversifier, ProofGenerationKey, ValueCommitment};
+use masp_primitives::asset_type::AssetType;
+use masp_primitives::primitives::{Diversifier, ProofGenerationKey};
 use masp_proofs::circuit::sapling::Spend;
 use rand_core::{RngCore, SeedableRng};
 use rand_xorshift::XorShiftRng;
@@ -14,7 +15,7 @@ use rand_xorshift::XorShiftRng;
 const TREE_DEPTH: usize = 32;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let rng = &mut XorShiftRng::from_seed([
+    let mut rng = XorShiftRng::from_seed([
         0x59, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
         0xe5,
     ]);
@@ -29,18 +30,17 @@ fn criterion_benchmark(c: &mut Criterion) {
             auth_path: vec![None; TREE_DEPTH],
             anchor: None,
         },
-        rng,
+        &mut rng,
     )
     .unwrap();
 
     c.bench_function("sapling", |b| {
-        let value_commitment = ValueCommitment {
-            value: 1,
-            randomness: jubjub::Fr::random(rng),
-        };
+        let value_commitment = AssetType::new(b"benchmark")
+            .unwrap()
+            .value_commitment(1, jubjub::Fr::random(&mut rng));
 
-        let nsk = jubjub::Fr::random(rng);
-        let ak = jubjub::SubgroupPoint::random(rng);
+        let nsk = jubjub::Fr::random(&mut rng);
+        let ak = jubjub::SubgroupPoint::random(&mut rng);
 
         let proof_generation_key = ProofGenerationKey {
             ak: ak.clone(),
@@ -64,11 +64,11 @@ fn criterion_benchmark(c: &mut Criterion) {
             }
         }
 
-        let commitment_randomness = jubjub::Fr::random(rng);
+        let commitment_randomness = jubjub::Fr::random(&mut rng);
         let auth_path =
-            vec![Some((bls12_381::Scalar::random(rng), rng.next_u32() % 2 != 0)); TREE_DEPTH];
-        let ar = jubjub::Fr::random(rng);
-        let anchor = bls12_381::Scalar::random(rng);
+            vec![Some((bls12_381::Scalar::random(&mut rng), rng.next_u32() % 2 != 0)); TREE_DEPTH];
+        let ar = jubjub::Fr::random(&mut rng);
+        let anchor = bls12_381::Scalar::random(&mut rng);
 
         b.iter(|| {
             create_random_proof(
@@ -82,7 +82,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                     anchor: Some(anchor),
                 },
                 &groth_params,
-                rng,
+                &mut rng,
             )
         });
     });

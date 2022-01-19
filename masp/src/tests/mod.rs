@@ -22,7 +22,7 @@ fn sapling_generators() {
         wprb: [u8; 32],
         vcvb: [u8; 32],
         vcrb: [u8; 32],
-    };
+    }
 
     // From https://github.com/zcash-hackworks/zcash-test-vectors/blob/master/sapling_generators.py
     let sapling_generators = SaplingGenerators {
@@ -86,13 +86,13 @@ fn sapling_generators() {
 
     let asset_name: [c_uchar; 33] = *b"libmasp_new_asset_identifier test";
     let mut identifier_result: [c_uchar; ASSET_IDENTIFIER_LENGTH] = [0u8; ASSET_IDENTIFIER_LENGTH];
-    let mut nonce_result = 0i32;
+    let mut nonce_result = 0u8;
 
     assert!(libmasp_new_asset_identifier(
         asset_name.as_ptr(),
         33,
         &mut identifier_result,
-        &mut nonce_result as *mut i32
+        &mut nonce_result as *mut u8
     ));
     assert_eq!(
         identifier_result,

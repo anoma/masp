@@ -34,7 +34,7 @@ rand_core = "0.6"
 zcash_primitives = { path = "../zcash_primitives" }
 masp_primitives = { path = "../masp_primitives" }
 masp_proofs = { path = "../masp_proofs" }
-itertools = "0.9"
+itertools = "0.10.1"
 subtle = "2.2.3"
 
 [badges]

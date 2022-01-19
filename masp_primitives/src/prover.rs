@@ -71,7 +71,7 @@ pub(crate) mod mock {
     use crate::{
         asset_type::AssetType,
         constants::SPENDING_KEY_GENERATOR,
-        primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed, ValueCommitment},
+        primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
     };
 
     use crate::{

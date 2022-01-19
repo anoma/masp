@@ -23,7 +23,7 @@ byteorder = "1"
 directories = { version = "3", optional = true }
 ff = "0.11"
 group = "0.11"
-itertools = "0.9"
+itertools = "0.10.1"
 jubjub = "0.8"
 lazy_static = "1"
 minreq = { version = "2", features = ["https"], optional = true }
