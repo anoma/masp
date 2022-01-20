@@ -7,27 +7,27 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![1, 1, 1, 1, 1, 1],
-            hash_u: "0x06b1187c11ca4fb4383b2e0d0dbbde3ad3617338b5029187ec65a5eaed5e4d0b",
-            hash_v: "0x3ce70f536652f0dea496393a1e55c4e08b9d55508e16d11e5db40d4810cbc982",
+            hash_u: "0x688ceb7437fd0d16cca7cad37c0a7c3869895e406a81a31b1861b909275bfc88",
+            hash_v: "0x502192be198774a4f7406fd7b8a8b43af5aa3bcd8b7e78a8226932000808d402",
         },
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![1, 1, 1, 1, 1, 1, 0],
-            hash_u: "0x2fc3bc454c337f71d4f04f86304262fcbfc9ecd808716b92fc42cbe6827f7f1a",
-            hash_v: "0x46d0d25bf1a654eedc6a9b1e5af398925113959feac31b7a2c036ff9b9ec0638",
+            hash_u: "0x234451cd80d13cd6d1385e9d4cb882cbdb18f26685e3e7bd24dc2369430afeb9",
+            hash_v: "0x05a9ce5e558cdc9194ffa8b9d832b99825ca4f51ae12c4f077c457db30c91065",
         },
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![1, 1, 1, 1, 1, 1, 1],
-            hash_u: "0x4f8ce0e0a9e674b3ab9606a7d7aefba386e81583d81918127814cde41d209d97",
-            hash_v: "0x312b5ab93b14c9b9af334fe1fe3c50fffb53fbd074fa40ca600febde7c97e346",
-        },
+            hash_u: "0x6b272b824bc986b0173fc09a455edca0a5d22768a98fb7192444712ef32808be",
+            hash_v: "0x634d7c334a5e088291e3f870fc1218a5da828d2bd503e824e27caec308351a38",
+                    },
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![1, 1, 1, 1, 1, 1, 1, 0, 0],
-            hash_u: "0x4f8ce0e0a9e674b3ab9606a7d7aefba386e81583d81918127814cde41d209d97",
-            hash_v: "0x312b5ab93b14c9b9af334fe1fe3c50fffb53fbd074fa40ca600febde7c97e346",
-        },
+            hash_u: "0x6b272b824bc986b0173fc09a455edca0a5d22768a98fb7192444712ef32808be",
+            hash_v: "0x634d7c334a5e088291e3f870fc1218a5da828d2bd503e824e27caec308351a38",
+                    },
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![
@@ -39,8 +39,8 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1,
                 0, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0,
             ],
-            hash_u: "0x599ab788360ae8c6d5bb7618aec37056d6227408d857fdc394078a3d7afdfe0f",
-            hash_v: "0x4320c373da670e28d168f4ffd72b43208e8c815f40841682c57a3ee1d005a527",
+            hash_u: "0x27d9f0ef30978c3c33aae4385def72c89133a414ee291f22382b64960bf12776",
+            hash_v: "0x34d821379faaef894d4f6f7843330135d7674f3354e74da16cde7f71304e5986",
         },
         TestVector {
             personalization: Personalization::NoteCommitment,
@@ -53,9 +53,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0,
                 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0,
             ],
-            hash_u: "0x2da510317620f5dfdce1f31db6019f947eedcf02ff2972cff597a5c3ad21f5dd",
-            hash_v: "0x198789969c0c33e6c359b9da4a51771f4d50863f36beef90436944fe568399f2",
-        },
+            hash_u: "0x2ff1f563cf23423311edbba6bfa74bb299276ab63d1adc7e7de4b31af723e57c",
+            hash_v: "0x15327fa4c172eed9de5807c7c40c067a046c1c573653863be3f63bb5e90dca34",
+                    },
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![
@@ -67,9 +67,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0,
                 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1,
             ],
-            hash_u: "0x601247c7e640992d193dfb51df6ed93446687a7f2bcd0e4a598e6feb1ef20c40",
-            hash_v: "0x371931733b73e7b95c2cad55a6cebd15c83619f697c64283e54e5ef61442a743",
-        },
+            hash_u: "0x348521f4e0671456faa2380dd13284f1405dcb66f48f17c62eba3345a252ea8a",
+            hash_v: "0x4033936c9e1c32b1d53872a732b328826514250dc343a291823ef1d14f6e63eb",
+                    },
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![
@@ -101,9 +101,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1,
                 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
             ],
-            hash_u: "0x314192ecb1f2d8806a8108704c875a25d9fb7e444f9f373919adedebe8f2ae27",
-            hash_v: "0x6b12b32f1372ad574799dee9eb591d961b704bf611f55fcc71f7e82cd3330b74",
-        },
+            hash_u: "0x271cc89e1212443b95478688150f3155fe75a83f5ff770f89a9b74d10bdd3f3a",
+            hash_v: "0x3013b8071ec5c166e694c4017b1aa5eedc5425d9093665ae78bde3101ae3788c",
+                    },
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![
@@ -136,9 +136,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1,
                 0,
             ],
-            hash_u: "0x0666c2bce7f362a2b807d212e9a577f116891a932affd7addec39fbf372c494e",
-            hash_v: "0x6758bccfaf2e47c07756b96edea23aa8d10c33b38220bd1c411af612eeec18ab",
-        },
+            hash_u: "0x587d068feda4ba7a1819a7f2140a8750461a3f792c0b882b54089ffcbdcacac6",
+            hash_v: "0x18bae31842680141a43131337c52d7188a8c116c8fcc9e8b1ca5f6103cfc2c4b",
+                    },
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![
@@ -177,9 +177,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0,
                 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1,
             ],
-            hash_u: "0x130afe02b99375484efb0998f5331d2178e1d00e803049bb0769099420624f5f",
-            hash_v: "0x5e2fc6970554ffe358652aa7968ac4fcf3de0c830e6ea492e01a38fafb68cd71",
-        },
+            hash_u: "0x2a8ca83879317ad95347b3618b449970aeee988842df186d69858e552ea8511e",
+            hash_v: "0x296e1576c2584c686e9d0b700524f426e511faa9bcb3486444f39bc9efaccc3c",
+                    },
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![
@@ -218,33 +218,33 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
                 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1,
             ],
-            hash_u: "0x67914ebd539961b70f468fa23d4cb42133693a8ac57cd35a1e6369fe34fbedf7",
-            hash_v: "0x44770870c0f0cfe59a10df95d6c21e6f1514a2f464b66377599438c126052d9f",
-        },
+            hash_u: "0x5820ac7e268473eb8ef0a2f77916b5d5f85a4d59c4dd458d84462d890e219a33",
+            hash_v: "0x03eb040d1d41bd4330e9de1fe7a9a810b9d92144f0b4c557426c6645afeb8650",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![0, 0, 0, 0, 0, 0],
-            hash_u: "0x62454a957289b3930d10f3def0d512cfe0ef3de06421321221af3558de9d481d",
-            hash_v: "0x0279f0aebfb66e53ff69fba16b6608dbf4319b944432f45c6e69a3dbd1f7b330",
-        },
+            hash_u: "0x4c7359694ffe4cda10bd830efea7b1b0dc605bcf838aed6e8c31c1a5e690ad17",
+            hash_v: "0x1e4748c3bf57e91eadeec064c7c8022690a662bb98d4466712b8454e4eb0a767",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![0, 0, 0, 0, 0, 0, 0],
-            hash_u: "0x283c7880f35179e201161402d9c4556b255917dbbf0142ae60519787d36d4dea",
-            hash_v: "0x648224408b4b83297cd0feb4cdc4eeb224237734931145432793bcd414228dc4",
-        },
+            hash_u: "0x1c131c4619368e89364db7a57f4c7c1bf459ffbed9db0bb8faf937a97e80f2b0",
+            hash_v: "0x382f18acc73160d4b6b813b1855f8b8ee436f54bcfab52f10ad5df38f5b8ce42",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![0, 0, 0, 0, 0, 0, 1],
-            hash_u: "0x1f1086b287636a20063c9614db2de66bb7d49242e88060956a5e5845057f6f5d",
-            hash_v: "0x6b1b395421dde74d53341caa9e01f39d7a3138efb9b57fc0381f98f4868df622",
-        },
+            hash_u: "0x0d92e9c44f81cbe3ad448ddb5de5bd18010afae5b3d35b586216f1e520f2e197",
+            hash_v: "0x01326781a51d66883174581243e0ce6af641ec93132bc04312eaaef6097243c5",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![0, 0, 0, 0, 0, 0, 1, 0, 0],
-            hash_u: "0x1f1086b287636a20063c9614db2de66bb7d49242e88060956a5e5845057f6f5d",
-            hash_v: "0x6b1b395421dde74d53341caa9e01f39d7a3138efb9b57fc0381f98f4868df622",
-        },
+            hash_u: "0x0d92e9c44f81cbe3ad448ddb5de5bd18010afae5b3d35b586216f1e520f2e197",
+            hash_v: "0x01326781a51d66883174581243e0ce6af641ec93132bc04312eaaef6097243c5",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![
@@ -256,9 +256,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1,
                 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0,
             ],
-            hash_u: "0x20d2b1b0551efe511755d564f8da4f5bf285fd6051331fa5f129ad95b318f6cd",
-            hash_v: "0x2834d96950de67ae80e85545f8333c6e14b5cf5be7325dac768f401e6edd9544",
-        },
+            hash_u: "0x3658faeda53bb7050e33819f484d204213903eeb83dbfc3608410eb9a7a45af7",
+            hash_v: "0x3597090f9fd5480662a5a4d7d657a05e045d167576b0fb7099f7fd57d072e543",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![
@@ -270,9 +270,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0,
                 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0,
             ],
-            hash_u: "0x01f4850a0f40e07186fee1f0a276f52fb12cffe05c18eb2aa18170330a93c555",
-            hash_v: "0x19b0807358e7c8cba9168815ec54c4cd76997c34c592607d172151c48d5377cb",
-        },
+            hash_u: "0x4e94d2f3dfff0a596bb5fa22dee84f6dc0013687902af79635f898dfb6219ce7",
+            hash_v: "0x4b58a2ce897edff5e0e922b53df71fd2a1ffe8d63491d44cdebebdf1a1410dbd",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![
@@ -284,9 +284,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1,
                 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0,
             ],
-            hash_u: "0x26dd81a3ffa37452c6a932d41eb4f2e0fedd531e9af8c2a7935b91dff653879d",
-            hash_v: "0x2fc7aebb729ef5cabf0fb3f883bc2eb2603093850b0ec19c1a3c08b653e7f27f",
-        },
+            hash_u: "0x2ee5c93f7f68f8eb5aa2cf133684cc99637654c907a12a9bee8720cfe2906eb1",
+            hash_v: "0x0382d4a60a3e5e2e67a46ddbcb42355c9fa5b4fb6e5d699b5572b107a7d55342",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![
@@ -318,9 +318,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1,
                 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1,
             ],
-            hash_u: "0x1111740552773b00aa6a2334575aa94102cfbd084290a430c90eb56d6db65b85",
-            hash_v: "0x6560c44b11683c20030626f89456f78a53ae8a89f565956a98ffc554b48fbb1a",
-        },
+            hash_u: "0x329316db53c6ac408bc34aab6273cadfed6a2942657a94353e764047887faa5f",
+            hash_v: "0x1754afaa548626ad4339195bf09c046cc5c20b171d41e24d26b20a2a072abd7b",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![
@@ -353,9 +353,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0,
                 0,
             ],
-            hash_u: "0x429349ea9b5f8163bcda3014b3e15554df5173353fd73f315a49360c97265f68",
-            hash_v: "0x188774bb6de41eba669be5d368942783f937acf2f418385fc5c78479b0a405ee",
-        },
+            hash_u: "0x620f81c8115e310da9ab70e7a9565922538496b23957441aaa98fb70abf9d2b6",
+            hash_v: "0x23cdea82950c2bf2b6257b6cc11ba102a6507e3865493f2fc7ab0bb5d5fbd391",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![
@@ -394,9 +394,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0,
                 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0,
             ],
-            hash_u: "0x00e827f3ed136f3c91c61c97ab9b7cca0ea53c20e47abb5e226ede297bdd5f37",
-            hash_v: "0x315cc00a54972df6a19f650d3fab5f2ad0fb07397bacb6944568618f2aa76bf6",
-        },
+            hash_u: "0x61e972424e32f31eae275a609066dc8f77b0a640c1b75e7d634853f710d3f639",
+            hash_v: "0x16a5ef5bb2c5c56c153baba6969ee90ebfb15fb7bf59a98a563ad8eaf30a15d6",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![
@@ -435,33 +435,33 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1,
                 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,
             ],
-            hash_u: "0x3ee50557c4aa9158c4bb9d5961208e6c62f55c73ad7c7695a0eba0bcb6d83d05",
-            hash_v: "0x1b1a2be6e47688828aeadf2d37db298eac0c2736c2722b227871fdeeee29de33",
-        },
+            hash_u: "0x6005ee60a24d199a3cd9b3bcdfc708d940fa97af1df82e64f5b0b5c1dcc5b2ce",
+            hash_v: "0x42cd89fe82400fe7b831d1f9bc4ee9d9aa725c18de9df151517f529d5fdbb47d",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(34),
             input_bits: vec![0, 1, 0, 0, 0, 1],
-            hash_u: "0x61f8e2cb8e945631677b450d5e5669bc6b5f2ec69b321ac550dbe74525d7ac9a",
-            hash_v: "0x4e11951ab9c9400ee38a18bd98cdb9453f1f67141ee9d9bf0c1c157d4fb34f9a",
-        },
+            hash_u: "0x615ff470cd4ef66d3dff9495e844e424a3dfe32425b3d4b3f05e499609e367f0",
+            hash_v: "0x10b35f0ce8cab5913bd1b42ba8f1c9307e83f00938f73312450313e217a12589",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(34),
             input_bits: vec![0, 1, 0, 0, 0, 1, 0],
-            hash_u: "0x27fa1e296c37dde8448483ce5485c2604d1d830e53812246299773a02ecd519c",
-            hash_v: "0x08e499113675202cb42b4b681a31430814edebd72c5bb3bc3bfedf91fb0605df",
-        },
+            hash_u: "0x2b9999eed9ee9f7b47416c9d3e2c04e8efba8ffa118f053334a72b95bb24b0b1",
+            hash_v: "0x2f61df138aeb1ddbb2465751590f7f44b54ed230f49be9c1e5d5409306e305bd",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(34),
             input_bits: vec![0, 1, 0, 0, 0, 1, 1],
-            hash_u: "0x52112dd7a4293d049bb011683244a0f957e6ba95e1d1cf2fb6654d449a6d3fbc",
-            hash_v: "0x2ae14ecd81bb5b4489d2d64b5d2eb92a684087b28dd9a4950ecdb78c014e178c",
-        },
+            hash_u: "0x0a663b2f154bdb39238e9df3cbe3090735d572f5220b0d5f16b70652d4af7be8",
+            hash_v: "0x3ee3bf0c0090caa881f9b8c2a74fee82bd314cb37d7b096408c969947af09472",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(34),
             input_bits: vec![0, 1, 0, 0, 0, 1, 1, 0, 0],
-            hash_u: "0x52112dd7a4293d049bb011683244a0f957e6ba95e1d1cf2fb6654d449a6d3fbc",
-            hash_v: "0x2ae14ecd81bb5b4489d2d64b5d2eb92a684087b28dd9a4950ecdb78c014e178c",
-        },
+            hash_u: "0x0a663b2f154bdb39238e9df3cbe3090735d572f5220b0d5f16b70652d4af7be8",
+            hash_v: "0x3ee3bf0c0090caa881f9b8c2a74fee82bd314cb37d7b096408c969947af09472",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(34),
             input_bits: vec![
@@ -473,9 +473,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0,
                 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0,
             ],
-            hash_u: "0x544a0b44c35dca64ee806d1af70b7c44134e5d86efed413947657ffd71adf9b2",
-            hash_v: "0x5ddc5dbf12abbbc5561defd3782a32f450b3c398f52ff4629677e59e86e3ab31",
-        },
+            hash_u: "0x05bdfd5c6604e985b30c9538930d12bccfa68a26078d5e02ea216fc64d0d71e7",
+            hash_v: "0x4fa06743e983ed637105f6b861c10c697fbcd6b10396a74aa910a68dc2ea8aa5",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(34),
             input_bits: vec![
@@ -487,9 +487,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1,
                 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1,
             ],
-            hash_u: "0x6cb6490ccb0ca9ccd657146f58a7b800bc4fb2556ee37861227ee8fda724acfb",
-            hash_v: "0x05c6fe100926f5cc441e54e72f024b6b12c907f2ec5680335057896411984c9f",
-        },
+            hash_u: "0x5cea25c1e65cd8498e4bdd4e768b715532cb7bc8d090ff6f6d1e24ddbe1248ee",
+            hash_v: "0x2199cf19940eb989b658e84f15490ecfeaae530187883bab518410aae9bfe705",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(34),
             input_bits: vec![
@@ -501,9 +501,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1,
                 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0,
             ],
-            hash_u: "0x40901e2175cb7f06a00c676d54d90e59fd448f11cbbc5eb517f9fea74b795ce2",
-            hash_v: "0x42d512891f91087310c9bc630c8d0ecc014596f884fd6df55dada8195ed726de",
-        },
+            hash_u: "0x652eab9e283fd44ecdbb52c95f7cecb34993db0cbb6cfdcfdc7f869d284ad9cd",
+            hash_v: "0x5289ba48aedea8f902c793db56fd1cff9b4c2ee1c99f425f1f25d1fe6a68ea3c",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(34),
             input_bits: vec![
@@ -535,9 +535,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1,
                 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1,
             ],
-            hash_u: "0x66a433542419f1a086ed0663b0e8df2ece9a04065f147896976baba1a916b6dc",
-            hash_v: "0x203bd3672522e1d3c86fa6b9f3b58f20199a4216adfd40982add13a856f6f3de",
-        },
+            hash_u: "0x0571ef36476845e1d8e19eb8f4f1efe50ae96b670aed3f01e6cb8673c050bc80",
+            hash_v: "0x6f79f970e4029385598e5d3fff1fa6d625140ce579912dcadfeeda584f9eab2f",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(34),
             input_bits: vec![
@@ -570,9 +570,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0,
                 1,
             ],
-            hash_u: "0x119db3b38086c1a3c6c6f53c529ee62d9311d69c2d8aeeafa6e172e650d3afda",
-            hash_v: "0x72287540be7d2b0f58f5c73eaa53c55bea6b79dd79873b4e47cc11787bb9a15d",
-        },
+            hash_u: "0x37af7bd1429adb1982472b7ef73575c2a9a0bb9469548f2d78f2fb5189d860b1",
+            hash_v: "0x551f92af81fcacb9c22adb4bf06af88936eba79f6ec7eb1b13613a7c0765c26d",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(34),
             input_bits: vec![
@@ -611,9 +611,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1,
                 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0,
             ],
-            hash_u: "0x446efdcf89b70ba2b03427a0893008181d0fc4e76b84b1a500d7ee523c8e3666",
-            hash_v: "0x125ee0048efb0372b92c3c15d51a7c5c77a712054cc4fdd0774563da46ec7289",
-        },
+            hash_u: "0x37bc50fcb8f17f54316b3e6ca3e987705feeff9a3cfe3f5efb5adc4ceb5705e2",
+            hash_v: "0x54b43f361d6233d56c36ce03ed8e95c373718cc94f7f51ea7282c0f6980f42a5",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(34),
             input_bits: vec![
@@ -652,9 +652,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0,
                 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1,
             ],
-            hash_u: "0x72723bf0573bcb4b72d4184cfeb707d9556b7f705f56a4652707a36f2edf10f7",
-            hash_v: "0x3a7f0999a6a1393bd49fc82302e7352e01176fbebb0192bf5e6ef39eb8c585ad",
-        },
+            hash_u: "0x45a13b9f8d6daf256d259cbcf87f53854dece663bd034de3ac164f0261ec4f29",
+            hash_v: "0x37307d49e9da6d04d0bc156fc7de4eb177177513a4c24a21789605bc1f6d0da2",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(27),
             input_bits: vec![
@@ -666,9 +666,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0,
                 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0,
             ],
-            hash_u: "0x414f6ba05f6b92da1f9051950769e1083d05615def32b016ae424309828a11f4",
-            hash_v: "0x471d2109656afcb96d0609b371b132b97efcf72c6051064dd19fdc004799bfa9",
-        },
+            hash_u: "0x06055db8549227eefcf25b30599801f9b5f54e2439afc18703f561ee2e259534",
+            hash_v: "0x4b736cb086e4132765757fa7239899c5655ee17cc653e006ee17c55e560d6a35",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(36),
             input_bits: vec![
@@ -680,9 +680,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1,
                 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1,
             ],
-            hash_u: "0x62d6fe1e373225a5695f3115aed8265c59e2d6275ceef6bbc53fde3fc6594024",
-            hash_v: "0x407275be7d5a4c48204c8d83f5b211d09a2f285d4f0f87a928d4de9a6338e1d1",
-        },
+            hash_u: "0x6796119af309e8daf6a6b667c291be4d8b683c8f91deb6306c0054115474b37b",
+            hash_v: "0x15aefb950d74f21f53f93ffc58f461e4205bd0722b3b0190afa5bbe3098775da",
+                    },
         TestVector {
             personalization: Personalization::MerkleTree(0),
             input_bits: vec![
@@ -694,9 +694,9 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
-            hash_u: "0x1116a934f26b57a2c9daa6f25ac9b1a8f9dacddba30f65433ac021bf39a6bfdd",
-            hash_v: "0x407275be7d5a4c48204c8d83f5b211d09a2f285d4f0f87a928d4de9a6338e1d1",
-        },
+            hash_u: "0x0c5795b83693946d3c9321a0471019b7c85567736e1fa5ce93ffabedab8b4c86",
+            hash_v: "0x15aefb950d74f21f53f93ffc58f461e4205bd0722b3b0190afa5bbe3098775da",
+                    },
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![
@@ -708,8 +708,8 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
             ],
-            hash_u: "0x329e3bb2ca31ea6e13a986730237f6fd16b842a510cbabe851bdbcf57d75ee0d",
-            hash_v: "0x471d2109656afcb96d0609b371b132b97efcf72c6051064dd19fdc004799bfa9",
-        },
+            hash_u: "0x6de8499ad50b555936477cd7b009d60b9dc855dec64e9a77fc0a9e10d1da6acd",
+            hash_v: "0x4b736cb086e4132765757fa7239899c5655ee17cc653e006ee17c55e560d6a35",
+                    },
     ];
 }
