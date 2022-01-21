@@ -625,7 +625,7 @@ mod tests {
             .expect("length is 32 bytes");
         assert_eq!(
             hex::encode(tmp),
-            "fbc2f4300c01f0b7820d00e3347c8da4ee614674376cbc45359daa54f9b5493e"
+            "2d924d748574cf8b52f92b40d84f3781c8036defd40bc688ea182b1e52e8bf32"
         );
     }
 
