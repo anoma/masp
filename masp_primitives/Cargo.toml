@@ -30,7 +30,11 @@ ff = "0.11"
 fpe = "0.5"
 group = "0.11"
 hex = "0.4"
+<<<<<<< HEAD
 incrementalmerkletree = "=0.3.0-beta.2"
+=======
+incrementalmerkletree = "0.2"
+>>>>>>> 94aab27 (update librustzcash to latest)
 jubjub = "0.8"
 lazy_static = "1"
 proptest = { version = "1.0.0", optional = true }

@@ -5,35 +5,10 @@ use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 use std::iter;
 
-use crate::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
+use zcash_primitives::sapling::{SAPLING_COMMITMENT_TREE_DEPTH, SAPLING_COMMITMENT_TREE_DEPTH_U8};
 use zcash_encoding::{Optional, Vector};
-use zcash_primitives::merkle_tree::{Hashable, MerklePath, CommitmentTree, IncrementalWitness};
-
-/*
-/// A hashable node within a Merkle tree.
-pub trait Hashable: Clone + Copy {
-    /// Parses a node from the given byte source.
-    fn read<R: Read>(reader: R) -> io::Result<Self>;
-
-    /// Serializes this node.
-    fn write<W: Write>(&self, writer: W) -> io::Result<()>;
-
-    /// Returns the parent node within the tree of the two given nodes.
-    fn combine(_: usize, _: &Self, _: &Self) -> Self;
-
-    /// Returns a blank leaf node.
-    fn blank() -> Self;
-
-    /// Returns the empty root for the given depth.
-    fn empty_root(_: usize) -> Self;
-}
-
-use incrementalmerkletree::{self, bridgetree};
-use zcash_encoding::{Optional, Vector};
-use zcash_primitives::{
-    merkle_tree::Hashable,
-    sapling::{SAPLING_COMMITMENT_TREE_DEPTH, SAPLING_COMMITMENT_TREE_DEPTH_U8},
-};
+use zcash_primitives::merkle_tree::{Hashable,};// MerklePath, CommitmentTree, IncrementalWitness};
+use incrementalmerkletree::{self, bridgetree, Altitude};
 struct PathFiller<Node: Hashable> {
     queue: VecDeque<Node>,
 }
@@ -528,10 +503,11 @@ impl<Node: Hashable> MerklePath<Node> {
                 },
             )
     }
-}*/
+}
 
 #[cfg(test)]
 mod tests {
+    //use zcash_primitives::merkle_tree::{CommitmentTree, Hashable, IncrementalWitness, MerklePath, PathFiller};
     use super::{CommitmentTree, Hashable, IncrementalWitness, MerklePath, PathFiller};
     use crate::sapling::Node;
 
@@ -1047,23 +1023,7 @@ mod tests {
             witness.write(&mut tmp).unwrap();
             println!("{}", hex::encode(&tmp));
         }
-        fn print_path_ser() {
-            let mut tmp = Vec::new();
-            tmp.push(TESTING_DEPTH as u8);
-            for node in path.auth_path.iter().rev() {
-                tmp.push(32u8);
-                node.0.write(&mut tmp);
-            }
-            use byteorder::WriteBytesExt;
-            tmp.write_u64::<byteorder::LittleEndian>(path.position);
-            println!(hex::encode(tmp));
-        }
 
-        fn print_witness_ser(witness: &TestIncrementalWitness) {
-            let mut tmp = Vec::new();
-            witness.write(&mut tmp).unwrap();
-            println!(hex::encode(&tmp));
-        }
         let mut tree = TestCommitmentTree::new();
         assert_eq!(tree.size(), 0);
 
