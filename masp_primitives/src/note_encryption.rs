@@ -26,8 +26,8 @@ use zcash_primitives::consensus;
 
 use crate::keys::OutgoingViewingKey;
 
-pub const KDF_SAPLING_PERSONALIZATION: &[u8; 16] = b"Zcash_SaplingKDF";
-pub const PRF_OCK_PERSONALIZATION: &[u8; 16] = b"Zcash_Derive_ock";
+pub const KDF_SAPLING_PERSONALIZATION: &[u8; 16] = b"MASP_SaplingKDF";
+pub const PRF_OCK_PERSONALIZATION: &[u8; 16] = b"MASP_Derive_ock";
 
 const COMPACT_NOTE_SIZE: usize = 1 + // version
     11 + // diversifier
