@@ -1001,6 +1001,24 @@ mod tests {
             assert_eq!(hex::encode(tmp), expected);
         }
 
+        fn print_path_ser() {
+            let mut tmp = Vec::new();
+            tmp.push(TESTING_DEPTH as u8);
+            for node in path.auth_path.iter().rev() {
+                tmp.push(32u8);
+                node.0.write(&mut tmp);
+            }
+            use byteorder::WriteBytesExt;
+            tmp.write_u64::<byteorder::LittleEndian>(path.position);
+            println!(hex::encode(tmp));
+        }
+
+        fn print_witness_ser(witness: &TestIncrementalWitness) {
+            let mut tmp = Vec::new();
+            witness.write(&mut tmp).unwrap();
+            println!(hex::encode(&tmp));
+        }
+
         let mut tree = TestCommitmentTree::new();
         assert_eq!(tree.size(), 0);
 
@@ -1009,7 +1027,6 @@ mod tests {
         let mut paths_i = 0;
         let mut witness_ser_i = 0;
 
-        //let mut vecs = Vec::new();
         for i in 0..16 {
             let cmu = hex::decode(commitments[i]).unwrap();
 
@@ -1041,21 +1058,6 @@ mod tests {
                         TESTING_DEPTH,
                     )
                     .unwrap();
-                    //dbg!(paths_i);
-                    /*let mut tmp = Vec::new();
-                    tmp.push(TESTING_DEPTH as u8);
-                    for node in path.auth_path.iter().rev(){
-                        tmp.push(32u8);
-                        node.0.write(&mut tmp);
-                    }
-                    use byteorder::WriteBytesExt;
-                    tmp.write_u64::<byteorder::LittleEndian>(path.position);*/
-                    //let mut s = String::new();
-                    //s.push_str("\"");
-                    //s.push_str(&hex::encode(tmp));
-                    //s.push_str("\",");
-                    //vecs.push(hex::encode(tmp));
-                    //dbg!(path == expected);
                     assert_eq!(path, expected);
                     assert_eq!(path.root(*leaf), witness.root());
                     paths_i += 1;
@@ -1065,9 +1067,6 @@ mod tests {
                 }
 
                 // Check witness serialization
-                /*let mut tmp = Vec::new();
-                witness.write(&mut tmp).unwrap();
-                vecs.push(hex::encode(&tmp));*/
                 assert_witness_ser_eq(witness, witness_ser[witness_ser_i]);
                 witness_ser_i += 1;
 
@@ -1076,8 +1075,6 @@ mod tests {
 
             last_cmu = Some(cmu);
         }
-        //dbg!(vecs);
-        //panic!();
         // Tree should be full now
         let node = Node::blank();
         assert!(tree.append(node).is_err());
