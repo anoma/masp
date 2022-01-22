@@ -5,12 +5,13 @@ use bls12_381::Bls12;
 use masp_primitives::{
     asset_type::AssetType,
 
-    primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
+    primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
     prover::TxProver,
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };
 use zcash_primitives::{
+    sapling::Rseed,
     merkle_tree::MerklePath,
 };
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;

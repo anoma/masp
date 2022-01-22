@@ -16,7 +16,7 @@ use subtle::CtOption;
 
 pub const PRF_EXPAND_PERSONALIZATION: &[u8; 16] = b"MASP__ExpandSeed";
 
-/// PRF^expand(sk, t) := BLAKE2b-512("Zcash_ExpandSeed", sk || t)
+/// PRF^expand(sk, t) := BLAKE2b-512("MASP__ExpandSeed", sk || t)
 pub fn prf_expand(sk: &[u8], t: &[u8]) -> Blake2bHash {
     prf_expand_vec(sk, &[t])
 }

@@ -8,6 +8,7 @@ use crate::asset_type::AssetType;
 use crate::constants;
 
 use zcash_primitives::sapling::group_hash::group_hash;
+use zcash_primitives::sapling::Rseed;
 
 use crate::pedersen_hash::{pedersen_hash, Personalization};
 
@@ -195,6 +196,7 @@ impl PaymentAddress {
     }
 }
 
+/*
 /// Enum for note randomness before and after [ZIP 212](https://zips.z.cash/zip-0212).
 ///
 /// Before ZIP 212, the note commitment trapdoor `rcm` must be a scalar value.
@@ -204,7 +206,7 @@ impl PaymentAddress {
 pub enum Rseed {
     BeforeZip212(jubjub::Fr),
     AfterZip212([u8; 32]),
-}
+}*/
 
 #[derive(Clone, Debug)]
 pub struct Note {

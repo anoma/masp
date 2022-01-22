@@ -24,6 +24,8 @@ use zcash_primitives::consensus::NetworkUpgrade::Sapling;
 use zcash_primitives::consensus::NetworkUpgrade::Canopy;
 use zcash_primitives::consensus;
 
+use zcash_primitives::sapling::note_encryption::sapling_ka_agree;
+
 use crate::keys::OutgoingViewingKey;
 
 pub const KDF_SAPLING_PERSONALIZATION: &[u8; 16] = b"MASP_SaplingKDF";
@@ -139,6 +141,7 @@ impl str::FromStr for Memo {
     }
 }
 
+/*
 /// Sapling key agreement for note encryption.
 ///
 /// Implements section 5.4.4.3 of the Zcash Protocol Specification.
@@ -147,7 +150,7 @@ pub fn sapling_ka_agree(esk: &jubjub::Fr, pk_d: &jubjub::ExtendedPoint) -> jubju
     // <ExtendedPoint as CofactorGroup>::clear_cofactor is implemented using
     // ExtendedPoint::mul_by_cofactor in the jubjub crate.
     CofactorGroup::clear_cofactor(&(pk_d * esk))
-}
+}*/
 
 /// Sapling KDF for note encryption.
 ///

@@ -9,11 +9,11 @@ use masp_primitives::{
     asset_type::AssetType,
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
 
-    primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed},
+    primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey},
     redjubjub::{PrivateKey, PublicKey, Signature},
     sapling::Node,
 };
-use zcash_primitives::merkle_tree::MerklePath;
+use zcash_primitives::{sapling::Rseed,merkle_tree::MerklePath};
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
 
