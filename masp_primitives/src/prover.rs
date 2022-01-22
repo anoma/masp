@@ -7,7 +7,7 @@ use crate::{
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };
-use zcash_primitives::{merkle_tree::MerklePath};
+use zcash_primitives::{sapling::{Rseed}, merkle_tree::MerklePath};
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
 use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 

@@ -11,6 +11,7 @@ use masp_primitives::{
     sapling::Node,
 };
 use zcash_primitives::{
+    sapling::Rseed,
     merkle_tree::MerklePath,
 };
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
