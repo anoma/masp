@@ -3,7 +3,7 @@
 use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed};
 
 use crate::{
-
+    //merkle_tree::MerklePath,
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };
@@ -76,7 +76,6 @@ pub(crate) mod mock {
     };
 
     use crate::{
-        merkle_tree::MerklePath,
         redjubjub::{PublicKey, Signature},
         sapling::Node,
     };

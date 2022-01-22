@@ -39,7 +39,7 @@ use std::ffi::OsString;
 #[cfg(target_os = "windows")]
 use std::os::windows::ffi::OsStringExt;
 
-use zcash_primitives::note_encryption::sapling_ka_agree;
+use zcash_primitives::sapling::note_encryption::sapling_ka_agree;
 
 use masp_primitives::{
     asset_type::AssetType,
@@ -47,12 +47,12 @@ use masp_primitives::{
         ASSET_IDENTIFIER_LENGTH, CRH_IVK_PERSONALIZATION, PROOF_GENERATION_KEY_GENERATOR,
         SPENDING_KEY_GENERATOR,
     },
-    merkle_tree::MerklePath,
     primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed, ViewingKey},
     redjubjub::{self, Signature},
     sapling::{merkle_hash, spend_sig},
     zip32,
 };
+use zcash_primitives::{    merkle_tree::MerklePath,};
 use masp_proofs::{
     circuit::sapling::TREE_DEPTH as SAPLING_TREE_DEPTH,
     load_parameters,

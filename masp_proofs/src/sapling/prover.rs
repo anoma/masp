@@ -8,11 +8,12 @@ use group::{Curve, GroupEncoding};
 use masp_primitives::{
     asset_type::AssetType,
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
-    merkle_tree::MerklePath,
+
     primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed},
     redjubjub::{PrivateKey, PublicKey, Signature},
     sapling::Node,
 };
+use zcash_primitives::merkle_tree::MerklePath;
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
 

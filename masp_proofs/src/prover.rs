@@ -4,11 +4,14 @@ use bellman::groth16::{Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
 use masp_primitives::{
     asset_type::AssetType,
-    merkle_tree::MerklePath,
+
     primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
     prover::TxProver,
     redjubjub::{PublicKey, Signature},
     sapling::Node,
+};
+use zcash_primitives::{
+    merkle_tree::MerklePath,
 };
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
 

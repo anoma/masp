@@ -27,6 +27,7 @@ ff = "0.11"
 fpe = "0.5"
 group = "0.11"
 hex = "0.4"
+incrementalmerkletree = "0.2"
 jubjub = "0.8"
 lazy_static = "1"
 log = "0.4"
@@ -36,7 +37,7 @@ ripemd160 = { version = "0.9", optional = true }
 secp256k1 = { version = "0.20", optional = true }
 sha2 = "0.10.1"
 subtle = "2.2.3"
-zcash_primitives = { path = "../zcash_primitives" }
+zcash_primitives = { git = "https://github.com/zcash/librustzcash" }
 zcash_encoding = { version = "0.0", git = "https://github.com/zcash/librustzcash" }
 
 [dev-dependencies]
