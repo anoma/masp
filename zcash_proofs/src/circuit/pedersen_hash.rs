@@ -4,7 +4,7 @@ use super::ecc::{EdwardsPoint, MontgomeryPoint};
 use bellman::gadgets::boolean::Boolean;
 use bellman::gadgets::lookup::*;
 use bellman::{ConstraintSystem, SynthesisError};
-pub use zcash_primitives::pedersen_hash::Personalization;
+pub use zcash_primitives::sapling::pedersen_hash::Personalization;
 
 use crate::constants::PEDERSEN_CIRCUIT_GENERATORS;
 
@@ -111,7 +111,7 @@ mod test {
     use group::Curve;
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::pedersen_hash;
+    use zcash_primitives::sapling::pedersen_hash;
 
     /// Predict the number of constraints of a Pedersen hash
     fn ph_num_constraints(input_bits: usize) -> usize {
@@ -132,10 +132,10 @@ mod test {
         let convert_segment = 2; // Conversion to Edwards
         let add_segments = 6; // Edwards addition
 
-        return (chunks) * lookup_chunk - precomputed_booleans
+        (chunks) * lookup_chunk - precomputed_booleans
             + segments * convert_segment
             + all_but_last_segments * ((63 - 1) * add_chunks + add_segments)
-            + (last_chunks - 1) * add_chunks;
+            + (last_chunks - 1) * add_chunks
     }
 
     #[test]

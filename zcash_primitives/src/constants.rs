@@ -5,6 +5,10 @@ use group::Group;
 use jubjub::SubgroupPoint;
 use lazy_static::lazy_static;
 
+pub mod mainnet;
+pub mod regtest;
+pub mod testnet;
+
 /// First 64 bytes of the BLAKE2s input during group hash.
 /// This is chosen to be some random string that we couldn't have anticipated when we designed
 /// the algorithm, for rigidity purposes.
@@ -254,7 +258,7 @@ fn generate_pedersen_hash_exp_table() -> Vec<Vec<Vec<SubgroupPoint>>> {
                 let mut base = SubgroupPoint::identity();
 
                 for _ in 0..(1 << window) {
-                    table.push(base.clone());
+                    table.push(base);
                     base += g;
                 }
 
@@ -276,7 +280,7 @@ mod tests {
     use jubjub::SubgroupPoint;
 
     use super::*;
-    use crate::group_hash::group_hash;
+    use crate::sapling::group_hash::group_hash;
 
     fn find_group_hash(m: &[u8], personalization: &[u8; 8]) -> SubgroupPoint {
         let mut tag = m.to_vec();

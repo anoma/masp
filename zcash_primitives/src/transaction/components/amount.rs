@@ -1,10 +1,13 @@
+use std::convert::TryFrom;
 use std::iter::Sum;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 
-const COIN: i64 = 1_0000_0000;
-const MAX_MONEY: i64 = 21_000_000 * COIN;
+use orchard::value as orchard;
 
-pub const DEFAULT_FEE: Amount = Amount(10000);
+pub const COIN: i64 = 1_0000_0000;
+pub const MAX_MONEY: i64 = 21_000_000 * COIN;
+
+pub const DEFAULT_FEE: Amount = Amount(1000);
 
 /// A type-safe representation of some quantity of Zcash.
 ///
@@ -17,8 +20,20 @@ pub const DEFAULT_FEE: Amount = Amount(10000);
 /// by the network consensus rules.
 ///
 /// [`Transaction`]: crate::transaction::Transaction
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Amount(i64);
+
+impl memuse::DynamicUsage for Amount {
+    #[inline(always)]
+    fn dynamic_usage(&self) -> usize {
+        0
+    }
+
+    #[inline(always)]
+    fn dynamic_usage_bounds(&self) -> (usize, Option<usize>) {
+        (0, Some(0))
+    }
+}
 
 impl Amount {
     /// Returns a zero-valued Amount.
@@ -41,7 +56,7 @@ impl Amount {
     ///
     /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
     pub fn from_nonnegative_i64(amount: i64) -> Result<Self, ()> {
-        if 0 <= amount && amount <= MAX_MONEY {
+        if (0..=MAX_MONEY).contains(&amount) {
             Ok(Amount(amount))
         } else {
             Err(())
@@ -101,8 +116,22 @@ impl Amount {
     }
 }
 
+impl TryFrom<i64> for Amount {
+    type Error = ();
+
+    fn try_from(value: i64) -> Result<Self, ()> {
+        Amount::from_i64(value)
+    }
+}
+
 impl From<Amount> for i64 {
     fn from(amount: Amount) -> i64 {
+        amount.0
+    }
+}
+
+impl From<&Amount> for i64 {
+    fn from(amount: &Amount) -> i64 {
         amount.0
     }
 }
@@ -114,36 +143,99 @@ impl From<Amount> for u64 {
 }
 
 impl Add<Amount> for Amount {
-    type Output = Amount;
+    type Output = Option<Amount>;
 
-    fn add(self, rhs: Amount) -> Amount {
-        Amount::from_i64(self.0 + rhs.0).expect("addition should remain in range")
+    fn add(self, rhs: Amount) -> Option<Amount> {
+        Amount::from_i64(self.0 + rhs.0).ok()
+    }
+}
+
+impl Add<Amount> for Option<Amount> {
+    type Output = Self;
+
+    fn add(self, rhs: Amount) -> Option<Amount> {
+        self.and_then(|lhs| lhs + rhs)
     }
 }
 
 impl AddAssign<Amount> for Amount {
     fn add_assign(&mut self, rhs: Amount) {
-        *self = *self + rhs
+        *self = (*self + rhs).expect("Addition must produce a valid amount value.")
     }
 }
 
 impl Sub<Amount> for Amount {
-    type Output = Amount;
+    type Output = Option<Amount>;
 
-    fn sub(self, rhs: Amount) -> Amount {
-        Amount::from_i64(self.0 - rhs.0).expect("subtraction should remain in range")
+    fn sub(self, rhs: Amount) -> Option<Amount> {
+        Amount::from_i64(self.0 - rhs.0).ok()
+    }
+}
+
+impl Sub<Amount> for Option<Amount> {
+    type Output = Self;
+
+    fn sub(self, rhs: Amount) -> Option<Amount> {
+        self.and_then(|lhs| lhs - rhs)
     }
 }
 
 impl SubAssign<Amount> for Amount {
     fn sub_assign(&mut self, rhs: Amount) {
-        *self = *self - rhs
+        *self = (*self - rhs).expect("Subtraction must produce a valid amount value.")
     }
 }
 
-impl Sum for Amount {
-    fn sum<I: Iterator<Item = Amount>>(iter: I) -> Amount {
-        iter.fold(Amount::zero(), Add::add)
+impl Sum<Amount> for Option<Amount> {
+    fn sum<I: Iterator<Item = Amount>>(iter: I) -> Self {
+        iter.fold(Some(Amount::zero()), |acc, a| acc? + a)
+    }
+}
+
+impl Neg for Amount {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Amount(-self.0)
+    }
+}
+
+impl From<Amount> for orchard::ValueSum {
+    fn from(v: Amount) -> Self {
+        orchard::ValueSum::from_raw(v.0)
+    }
+}
+
+impl TryFrom<orchard::ValueSum> for Amount {
+    type Error = ();
+
+    fn try_from(v: orchard::ValueSum) -> Result<Amount, Self::Error> {
+        i64::try_from(v).map_err(|_| ()).and_then(Amount::try_from)
+    }
+}
+
+#[cfg(any(test, feature = "test-dependencies"))]
+pub mod testing {
+    use proptest::prelude::prop_compose;
+
+    use super::{Amount, MAX_MONEY};
+
+    prop_compose! {
+        pub fn arb_amount()(amt in -MAX_MONEY..MAX_MONEY) -> Amount {
+            Amount::from_i64(amt).unwrap()
+        }
+    }
+
+    prop_compose! {
+        pub fn arb_nonnegative_amount()(amt in 0i64..MAX_MONEY) -> Amount {
+            Amount::from_i64(amt).unwrap()
+        }
+    }
+
+    prop_compose! {
+        pub fn arb_positive_amount()(amt in 1i64..MAX_MONEY) -> Amount {
+            Amount::from_i64(amt).unwrap()
+        }
     }
 }
 
@@ -154,59 +246,55 @@ mod tests {
     #[test]
     fn amount_in_range() {
         let zero = b"\x00\x00\x00\x00\x00\x00\x00\x00";
-        assert_eq!(Amount::from_u64_le_bytes(zero.clone()).unwrap(), Amount(0));
+        assert_eq!(Amount::from_u64_le_bytes(*zero).unwrap(), Amount(0));
         assert_eq!(
-            Amount::from_nonnegative_i64_le_bytes(zero.clone()).unwrap(),
+            Amount::from_nonnegative_i64_le_bytes(*zero).unwrap(),
             Amount(0)
         );
-        assert_eq!(Amount::from_i64_le_bytes(zero.clone()).unwrap(), Amount(0));
+        assert_eq!(Amount::from_i64_le_bytes(*zero).unwrap(), Amount(0));
 
         let neg_one = b"\xff\xff\xff\xff\xff\xff\xff\xff";
-        assert!(Amount::from_u64_le_bytes(neg_one.clone()).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(neg_one.clone()).is_err());
-        assert_eq!(
-            Amount::from_i64_le_bytes(neg_one.clone()).unwrap(),
-            Amount(-1)
-        );
+        assert!(Amount::from_u64_le_bytes(*neg_one).is_err());
+        assert!(Amount::from_nonnegative_i64_le_bytes(*neg_one).is_err());
+        assert_eq!(Amount::from_i64_le_bytes(*neg_one).unwrap(), Amount(-1));
 
         let max_money = b"\x00\x40\x07\x5a\xf0\x75\x07\x00";
         assert_eq!(
-            Amount::from_u64_le_bytes(max_money.clone()).unwrap(),
+            Amount::from_u64_le_bytes(*max_money).unwrap(),
             Amount(MAX_MONEY)
         );
         assert_eq!(
-            Amount::from_nonnegative_i64_le_bytes(max_money.clone()).unwrap(),
+            Amount::from_nonnegative_i64_le_bytes(*max_money).unwrap(),
             Amount(MAX_MONEY)
         );
         assert_eq!(
-            Amount::from_i64_le_bytes(max_money.clone()).unwrap(),
+            Amount::from_i64_le_bytes(*max_money).unwrap(),
             Amount(MAX_MONEY)
         );
 
         let max_money_p1 = b"\x01\x40\x07\x5a\xf0\x75\x07\x00";
-        assert!(Amount::from_u64_le_bytes(max_money_p1.clone()).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(max_money_p1.clone()).is_err());
-        assert!(Amount::from_i64_le_bytes(max_money_p1.clone()).is_err());
+        assert!(Amount::from_u64_le_bytes(*max_money_p1).is_err());
+        assert!(Amount::from_nonnegative_i64_le_bytes(*max_money_p1).is_err());
+        assert!(Amount::from_i64_le_bytes(*max_money_p1).is_err());
 
         let neg_max_money = b"\x00\xc0\xf8\xa5\x0f\x8a\xf8\xff";
-        assert!(Amount::from_u64_le_bytes(neg_max_money.clone()).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(neg_max_money.clone()).is_err());
+        assert!(Amount::from_u64_le_bytes(*neg_max_money).is_err());
+        assert!(Amount::from_nonnegative_i64_le_bytes(*neg_max_money).is_err());
         assert_eq!(
-            Amount::from_i64_le_bytes(neg_max_money.clone()).unwrap(),
+            Amount::from_i64_le_bytes(*neg_max_money).unwrap(),
             Amount(-MAX_MONEY)
         );
 
         let neg_max_money_m1 = b"\xff\xbf\xf8\xa5\x0f\x8a\xf8\xff";
-        assert!(Amount::from_u64_le_bytes(neg_max_money_m1.clone()).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(neg_max_money_m1.clone()).is_err());
-        assert!(Amount::from_i64_le_bytes(neg_max_money_m1.clone()).is_err());
+        assert!(Amount::from_u64_le_bytes(*neg_max_money_m1).is_err());
+        assert!(Amount::from_nonnegative_i64_le_bytes(*neg_max_money_m1).is_err());
+        assert!(Amount::from_i64_le_bytes(*neg_max_money_m1).is_err());
     }
 
     #[test]
-    #[should_panic]
-    fn add_panics_on_overflow() {
+    fn add_overflow() {
         let v = Amount(MAX_MONEY);
-        let _sum = v + Amount(1);
+        assert_eq!(v + Amount(1), None)
     }
 
     #[test]
@@ -217,10 +305,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn sub_panics_on_underflow() {
+    fn sub_underflow() {
         let v = Amount(-MAX_MONEY);
-        let _diff = v - Amount(1);
+        assert_eq!(v - Amount(1), None)
     }
 
     #[test]

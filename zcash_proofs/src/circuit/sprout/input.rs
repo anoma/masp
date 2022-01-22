@@ -13,6 +13,7 @@ pub struct InputNote {
 }
 
 impl InputNote {
+    #[allow(clippy::too_many_arguments)]
     pub fn compute<Scalar, CS>(
         mut cs: CS,
         a_sk: Option<SpendingKey>,
@@ -52,7 +53,7 @@ impl InputNote {
         )?;
 
         // Witness into the merkle tree
-        let mut cur = cm.clone();
+        let mut cur = cm;
 
         for (i, layer) in auth_path.iter().enumerate() {
             let cs = &mut cs.namespace(|| format!("layer {}", i));

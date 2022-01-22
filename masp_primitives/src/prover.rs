@@ -3,10 +3,11 @@
 use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed};
 
 use crate::{
-    merkle_tree::MerklePath,
+
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };
+use zcash_primitives::{merkle_tree::MerklePath};
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
 
 use crate::asset_type::AssetType;
@@ -78,6 +79,9 @@ pub(crate) mod mock {
         merkle_tree::MerklePath,
         redjubjub::{PublicKey, Signature},
         sapling::Node,
+    };
+    use zcash_primitives::{
+        merkle_tree::MerklePath,
     };
     use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
 

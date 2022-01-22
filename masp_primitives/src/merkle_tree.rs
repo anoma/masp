@@ -6,8 +6,10 @@ use std::io::{self, Read, Write};
 use std::iter;
 
 use crate::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
-use zcash_primitives::serialize::{Optional, Vector};
+use zcash_encoding::{Optional, Vector};
+use zcash_primitives::merkle_tree::{Hashable, MerklePath, CommitmentTree, IncrementalWitness};
 
+/*
 /// A hashable node within a Merkle tree.
 pub trait Hashable: Clone + Copy {
     /// Parses a node from the given byte source.
@@ -498,7 +500,7 @@ impl<Node: Hashable> MerklePath<Node> {
                 },
             )
     }
-}
+}*/
 
 #[cfg(test)]
 mod tests {

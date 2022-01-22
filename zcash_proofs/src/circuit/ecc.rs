@@ -326,7 +326,7 @@ impl EdwardsPoint {
             let mut t1 = bls12_381::Scalar::one();
             t1.add_assign(c.get_value().get()?);
 
-            let res = t1.invert().map(|t1| t0 * &t1);
+            let res = t1.invert().map(|t1| t0 * t1);
             if bool::from(res.is_some()) {
                 Ok(res.unwrap())
             } else {
@@ -352,7 +352,7 @@ impl EdwardsPoint {
             let mut t1 = bls12_381::Scalar::one();
             t1.sub_assign(c.get_value().get()?);
 
-            let res = t1.invert().map(|t1| t0 * &t1);
+            let res = t1.invert().map(|t1| t0 * t1);
             if bool::from(res.is_some()) {
                 Ok(res.unwrap())
             } else {
@@ -427,7 +427,7 @@ impl EdwardsPoint {
             let mut t1 = bls12_381::Scalar::one();
             t1.add_assign(c.get_value().get()?);
 
-            let ret = t1.invert().map(|t1| t0 * &t1);
+            let ret = t1.invert().map(|t1| t0 * t1);
             if bool::from(ret.is_some()) {
                 Ok(ret.unwrap())
             } else {
@@ -452,7 +452,7 @@ impl EdwardsPoint {
             let mut t1 = bls12_381::Scalar::one();
             t1.sub_assign(c.get_value().get()?);
 
-            let ret = t1.invert().map(|t1| t0 * &t1);
+            let ret = t1.invert().map(|t1| t0 * t1);
             if bool::from(ret.is_some()) {
                 Ok(ret.unwrap())
             } else {
@@ -489,7 +489,7 @@ impl MontgomeryPoint {
             let mut t0 = *self.x.get_value().get()?;
             t0.mul_assign(MONTGOMERY_SCALE);
 
-            let ret = self.y.get_value().get()?.invert().map(|invy| t0 * &invy);
+            let ret = self.y.get_value().get()?.invert().map(|invy| t0 * invy);
             if bool::from(ret.is_some()) {
                 Ok(ret.unwrap())
             } else {
@@ -511,7 +511,7 @@ impl MontgomeryPoint {
             t0.sub_assign(&bls12_381::Scalar::one());
             t1.add_assign(&bls12_381::Scalar::one());
 
-            let ret = t1.invert().map(|t1| t0 * &t1);
+            let ret = t1.invert().map(|t1| t0 * t1);
             if bool::from(ret.is_some()) {
                 Ok(ret.unwrap())
             } else {
@@ -552,7 +552,7 @@ impl MontgomeryPoint {
             let mut d = *other.x.get_value().get()?;
             d.sub_assign(self.x.get_value().get()?);
 
-            let ret = d.invert().map(|d| n * &d);
+            let ret = d.invert().map(|d| n * d);
             if bool::from(ret.is_some()) {
                 Ok(ret.unwrap())
             } else {
@@ -632,6 +632,7 @@ mod test {
     use bellman::gadgets::boolean::{AllocatedBit, Boolean};
 
     #[test]
+    #[allow(clippy::many_single_char_names)]
     fn test_into_edwards() {
         let mut rng = XorShiftRng::from_seed([
             0x59, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06,
@@ -680,7 +681,7 @@ mod test {
             let p = jubjub::ExtendedPoint::random(&mut rng);
 
             let mut cs = TestConstraintSystem::new();
-            let q = EdwardsPoint::witness(&mut cs, Some(p.clone())).unwrap();
+            let q = EdwardsPoint::witness(&mut cs, Some(p)).unwrap();
 
             let p = p.to_affine();
 
@@ -736,14 +737,15 @@ mod test {
 
             let s_bits = s
                 .to_le_bits()
-                .into_iter()
+                .iter()
+                .by_val()
                 .take(jubjub::Fr::NUM_BITS as usize)
                 .enumerate()
                 .map(|(i, b)| {
                     AllocatedBit::alloc(cs.namespace(|| format!("scalar bit {}", i)), Some(b))
                         .unwrap()
                 })
-                .map(|v| Boolean::from(v))
+                .map(Boolean::from)
                 .collect::<Vec<_>>();
 
             let q = fixed_base_multiplication(
@@ -786,14 +788,15 @@ mod test {
 
             let s_bits = s
                 .to_le_bits()
-                .into_iter()
+                .iter()
+                .by_val()
                 .take(jubjub::Fr::NUM_BITS as usize)
                 .enumerate()
                 .map(|(i, b)| {
                     AllocatedBit::alloc(cs.namespace(|| format!("scalar bit {}", i)), Some(b))
                         .unwrap()
                 })
-                .map(|v| Boolean::from(v))
+                .map(Boolean::from)
                 .collect::<Vec<_>>();
 
             let q = p.mul(cs.namespace(|| "scalar mul"), &s_bits).unwrap();
@@ -1040,18 +1043,15 @@ mod test {
             assert!(p.assert_not_small_order(&mut cs).is_err() == is_small_order);
         };
 
-        let check_small_order_from_strs = |u, v| {
-            let (u, v) = (
-                bls12_381::Scalar::from_str_vartime(u).unwrap(),
-                bls12_381::Scalar::from_str_vartime(v).unwrap(),
-            );
+        let check_small_order_from_u64s = |u, v| {
+            let (u, v) = (bls12_381::Scalar::from(u), bls12_381::Scalar::from(v));
             let p = jubjub::AffinePoint::from_raw_unchecked(u, v);
 
             check_small_order_from_p(p.into(), true);
         };
 
         // zero has low order
-        check_small_order_from_strs("0", "1");
+        check_small_order_from_u64s(0, 1);
 
         // prime subgroup order
         let prime_subgroup_order = jubjub::Fr::from_str_vartime(
@@ -1078,7 +1078,7 @@ mod test {
 
         // generator for the prime subgroup
         let g_prime = g * largest_small_subgroup_order;
-        check_small_order_from_p(g_prime.clone(), false);
+        check_small_order_from_p(g_prime, false);
         let prime_subgroup_order_minus_1 = prime_subgroup_order - jubjub::Fr::one();
 
         let should_not_be_zero = g_prime * prime_subgroup_order_minus_1;
@@ -1091,7 +1091,7 @@ mod test {
         // generator for the small order subgroup
         let g_small = g * prime_subgroup_order_minus_1;
         let g_small = g_small + g;
-        check_small_order_from_p(g_small.clone(), true);
+        check_small_order_from_p(g_small, true);
 
         // g_small does have order 8
         let largest_small_subgroup_order_minus_1 = largest_small_subgroup_order - jubjub::Fr::one();

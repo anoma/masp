@@ -7,7 +7,9 @@ use bellman::{Circuit, ConstraintSystem, SynthesisError};
 
 use zcash_primitives::constants;
 
-use zcash_primitives::primitives::{PaymentAddress, ProofGenerationKey, ValueCommitment};
+use zcash_primitives::sapling::{
+    PaymentAddress, ProofGenerationKey, ValueCommitment, SAPLING_COMMITMENT_TREE_DEPTH,
+};
 
 use super::ecc;
 use super::pedersen_hash;
@@ -22,7 +24,10 @@ use bellman::gadgets::multipack;
 use bellman::gadgets::num;
 use bellman::gadgets::Assignment;
 
-pub const TREE_DEPTH: usize = zcash_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
+#[cfg(test)]
+use ff::PrimeFieldBits;
+
+pub const TREE_DEPTH: usize = SAPLING_COMMITMENT_TREE_DEPTH;
 
 /// This is an instance of the `Spend` circuit.
 pub struct Spend {
@@ -512,14 +517,11 @@ impl Circuit<bls12_381::Scalar> for Output {
 #[test]
 fn test_input_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use ff::{Field, PrimeFieldBits};
+    use ff::Field;
     use group::Group;
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::{
-        pedersen_hash,
-        primitives::{Diversifier, Note, ProofGenerationKey, Rseed},
-    };
+    use zcash_primitives::sapling::{pedersen_hash, Diversifier, Note, ProofGenerationKey, Rseed};
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -534,12 +536,9 @@ fn test_input_circuit_with_bls12_381() {
             randomness: jubjub::Fr::random(&mut rng),
         };
 
-        let nsk = jubjub::Fr::random(&mut rng);
-        let ak = jubjub::SubgroupPoint::random(&mut rng);
-
         let proof_generation_key = ProofGenerationKey {
-            ak: ak.clone(),
-            nsk: nsk.clone(),
+            ak: jubjub::SubgroupPoint::random(&mut rng),
+            nsk: jubjub::Fr::random(&mut rng),
         };
 
         let viewing_key = proof_generation_key.to_viewing_key();
@@ -571,14 +570,14 @@ fn test_input_circuit_with_bls12_381() {
                 jubjub::ExtendedPoint::from(value_commitment.commitment()).to_affine();
             let note = Note {
                 value: value_commitment.value,
-                g_d: g_d.clone(),
-                pk_d: payment_address.pk_d().clone(),
-                rseed: Rseed::BeforeZip212(commitment_randomness.clone()),
+                g_d,
+                pk_d: *payment_address.pk_d(),
+                rseed: Rseed::BeforeZip212(commitment_randomness),
             };
 
             let mut position = 0u64;
             let cmu = note.cmu();
-            let mut cur = cmu.clone();
+            let mut cur = cmu;
 
             for (i, val) in auth_path.clone().into_iter().enumerate() {
                 let (uncle, b) = val.unwrap();
@@ -613,7 +612,7 @@ fn test_input_circuit_with_bls12_381() {
             }
 
             let expected_nf = note.nf(&viewing_key, position);
-            let expected_nf = multipack::bytes_to_bits_le(&expected_nf);
+            let expected_nf = multipack::bytes_to_bits_le(&expected_nf.0);
             let expected_nf = multipack::compute_multipacking(&expected_nf);
             assert_eq!(expected_nf.len(), 2);
 
@@ -662,14 +661,11 @@ fn test_input_circuit_with_bls12_381() {
 #[test]
 fn test_input_circuit_with_bls12_381_external_test_vectors() {
     use bellman::gadgets::test::*;
-    use ff::{Field, PrimeFieldBits};
+    use ff::Field;
     use group::Group;
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::{
-        pedersen_hash,
-        primitives::{Diversifier, Note, ProofGenerationKey, Rseed},
-    };
+    use zcash_primitives::sapling::{pedersen_hash, Diversifier, Note, ProofGenerationKey, Rseed};
 
     let mut rng = XorShiftRng::from_seed([
         0x59, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -707,15 +703,12 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
     for i in 0..10 {
         let value_commitment = ValueCommitment {
             value: i,
-            randomness: jubjub::Fr::from_str_vartime(&(1000 * (i + 1)).to_string()).unwrap(),
+            randomness: jubjub::Fr::from(1000 * (i + 1)),
         };
 
-        let nsk = jubjub::Fr::random(&mut rng);
-        let ak = jubjub::SubgroupPoint::random(&mut rng);
-
         let proof_generation_key = ProofGenerationKey {
-            ak: ak.clone(),
-            nsk: nsk.clone(),
+            ak: jubjub::SubgroupPoint::random(&mut rng),
+            nsk: jubjub::Fr::random(&mut rng),
         };
 
         let viewing_key = proof_generation_key.to_viewing_key();
@@ -755,14 +748,14 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
             );
             let note = Note {
                 value: value_commitment.value,
-                g_d: g_d.clone(),
-                pk_d: payment_address.pk_d().clone(),
-                rseed: Rseed::BeforeZip212(commitment_randomness.clone()),
+                g_d,
+                pk_d: *payment_address.pk_d(),
+                rseed: Rseed::BeforeZip212(commitment_randomness),
             };
 
             let mut position = 0u64;
             let cmu = note.cmu();
-            let mut cur = cmu.clone();
+            let mut cur = cmu;
 
             for (i, val) in auth_path.clone().into_iter().enumerate() {
                 let (uncle, b) = val.unwrap();
@@ -797,7 +790,7 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
             }
 
             let expected_nf = note.nf(&viewing_key, position);
-            let expected_nf = multipack::bytes_to_bits_le(&expected_nf);
+            let expected_nf = multipack::bytes_to_bits_le(&expected_nf.0);
             let expected_nf = multipack::compute_multipacking(&expected_nf);
             assert_eq!(expected_nf.len(), 2);
 
@@ -850,7 +843,7 @@ fn test_output_circuit_with_bls12_381() {
     use group::Group;
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::primitives::{Diversifier, ProofGenerationKey, Rseed};
+    use zcash_primitives::sapling::{Diversifier, ProofGenerationKey, Rseed};
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -866,10 +859,7 @@ fn test_output_circuit_with_bls12_381() {
         let nsk = jubjub::Fr::random(&mut rng);
         let ak = jubjub::SubgroupPoint::random(&mut rng);
 
-        let proof_generation_key = ProofGenerationKey {
-            ak: ak.clone(),
-            nsk: nsk.clone(),
-        };
+        let proof_generation_key = ProofGenerationKey { ak, nsk };
 
         let viewing_key = proof_generation_key.to_viewing_key();
 
@@ -898,7 +888,7 @@ fn test_output_circuit_with_bls12_381() {
                 value_commitment: Some(value_commitment.clone()),
                 payment_address: Some(payment_address.clone()),
                 commitment_randomness: Some(commitment_randomness),
-                esk: Some(esk.clone()),
+                esk: Some(esk),
             };
 
             instance.synthesize(&mut cs).unwrap();

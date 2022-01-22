@@ -7,7 +7,7 @@ use std::convert::TryInto;
 use crate::asset_type::AssetType;
 use crate::constants;
 
-use zcash_primitives::group_hash::group_hash;
+use zcash_primitives::sapling::group_hash::group_hash;
 
 use crate::pedersen_hash::{pedersen_hash, Personalization};
 

@@ -12,7 +12,7 @@ use lazy_static::lazy_static;
 use rand_core::{CryptoRng, RngCore};
 use std::io::{self, Read, Write};
 
-use crate::merkle_tree::Hashable;
+use zcash_primitives::merkle_tree::Hashable;
 use crate::redjubjub::{PrivateKey, PublicKey, Signature};
 
 pub const SAPLING_COMMITMENT_TREE_DEPTH: usize = 32;

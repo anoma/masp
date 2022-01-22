@@ -10,11 +10,11 @@ use std::ops::AddAssign;
 
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
-    primitives::{Diversifier, PaymentAddress, ViewingKey},
+    sapling::{Diversifier, PaymentAddress, ViewingKey},
 };
 use std::io::{self, Read, Write};
 
-use crate::keys::{
+use crate::sapling::keys::{
     prf_expand, prf_expand_vec, ExpandedSpendingKey, FullViewingKey, OutgoingViewingKey,
 };
 
@@ -32,9 +32,9 @@ fn derive_child_ovk(parent: &OutgoingViewingKey, i_l: &[u8]) -> OutgoingViewingK
 // ZIP 32 structures
 
 /// A Sapling full viewing key fingerprint
-struct FVKFingerprint([u8; 32]);
+struct FvkFingerprint([u8; 32]);
 
-impl From<&FullViewingKey> for FVKFingerprint {
+impl From<&FullViewingKey> for FvkFingerprint {
     fn from(fvk: &FullViewingKey) -> Self {
         let mut h = Blake2bParams::new()
             .hash_length(32)
@@ -43,25 +43,25 @@ impl From<&FullViewingKey> for FVKFingerprint {
         h.update(&fvk.to_bytes());
         let mut fvfp = [0u8; 32];
         fvfp.copy_from_slice(h.finalize().as_bytes());
-        FVKFingerprint(fvfp)
+        FvkFingerprint(fvfp)
     }
 }
 
 /// A Sapling full viewing key tag
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct FVKTag([u8; 4]);
+struct FvkTag([u8; 4]);
 
-impl FVKFingerprint {
-    fn tag(&self) -> FVKTag {
+impl FvkFingerprint {
+    fn tag(&self) -> FvkTag {
         let mut tag = [0u8; 4];
         tag.copy_from_slice(&self.0[..4]);
-        FVKTag(tag)
+        FvkTag(tag)
     }
 }
 
-impl FVKTag {
+impl FvkTag {
     fn master() -> Self {
-        FVKTag([0u8; 4])
+        FvkTag([0u8; 4])
     }
 }
 
@@ -99,6 +99,12 @@ struct ChainCode([u8; 32]);
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DiversifierIndex(pub [u8; 11]);
 
+impl Default for DiversifierIndex {
+    fn default() -> Self {
+        DiversifierIndex::new()
+    }
+}
+
 impl DiversifierIndex {
     pub fn new() -> Self {
         DiversifierIndex([0; 11])
@@ -134,29 +140,56 @@ impl DiversifierKey {
         DiversifierKey(dk)
     }
 
+    fn try_diversifier_internal(ff: &FF1<Aes256>, j: DiversifierIndex) -> Option<Diversifier> {
+        // Generate d_j
+        let enc = ff
+            .encrypt(&[], &BinaryNumeralString::from_bytes_le(&j.0[..]))
+            .unwrap();
+        let mut d_j = [0; 11];
+        d_j.copy_from_slice(&enc.to_bytes_le());
+        let diversifier = Diversifier(d_j);
+
+        // validate that the generated diversifier maps to a jubjub subgroup point.
+        diversifier.g_d().map(|_| diversifier)
+    }
+
+    /// Attempts to produce a diversifier at the given index. Returns None
+    /// if the index does not produce a valid diversifier.
+    pub fn diversifier(&self, j: DiversifierIndex) -> Option<Diversifier> {
+        let ff = FF1::<Aes256>::new(&self.0, 2).unwrap();
+        Self::try_diversifier_internal(&ff, j)
+    }
+
+    /// Returns the diversifier index to which this key maps the given diversifier.
+    ///
+    /// This method cannot be used to verify whether the diversifier was originally
+    /// generated with this diversifier key, because all valid diversifiers can be
+    /// produced by all diversifier keys.
+    pub fn diversifier_index(&self, d: &Diversifier) -> DiversifierIndex {
+        let ff = FF1::<Aes256>::new(&self.0, 2).unwrap();
+        let dec = ff
+            .decrypt(&[], &BinaryNumeralString::from_bytes_le(&d.0[..]))
+            .unwrap();
+        let mut j = DiversifierIndex::new();
+        j.0.copy_from_slice(&dec.to_bytes_le());
+        j
+    }
+
     /// Returns the first index starting from j that generates a valid
     /// diversifier, along with the corresponding diversifier. Returns
-    /// an error if the diversifier space is exhausted.
-    pub fn diversifier(
+    /// `None` if the diversifier space contains no valid diversifiers
+    /// at or above the specified diversifier index.
+    pub fn find_diversifier(
         &self,
         mut j: DiversifierIndex,
-    ) -> Result<(DiversifierIndex, Diversifier), ()> {
+    ) -> Option<(DiversifierIndex, Diversifier)> {
         let ff = FF1::<Aes256>::new(&self.0, 2).unwrap();
         loop {
-            // Generate d_j
-            let enc = ff
-                .encrypt(&[], &BinaryNumeralString::from_bytes_le(&j.0[..]))
-                .unwrap();
-            let mut d_j = [0; 11];
-            d_j.copy_from_slice(&enc.to_bytes_le());
-            let d_j = Diversifier(d_j);
-
-            // Return (j, d_j) if valid, else increment j and try again
-            match d_j.g_d() {
-                Some(_) => return Ok((j, d_j)),
+            match Self::try_diversifier_internal(&ff, j) {
+                Some(d_j) => return Some((j, d_j)),
                 None => {
                     if j.increment().is_err() {
-                        return Err(());
+                        return None;
                     }
                 }
             }
@@ -164,11 +197,47 @@ impl DiversifierKey {
     }
 }
 
+/// Attempt to produce a payment address given the specified diversifier
+/// index, and return None if the specified index does not produce a valid
+/// diversifier.
+pub fn sapling_address(
+    fvk: &FullViewingKey,
+    dk: &DiversifierKey,
+    j: DiversifierIndex,
+) -> Option<PaymentAddress> {
+    dk.diversifier(j)
+        .and_then(|d_j| fvk.vk.to_payment_address(d_j))
+}
+
+/// Search the diversifier space starting at diversifier index `j` for
+/// one which will produce a valid diversifier, and return the payment address
+/// constructed using that diversifier along with the index at which the
+/// valid diversifier was found.
+pub fn sapling_find_address(
+    fvk: &FullViewingKey,
+    dk: &DiversifierKey,
+    j: DiversifierIndex,
+) -> Option<(DiversifierIndex, PaymentAddress)> {
+    let (j, d_j) = dk.find_diversifier(j)?;
+    fvk.vk.to_payment_address(d_j).map(|addr| (j, addr))
+}
+
+/// Returns the payment address corresponding to the smallest valid diversifier
+/// index, along with that index.
+pub fn sapling_default_address(
+    fvk: &FullViewingKey,
+    dk: &DiversifierKey,
+) -> (DiversifierIndex, PaymentAddress) {
+    // This unwrap is safe, if you have to search the 2^88 space of
+    // diversifiers it'll never return anyway.
+    sapling_find_address(fvk, dk, DiversifierIndex::new()).unwrap()
+}
+
 /// A Sapling extended spending key
 #[derive(Clone)]
 pub struct ExtendedSpendingKey {
     depth: u8,
-    parent_fvk_tag: FVKTag,
+    parent_fvk_tag: FvkTag,
     child_index: ChildIndex,
     chain_code: ChainCode,
     pub expsk: ExpandedSpendingKey,
@@ -179,7 +248,7 @@ pub struct ExtendedSpendingKey {
 #[derive(Clone)]
 pub struct ExtendedFullViewingKey {
     depth: u8,
-    parent_fvk_tag: FVKTag,
+    parent_fvk_tag: FvkTag,
     child_index: ChildIndex,
     chain_code: ChainCode,
     pub fvk: FullViewingKey,
@@ -245,7 +314,7 @@ impl ExtendedSpendingKey {
 
         ExtendedSpendingKey {
             depth: 0,
-            parent_fvk_tag: FVKTag::master(),
+            parent_fvk_tag: FvkTag::master(),
             child_index: ChildIndex::master(),
             chain_code: ChainCode(c_m),
             expsk: ExpandedSpendingKey::from_spending_key(sk_m),
@@ -266,7 +335,7 @@ impl ExtendedSpendingKey {
 
         Ok(ExtendedSpendingKey {
             depth,
-            parent_fvk_tag: FVKTag(tag),
+            parent_fvk_tag: FvkTag(tag),
             child_index: ChildIndex::from_index(i),
             chain_code: ChainCode(c),
             expsk,
@@ -320,7 +389,7 @@ impl ExtendedSpendingKey {
 
         ExtendedSpendingKey {
             depth: self.depth + 1,
-            parent_fvk_tag: FVKFingerprint::from(&fvk).tag(),
+            parent_fvk_tag: FvkFingerprint::from(&fvk).tag(),
             child_index: i,
             chain_code: ChainCode(c_i),
             expsk: {
@@ -335,7 +404,9 @@ impl ExtendedSpendingKey {
         }
     }
 
-    pub fn default_address(&self) -> Result<(DiversifierIndex, PaymentAddress), ()> {
+    /// Returns the address with the lowest valid diversifier index, along with
+    /// the diversifier index that generated that address.
+    pub fn default_address(&self) -> (DiversifierIndex, PaymentAddress) {
         ExtendedFullViewingKey::from(self).default_address()
     }
 }
@@ -367,7 +438,7 @@ impl ExtendedFullViewingKey {
 
         Ok(ExtendedFullViewingKey {
             depth,
-            parent_fvk_tag: FVKTag(tag),
+            parent_fvk_tag: FvkTag(tag),
             child_index: ChildIndex::from_index(i),
             chain_code: ChainCode(c),
             fvk,
@@ -404,7 +475,7 @@ impl ExtendedFullViewingKey {
 
         Ok(ExtendedFullViewingKey {
             depth: self.depth + 1,
-            parent_fvk_tag: FVKFingerprint::from(&self.fvk).tag(),
+            parent_fvk_tag: FvkFingerprint::from(&self.fvk).tag(),
             child_index: i,
             chain_code: ChainCode(c_i),
             fvk: {
@@ -422,19 +493,25 @@ impl ExtendedFullViewingKey {
         })
     }
 
-    pub fn address(&self, j: DiversifierIndex) -> Result<(DiversifierIndex, PaymentAddress), ()> {
-        let (j, d_j) = match self.dk.diversifier(j) {
-            Ok(ret) => ret,
-            Err(()) => return Err(()),
-        };
-        match self.fvk.vk.to_payment_address(d_j) {
-            Some(addr) => Ok((j, addr)),
-            None => Err(()),
-        }
+    /// Attempt to produce a payment address given the specified diversifier
+    /// index, and return None if the specified index does not produce a valid
+    /// diversifier.
+    pub fn address(&self, j: DiversifierIndex) -> Option<PaymentAddress> {
+        sapling_address(&self.fvk, &self.dk, j)
     }
 
-    pub fn default_address(&self) -> Result<(DiversifierIndex, PaymentAddress), ()> {
-        self.address(DiversifierIndex::new())
+    /// Search the diversifier space starting at diversifier index `j` for
+    /// one which will produce a valid diversifier, and return the payment address
+    /// constructed using that diversifier along with the index at which the
+    /// valid diversifier was found.
+    pub fn find_address(&self, j: DiversifierIndex) -> Option<(DiversifierIndex, PaymentAddress)> {
+        sapling_find_address(&self.fvk, &self.dk, j)
+    }
+
+    /// Returns the payment address corresponding to the smallest valid diversifier
+    /// index, along with that index.
+    pub fn default_address(&self) -> (DiversifierIndex, PaymentAddress) {
+        sapling_default_address(&self.fvk, &self.dk)
     }
 }
 
@@ -515,31 +592,76 @@ mod tests {
         let d_3 = [60, 253, 170, 8, 171, 147, 220, 31, 3, 144, 34];
 
         // j = 0
-        let (j, d_j) = dk.diversifier(j_0).unwrap();
+        let d_j = dk.diversifier(j_0).unwrap();
+        assert_eq!(d_j.0, d_0);
+        assert_eq!(dk.diversifier_index(&Diversifier(d_0)), j_0);
+
+        // j = 1
+        assert_eq!(dk.diversifier(j_1), None);
+
+        // j = 2
+        assert_eq!(dk.diversifier(j_2), None);
+
+        // j = 3
+        let d_j = dk.diversifier(j_3).unwrap();
+        assert_eq!(d_j.0, d_3);
+        assert_eq!(dk.diversifier_index(&Diversifier(d_3)), j_3);
+    }
+
+    #[test]
+    fn find_diversifier() {
+        let dk = DiversifierKey([0; 32]);
+        let j_0 = DiversifierIndex::new();
+        let j_1 = DiversifierIndex([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        let j_2 = DiversifierIndex([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        let j_3 = DiversifierIndex([3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        // Computed using this Rust implementation
+        let d_0 = [220, 231, 126, 188, 236, 10, 38, 175, 214, 153, 140];
+        let d_3 = [60, 253, 170, 8, 171, 147, 220, 31, 3, 144, 34];
+
+        // j = 0
+        let (j, d_j) = dk.find_diversifier(j_0).unwrap();
         assert_eq!(j, j_0);
         assert_eq!(d_j.0, d_0);
 
         // j = 1
-        let (j, d_j) = dk.diversifier(j_1).unwrap();
+        let (j, d_j) = dk.find_diversifier(j_1).unwrap();
         assert_eq!(j, j_3);
         assert_eq!(d_j.0, d_3);
 
         // j = 2
-        let (j, d_j) = dk.diversifier(j_2).unwrap();
+        let (j, d_j) = dk.find_diversifier(j_2).unwrap();
         assert_eq!(j, j_3);
         assert_eq!(d_j.0, d_3);
 
         // j = 3
-        let (j, d_j) = dk.diversifier(j_3).unwrap();
+        let (j, d_j) = dk.find_diversifier(j_3).unwrap();
         assert_eq!(j, j_3);
         assert_eq!(d_j.0, d_3);
+    }
+
+    #[test]
+    fn address() {
+        let seed = [0; 32];
+        let xsk_m = ExtendedSpendingKey::master(&seed);
+        let xfvk_m = ExtendedFullViewingKey::from(&xsk_m);
+        let j_0 = DiversifierIndex::new();
+        let addr_m = xfvk_m.address(j_0).unwrap();
+        assert_eq!(
+            addr_m.diversifier().0,
+            // Computed using this Rust implementation
+            [59, 246, 250, 31, 131, 191, 69, 99, 200, 167, 19]
+        );
+
+        let j_1 = DiversifierIndex([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(xfvk_m.address(j_1), None);
     }
 
     #[test]
     fn default_address() {
         let seed = [0; 32];
         let xsk_m = ExtendedSpendingKey::master(&seed);
-        let (j_m, addr_m) = xsk_m.default_address().unwrap();
+        let (j_m, addr_m) = xsk_m.default_address();
         assert_eq!(j_m.0, [0; 11]);
         assert_eq!(
             addr_m.diversifier().0,
@@ -583,7 +705,7 @@ mod tests {
             d1: Option<[u8; 11]>,
             d2: Option<[u8; 11]>,
             dmax: Option<[u8; 11]>,
-        };
+        }
 
         // From https://github.com/zcash-hackworks/zcash-test-vectors/blob/master/sapling_zip32.py
         let test_vectors = vec![
@@ -1032,39 +1154,49 @@ mod tests {
             let mut ser = vec![];
             xfvk.write(&mut ser).unwrap();
             assert_eq!(&ser[..], &tv.xfvk[..]);
-            assert_eq!(FVKFingerprint::from(&xfvk.fvk).0, tv.fp);
+            assert_eq!(FvkFingerprint::from(&xfvk.fvk).0, tv.fp);
 
             // d0
             let mut di = DiversifierIndex::new();
-            match xfvk.dk.diversifier(di) {
-                Ok((l, d)) if l == di => assert_eq!(d.0, tv.d0.unwrap()),
-                Ok((_, _)) => assert!(tv.d0.is_none()),
-                Err(_) => panic!(),
+            match xfvk.dk.find_diversifier(di).unwrap() {
+                (l, d) if l == di => assert_eq!(d.0, tv.d0.unwrap()),
+                (_, _) => assert!(tv.d0.is_none()),
             }
 
             // d1
             di.increment().unwrap();
-            match xfvk.dk.diversifier(di) {
-                Ok((l, d)) if l == di => assert_eq!(d.0, tv.d1.unwrap()),
-                Ok((_, _)) => assert!(tv.d1.is_none()),
-                Err(_) => panic!(),
+            match xfvk.dk.find_diversifier(di).unwrap() {
+                (l, d) if l == di => assert_eq!(d.0, tv.d1.unwrap()),
+                (_, _) => assert!(tv.d1.is_none()),
             }
 
             // d2
             di.increment().unwrap();
-            match xfvk.dk.diversifier(di) {
-                Ok((l, d)) if l == di => assert_eq!(d.0, tv.d2.unwrap()),
-                Ok((_, _)) => assert!(tv.d2.is_none()),
-                Err(_) => panic!(),
+            match xfvk.dk.find_diversifier(di).unwrap() {
+                (l, d) if l == di => assert_eq!(d.0, tv.d2.unwrap()),
+                (_, _) => assert!(tv.d2.is_none()),
             }
 
             // dmax
             let dmax = DiversifierIndex([0xff; 11]);
-            match xfvk.dk.diversifier(dmax) {
-                Ok((l, d)) if l == dmax => assert_eq!(d.0, tv.dmax.unwrap()),
-                Ok((_, _)) => panic!(),
-                Err(_) => assert!(tv.dmax.is_none()),
+            match xfvk.dk.find_diversifier(dmax) {
+                Some((l, d)) if l == dmax => assert_eq!(d.0, tv.dmax.unwrap()),
+                Some((_, _)) => panic!(),
+                None => assert!(tv.dmax.is_none()),
             }
+        }
+    }
+}
+
+#[cfg(any(test, feature = "test-dependencies"))]
+pub mod testing {
+    use proptest::prelude::*;
+
+    use super::ExtendedSpendingKey;
+
+    prop_compose! {
+        pub fn arb_extended_spending_key()(seed in prop::array::uniform32(prop::num::u8::ANY)) -> ExtendedSpendingKey {
+            ExtendedSpendingKey::master(&seed)
         }
     }
 }

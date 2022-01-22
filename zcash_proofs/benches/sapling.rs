@@ -8,7 +8,7 @@ use ff::Field;
 use group::Group;
 use rand_core::{RngCore, SeedableRng};
 use rand_xorshift::XorShiftRng;
-use zcash_primitives::primitives::{Diversifier, ProofGenerationKey, ValueCommitment};
+use zcash_primitives::sapling::{Diversifier, ProofGenerationKey, ValueCommitment};
 use zcash_proofs::circuit::sapling::Spend;
 
 const TREE_DEPTH: usize = 32;
@@ -39,12 +39,9 @@ fn criterion_benchmark(c: &mut Criterion) {
             randomness: jubjub::Fr::random(&mut rng),
         };
 
-        let nsk = jubjub::Fr::random(&mut rng);
-        let ak = jubjub::SubgroupPoint::random(&mut rng);
-
         let proof_generation_key = ProofGenerationKey {
-            ak: ak.clone(),
-            nsk: nsk.clone(),
+            ak: jubjub::SubgroupPoint::random(&mut rng),
+            nsk: jubjub::Fr::random(&mut rng),
         };
 
         let viewing_key = proof_generation_key.to_viewing_key();

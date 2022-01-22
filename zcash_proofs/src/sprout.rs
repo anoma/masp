@@ -15,6 +15,7 @@ const GROTH_PROOF_SIZE: usize = 48 // π_A
 pub const WITNESS_PATH_SIZE: usize = 1 + 33 * TREE_DEPTH + 8;
 
 /// Sprout JoinSplit proof generation.
+#[allow(clippy::too_many_arguments)]
 pub fn create_proof(
     phi: [u8; 32],
     rt: [u8; 32],
@@ -89,7 +90,7 @@ pub fn create_proof(
                 position >>= 1;
             }
 
-            inputs.push(JSInput {
+            inputs.push(JsInput {
                 value,
                 a_sk,
                 rho,
@@ -105,7 +106,7 @@ pub fn create_proof(
     let mut outputs = Vec::with_capacity(2);
     {
         let mut handle_output = |a_pk, value, r| {
-            outputs.push(JSOutput {
+            outputs.push(JsOutput {
                 value: Some(value),
                 a_pk: Some(PayingKey(a_pk)),
                 r: Some(CommitmentRandomness(r)),
@@ -133,6 +134,7 @@ pub fn create_proof(
 }
 
 /// Sprout JoinSplit proof verification.
+#[allow(clippy::too_many_arguments)]
 pub fn verify_proof(
     proof: &[u8; GROTH_PROOF_SIZE],
     rt: &[u8; 32],
