@@ -39,7 +39,7 @@ use std::ffi::OsString;
 #[cfg(target_os = "windows")]
 use std::os::windows::ffi::OsStringExt;
 
-use zcash_primitives::sapling::{Rseed, note_encryption::sapling_ka_agree};
+use zcash_primitives::sapling::{note_encryption::sapling_ka_agree, Rseed};
 
 use masp_primitives::{
     asset_type::AssetType,
@@ -52,12 +52,12 @@ use masp_primitives::{
     sapling::{merkle_hash, spend_sig},
     zip32,
 };
-use zcash_primitives::{    merkle_tree::MerklePath,};
 use masp_proofs::{
     circuit::sapling::TREE_DEPTH as SAPLING_TREE_DEPTH,
     load_parameters,
     sapling::{SaplingProvingContext, SaplingVerificationContext},
 };
+use zcash_primitives::merkle_tree::MerklePath;
 
 #[cfg(test)]
 mod tests;
@@ -126,17 +126,16 @@ pub extern "C" fn libmasp_init_zksnark_params(
 
 fn init_zksnark_params(spend_path: &Path, output_path: &Path) {
     // Load params
-    let (spend_params, spend_vk, output_params, output_vk) =
-        load_parameters(spend_path, output_path);
+    let p = load_parameters(spend_path, output_path);
 
     // Caller is responsible for calling this function once, so
     // these global mutations are safe.
     unsafe {
-        SAPLING_SPEND_PARAMS = Some(spend_params);
-        SAPLING_OUTPUT_PARAMS = Some(output_params);
+        SAPLING_SPEND_PARAMS = Some(p.spend_params);
+        SAPLING_OUTPUT_PARAMS = Some(p.output_params);
 
-        SAPLING_SPEND_VK = Some(spend_vk);
-        SAPLING_OUTPUT_VK = Some(output_vk);
+        SAPLING_SPEND_VK = Some(p.spend_vk);
+        SAPLING_OUTPUT_VK = Some(p.output_vk);
     }
 }
 
@@ -377,7 +376,7 @@ pub extern "C" fn libmasp_sapling_compute_nf(
     let vk = ViewingKey { ak, nk };
     let nf = note.nf(&vk, position);
     let result = unsafe { &mut *result };
-    result.copy_from_slice(&nf);
+    result.copy_from_slice(&nf.0);
 
     true
 }
@@ -955,9 +954,9 @@ pub extern "C" fn libmasp_zip32_xfvk_address(
         .expect("valid ExtendedFullViewingKey");
     let j = zip32::DiversifierIndex(unsafe { *j });
 
-    let addr = match xfvk.address(j) {
-        Ok(addr) => addr,
-        Err(_) => return false,
+    let addr = match xfvk.find_address(j) {
+        Some(addr) => addr,
+        None => return false,
     };
 
     let j_ret = unsafe { &mut *j_ret };

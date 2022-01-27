@@ -6,6 +6,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 // Catch documentation errors caused by code changes.
 #![deny(rustdoc::broken_intra_doc_links)]
+// Temporary until we have addressed all Result<T, ()> cases.
+#![allow(clippy::result_unit_err)]
 
 use bellman::groth16::{prepare_verifying_key, Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
@@ -20,7 +22,7 @@ use std::path::PathBuf;
 
 pub mod circuit;
 mod constants;
-pub use zcash_proofs::hashreader;
+pub mod hashreader;
 pub mod sapling;
 
 #[cfg(any(feature = "local-prover", feature = "bundled-prover"))]
@@ -43,30 +45,29 @@ const SAPLING_OUTPUT_HASH: &str = "89fe551ad6c0281aebb857eb203dbf35854979503d374
 #[cfg(feature = "download-params")]
 const DOWNLOAD_URL: &str = "https://download.z.cash/downloads";
 
-/// Returns the default folder that the Zcash proving parameters are located in.
+/// Returns the default folder that the MASP proving parameters are located in.
 #[cfg(feature = "directories")]
 #[cfg_attr(docsrs, doc(cfg(feature = "directories")))]
 pub fn default_params_folder() -> Option<PathBuf> {
     BaseDirs::new().map(|base_dirs| {
         if cfg!(any(windows, target_os = "macos")) {
-            base_dirs.data_dir().join("ZcashParams")
+            base_dirs.data_dir().join("MASPParams")
         } else {
-            base_dirs.home_dir().join(".zcash-params")
+            base_dirs.home_dir().join(".masp-params")
         }
     })
 }
 
-/// Download the Zcash Sapling parameters, storing them in the default location.
+/// Download the MASP Sapling parameters, storing them in the default location.
 ///
 /// This mirrors the behaviour of the `fetch-params.sh` script from `zcashd`.
 #[cfg(feature = "download-params")]
 #[cfg_attr(docsrs, doc(cfg(feature = "download-params")))]
 pub fn download_parameters() -> Result<(), minreq::Error> {
-    // Ensure that the default Zcash parameters location exists.
-    let params_dir = default_params_folder().ok_or(io::Error::new(
-        io::ErrorKind::Other,
-        "Could not load default params folder",
-    ))?;
+    // Ensure that the default MASP parameters location exists.
+    let params_dir = default_params_folder().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::Other, "Could not load default params folder")
+    })?;
     std::fs::create_dir_all(&params_dir)?;
 
     let fetch_params = |name: &str, expected_hash: &str| -> Result<(), minreq::Error> {
@@ -109,15 +110,13 @@ pub fn download_parameters() -> Result<(), minreq::Error> {
     Ok(())
 }
 
-pub fn load_parameters(
-    spend_path: &Path,
-    output_path: &Path,
-) -> (
-    Parameters<Bls12>,
-    PreparedVerifyingKey<Bls12>,
-    Parameters<Bls12>,
-    PreparedVerifyingKey<Bls12>,
-) {
+pub struct MASPParameters {
+    pub spend_params: Parameters<Bls12>,
+    pub spend_vk: PreparedVerifyingKey<Bls12>,
+    pub output_params: Parameters<Bls12>,
+    pub output_vk: PreparedVerifyingKey<Bls12>,
+}
+pub fn load_parameters(spend_path: &Path, output_path: &Path) -> MASPParameters {
     // Load from each of the paths
     let spend_fs = File::open(spend_path).expect("couldn't load Sapling spend parameters file");
     let output_fs = File::open(output_path).expect("couldn't load Sapling output parameters file");
@@ -128,15 +127,10 @@ pub fn load_parameters(
     )
 }
 
-fn parse_parameters<R: io::Read>(
-    spend_fs: R,
-    output_fs: R,
-) -> (
-    Parameters<Bls12>,
-    PreparedVerifyingKey<Bls12>,
-    Parameters<Bls12>,
-    PreparedVerifyingKey<Bls12>,
-) {
+/// Parse Bls12 keys from bytes as serialized by [`Parameters::write`].
+///
+/// This function will panic if it encounters unparseable data.
+pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R) -> MASPParameters {
     let mut spend_fs = hashreader::HashReader::new(spend_fs);
     let mut output_fs = hashreader::HashReader::new(output_fs);
 
@@ -168,5 +162,10 @@ fn parse_parameters<R: io::Read>(
     let spend_vk = prepare_verifying_key(&spend_params.vk);
     let output_vk = prepare_verifying_key(&output_params.vk);
 
-    (spend_params, spend_vk, output_params, output_vk)
+    MASPParameters {
+        spend_params,
+        spend_vk,
+        output_params,
+        output_vk,
+    }
 }

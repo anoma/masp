@@ -4,7 +4,6 @@ use bellman::groth16::{Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
 use masp_primitives::{
     asset_type::AssetType,
-
     primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
     prover::TxProver,
     redjubjub::{PublicKey, Signature},
@@ -16,7 +15,7 @@ use zcash_primitives::{
 };
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
 
-use crate::sapling::SaplingProvingContext;
+use crate::{parse_parameters, sapling::SaplingProvingContext};
 
 #[cfg(feature = "local-prover")]
 use crate::{default_params_folder, load_parameters, SAPLING_OUTPUT_NAME, SAPLING_SPEND_NAME};
@@ -53,14 +52,37 @@ impl LocalTxProver {
     ///
     /// This function will panic if the paths do not point to valid parameter files with
     /// the expected hashes.
-    #[cfg(feature = "local-prover")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "local-prover")))]
     pub fn new(spend_path: &Path, output_path: &Path) -> Self {
-        let (spend_params, spend_vk, output_params, _) = load_parameters(spend_path, output_path);
+        let p = load_parameters(spend_path, output_path);
         LocalTxProver {
-            spend_params,
-            spend_vk,
-            output_params,
+            spend_params: p.spend_params,
+            spend_vk: p.spend_vk,
+            output_params: p.output_params,
+        }
+    }
+
+    /// Creates a `LocalTxProver` using parameters specified as byte arrays.
+    ///
+    /// # Examples
+    ///
+    /// ```should_panic
+    /// use std::path::Path;
+    /// use zcash_proofs::prover::LocalTxProver;
+    ///
+    /// let tx_prover = LocalTxProver::from_bytes(&[0u8], &[0u8]);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the byte arrays do not contain valid parameters with
+    /// the expected hashes.
+    pub fn from_bytes(spend_param_bytes: &[u8], output_param_bytes: &[u8]) -> Self {
+        let p = parse_parameters(spend_param_bytes, output_param_bytes);
+
+        LocalTxProver {
+            spend_params: p.spend_params,
+            spend_vk: p.spend_vk,
+            output_params: p.output_params,
         }
     }
 
@@ -112,13 +134,12 @@ impl LocalTxProver {
     #[cfg_attr(docsrs, doc(cfg(feature = "bundled-prover")))]
     pub fn bundled() -> Self {
         let (spend_buf, output_buf) = wagyu_zcash_parameters::load_sapling_parameters();
-        let (spend_params, spend_vk, output_params, _, _) =
-            parse_parameters(&spend_buf[..], &output_buf[..], None);
+        let p = parse_parameters(&spend_buf[..], &output_buf[..], None);
 
         LocalTxProver {
-            spend_params,
-            spend_vk,
-            output_params,
+            spend_params: p.spend_params,
+            spend_vk: p.spend_vk,
+            output_params: p.output_params,
         }
     }
 }

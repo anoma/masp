@@ -8,14 +8,16 @@ use crate::{
 use bitvec::{order::Lsb0, view::AsBits};
 use ff::PrimeField;
 use group::{Curve, GroupEncoding};
+use incrementalmerkletree::{self, Altitude};
 use lazy_static::lazy_static;
 use rand_core::{CryptoRng, RngCore};
 use std::io::{self, Read, Write};
 
-use zcash_primitives::merkle_tree::Hashable;
 use crate::redjubjub::{PrivateKey, PublicKey, Signature};
-
-pub const SAPLING_COMMITMENT_TREE_DEPTH: usize = 32;
+use zcash_primitives::{
+    merkle_tree::{HashSer, Hashable},
+    sapling::SAPLING_COMMITMENT_TREE_DEPTH,
+};
 
 /// Compute a parent node in the Sapling commitment tree given its two children.
 pub fn merkle_hash(depth: usize, lhs: &[u8; 32], rhs: &[u8; 32]) -> [u8; 32] {
@@ -63,7 +65,25 @@ impl Node {
     }
 }
 
-impl Hashable for Node {
+impl incrementalmerkletree::Hashable for Node {
+    fn empty_leaf() -> Self {
+        Node {
+            repr: Note::uncommitted().to_repr(),
+        }
+    }
+
+    fn combine(altitude: Altitude, lhs: &Self, rhs: &Self) -> Self {
+        Node {
+            repr: merkle_hash(altitude.into(), &lhs.repr, &rhs.repr),
+        }
+    }
+
+    fn empty_root(altitude: Altitude) -> Self {
+        EMPTY_ROOTS[<usize>::from(altitude)]
+    }
+}
+
+impl HashSer for Node {
     fn read<R: Read>(mut reader: R) -> io::Result<Self> {
         let mut repr = [0u8; 32];
         reader.read_exact(&mut repr)?;
@@ -73,26 +93,11 @@ impl Hashable for Node {
     fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(self.repr.as_ref())
     }
-
-    fn combine(depth: usize, lhs: &Self, rhs: &Self) -> Self {
-        Node {
-            repr: merkle_hash(depth, &lhs.repr, &rhs.repr),
-        }
-    }
-
-    fn blank() -> Self {
-        Node {
-            repr: Note::uncommitted().to_repr(),
-        }
-    }
-
-    fn empty_root(depth: usize) -> Self {
-        EMPTY_ROOTS[depth]
-    }
 }
 
 impl From<Node> for bls12_381::Scalar {
     fn from(node: Node) -> Self {
+        // Tree nodes should be in the prime field.
         bls12_381::Scalar::from_repr(node.repr).unwrap()
     }
 }
@@ -110,6 +115,15 @@ lazy_static! {
 
 /// Create the spendAuthSig for a Sapling SpendDescription.
 pub fn spend_sig<R: RngCore + CryptoRng>(
+    ask: PrivateKey,
+    ar: jubjub::Fr,
+    sighash: &[u8; 32],
+    rng: &mut R,
+) -> Signature {
+    spend_sig_internal(ask, ar, sighash, rng)
+}
+
+pub(crate) fn spend_sig_internal<R: RngCore>(
     ask: PrivateKey,
     ar: jubjub::Fr,
     sighash: &[u8; 32],

@@ -1,9 +1,10 @@
 use group::GroupEncoding;
-use masp_primitives::asset_type::AssetType;
 use masp_primitives::{
+    asset_type::AssetType,
     constants::SPENDING_KEY_GENERATOR,
-    primitives::{Diversifier, ProofGenerationKey, Rseed},
+    primitives::{Diversifier, ProofGenerationKey},
 };
+use zcash_primitives::sapling::{Nullifier, Rseed};
 
 use crate::{
     libmasp_ask_to_ak, libmasp_check_diversifier, libmasp_crh_ivk, libmasp_ivk_to_pkd,
@@ -675,7 +676,7 @@ fn key_components() {
             assert_eq!(&nk, &tv.nk);
         }
 
-        assert_eq!(&fvk.ivk().to_bytes(), &tv.ivk);
+        assert_eq!(&fvk.ivk().to_repr(), &tv.ivk);
         {
             let mut ivk = [0u8; 32];
             libmasp_crh_ivk(&tv.ak, &tv.nk, &mut ivk);
@@ -704,6 +705,6 @@ fn key_components() {
             .unwrap();
         assert_eq!(&note.cmu().to_bytes(), &tv.note_cm);
 
-        assert_eq!(note.nf(&fvk, tv.note_pos), tv.note_nf);
+        assert_eq!(note.nf(&fvk, tv.note_pos), Nullifier(tv.note_nf));
     }
 }

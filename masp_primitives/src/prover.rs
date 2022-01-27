@@ -6,8 +6,8 @@ use crate::{
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };
-use zcash_primitives::{sapling::{Rseed}, merkle_tree::MerklePath};
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
+use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
 use crate::asset_type::AssetType;
 
@@ -24,6 +24,7 @@ pub trait TxProver {
     /// the context for later use.
     ///
     /// [`SpendDescription`]: crate::transaction::components::SpendDescription
+    #[allow(clippy::too_many_arguments)]
     fn spend_proof(
         &self,
         ctx: &mut Self::SaplingProvingContext,
@@ -64,28 +65,26 @@ pub trait TxProver {
 }
 
 #[cfg(test)]
-pub(crate) mod mock {
+pub mod mock {
     use ff::Field;
     use rand_core::OsRng;
 
     use crate::{
         asset_type::AssetType,
         constants::SPENDING_KEY_GENERATOR,
-        primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
+        primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
     };
 
     use crate::{
         redjubjub::{PublicKey, Signature},
         sapling::Node,
     };
-    use zcash_primitives::{
-        merkle_tree::MerklePath,
-    };
     use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
+    use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
     use super::TxProver;
 
-    pub(crate) struct MockTxProver;
+    pub struct MockTxProver;
 
     #[cfg(test)]
     impl TxProver for MockTxProver {

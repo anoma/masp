@@ -1,7 +1,7 @@
 [package]
 name = "masp_proofs"
 description = "Experimental MASP zk-SNARK circuits and proving APIs, based on zcash_proofs"
-version = "0.4.2"
+version = "0.5.0"
 authors = [
     "Jack Grigg <jack@z.cash>",
     "joe <joe@heliax.dev>",
@@ -29,9 +29,9 @@ lazy_static = "1"
 minreq = { version = "2", features = ["https"], optional = true }
 rand_core = "0.6"
 wagyu-zcash-parameters = { version = "0.2", optional = true }
-masp_primitives = { version = "0.4", path = "../masp_primitives" }
+masp_primitives = { version = "0.5", path = "../masp_primitives" }
 zcash_primitives = { git = "https://github.com/zcash/librustzcash" }
-zcash_proofs = { path = "../zcash_proofs" }
+zcash_proofs = { git = "https://github.com/zcash/librustzcash" }
 
 [dev-dependencies]
 criterion = "0.3"
@@ -44,6 +44,8 @@ download-params = ["minreq"]
 local-prover = ["directories"]
 multicore = ["bellman/multicore"]
 
+[lib]
+bench = false
 [[bench]]
 name = "sapling"
 harness = false

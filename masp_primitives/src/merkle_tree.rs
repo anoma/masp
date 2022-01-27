@@ -3,12 +3,13 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
-use std::iter;
 
-use zcash_primitives::sapling::{SAPLING_COMMITMENT_TREE_DEPTH, SAPLING_COMMITMENT_TREE_DEPTH_U8};
+use incrementalmerkletree::{self, bridgetree};
 use zcash_encoding::{Optional, Vector};
-use zcash_primitives::merkle_tree::{Hashable,};// MerklePath, CommitmentTree, IncrementalWitness};
-use incrementalmerkletree::{self, bridgetree, Altitude};
+use zcash_primitives::{
+    merkle_tree::Hashable,
+    sapling::{SAPLING_COMMITMENT_TREE_DEPTH, SAPLING_COMMITMENT_TREE_DEPTH_U8},
+};
 struct PathFiller<Node: Hashable> {
     queue: VecDeque<Node>,
 }
@@ -1012,10 +1013,11 @@ mod tests {
             tmp.push(TESTING_DEPTH as u8);
             for node in path.auth_path.iter().rev() {
                 tmp.push(32u8);
-                node.0.write(&mut tmp);
+                node.0.write(&mut tmp).unwrap();
             }
             use byteorder::WriteBytesExt;
-            tmp.write_u64::<byteorder::LittleEndian>(path.position);
+            tmp.write_u64::<byteorder::LittleEndian>(path.position)
+                .unwrap();
             println!("{}", hex::encode(tmp));
         }
 

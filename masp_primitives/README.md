@@ -1,6 +1,6 @@
-# zcash_primitives
+# masp_primitives
 
-This library contains Rust implementations of the Zcash primitives.
+This library contains Rust implementations of the MASP primitives, based on the Zcash Sapling primitives.
 
 ## License
 

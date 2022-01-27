@@ -1,4 +1,4 @@
-![MASP Logo](https://github.com/metastatedev/masp/blob/main/docs/logo.png)
+![MASP Logo](https://github.com/anoma/masp/blob/main/docs/logo.png)
 
 # MASP Rust crates
 

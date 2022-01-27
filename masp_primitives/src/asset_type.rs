@@ -1,8 +1,10 @@
-use crate::constants::{
-    ASSET_IDENTIFIER_LENGTH, ASSET_IDENTIFIER_PERSONALIZATION, GH_FIRST_BLOCK,
-    VALUE_COMMITMENT_GENERATOR_PERSONALIZATION,
+use crate::{
+    constants::{
+        ASSET_IDENTIFIER_LENGTH, ASSET_IDENTIFIER_PERSONALIZATION, GH_FIRST_BLOCK,
+        VALUE_COMMITMENT_GENERATOR_PERSONALIZATION,
+    },
+    primitives::ValueCommitment,
 };
-use crate::primitives::ValueCommitment;
 use blake2s_simd::Params as Blake2sParams;
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
 

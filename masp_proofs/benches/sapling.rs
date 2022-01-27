@@ -6,11 +6,10 @@ use bls12_381::Bls12;
 use criterion::Criterion;
 use ff::Field;
 use group::Group;
-use masp_primitives::asset_type::AssetType;
-use masp_primitives::primitives::{Diversifier, ProofGenerationKey};
-use masp_proofs::circuit::sapling::Spend;
 use rand_core::{RngCore, SeedableRng};
 use rand_xorshift::XorShiftRng;
+use masp_primitives::{primitives::{Diversifier, ProofGenerationKey}, asset_type::AssetType};
+use masp_proofs::circuit::sapling::Spend;
 
 const TREE_DEPTH: usize = 32;
 
@@ -39,12 +38,9 @@ fn criterion_benchmark(c: &mut Criterion) {
             .unwrap()
             .value_commitment(1, jubjub::Fr::random(&mut rng));
 
-        let nsk = jubjub::Fr::random(&mut rng);
-        let ak = jubjub::SubgroupPoint::random(&mut rng);
-
         let proof_generation_key = ProofGenerationKey {
-            ak: ak.clone(),
-            nsk: nsk.clone(),
+            ak: jubjub::SubgroupPoint::random(&mut rng),
+            nsk: jubjub::Fr::random(&mut rng),
         };
 
         let viewing_key = proof_generation_key.to_viewing_key();

@@ -1,29 +1,13 @@
-//! Various constants used for the Zcash proofs.
+//! Various constants used for the MASP proofs.
 
 use bls12_381::Scalar;
+use ff::Field;
 use group::{Curve, Group};
+use jubjub::ExtendedPoint;
 use lazy_static::lazy_static;
 use masp_primitives::constants::PEDERSEN_HASH_GENERATORS;
 use zcash_primitives::constants::PEDERSEN_HASH_CHUNKS_PER_GENERATOR;
-use zcash_proofs::constants::{ FixedGeneratorOwned};
-use ff::Field;
-
-
-/// The `d` constant of the twisted Edwards curve.
-pub(crate) const EDWARDS_D: Scalar = Scalar::from_raw([
-    0x0106_5fd6_d634_3eb1,
-    0x292d_7f6d_3757_9d26,
-    0xf5fd_9207_e6bd_7fd4,
-    0x2a93_18e7_4bfa_2b48,
-]);
-
-/// The `A` constant of the birationally equivalent Montgomery curve.
-pub(crate) const MONTGOMERY_A: Scalar = Scalar::from_raw([
-    0x0000_0000_0000_a002,
-    0x0000_0000_0000_0000,
-    0x0000_0000_0000_0000,
-    0x0000_0000_0000_0000,
-]);
+use zcash_proofs::constants::{generate_circuit_generator, FixedGeneratorOwned};
 
 /// The scaling factor used for conversion to and from the Montgomery form.
 pub(crate) const MONTGOMERY_SCALE: Scalar = Scalar::from_raw([
@@ -33,10 +17,32 @@ pub(crate) const MONTGOMERY_SCALE: Scalar = Scalar::from_raw([
     0x2762_de61_e862_645e,
 ]);
 
+lazy_static! {
+    pub static ref PROOF_GENERATION_KEY_GENERATOR: FixedGeneratorOwned =
+        generate_circuit_generator(masp_primitives::constants::PROOF_GENERATION_KEY_GENERATOR);
+
+    pub static ref NOTE_COMMITMENT_RANDOMNESS_GENERATOR: FixedGeneratorOwned =
+        generate_circuit_generator(masp_primitives::constants::NOTE_COMMITMENT_RANDOMNESS_GENERATOR);
+
+    pub static ref NULLIFIER_POSITION_GENERATOR: FixedGeneratorOwned =
+        generate_circuit_generator(masp_primitives::constants::NULLIFIER_POSITION_GENERATOR);
+
+    pub static ref VALUE_COMMITMENT_RANDOMNESS_GENERATOR: FixedGeneratorOwned =
+        generate_circuit_generator(masp_primitives::constants::VALUE_COMMITMENT_RANDOMNESS_GENERATOR);
+
+    pub static ref SPENDING_KEY_GENERATOR: FixedGeneratorOwned =
+        generate_circuit_generator(masp_primitives::constants::SPENDING_KEY_GENERATOR);
+
+    /// The pre-computed window tables `[-4, 3, 2, 1, 1, 2, 3, 4]` of different magnitudes
+    /// of the Pedersen hash segment generators.
+    pub static ref PEDERSEN_CIRCUIT_GENERATORS: Vec<Vec<Vec<(Scalar, Scalar)>>> =
+        generate_pedersen_circuit_generators();
+}
+
 /// Returns the coordinates of this point's Montgomery curve representation, or `None` if
 /// it is the point at infinity.
 #[allow(clippy::many_single_char_names)]
-pub(crate) fn to_montgomery_coords(g: jubjub::ExtendedPoint) -> Option<(Scalar, Scalar)> {
+pub(crate) fn to_montgomery_coords(g: ExtendedPoint) -> Option<(Scalar, Scalar)> {
     let g = g.to_affine();
     let (x, y) = (g.get_u(), g.get_v());
 
@@ -76,54 +82,6 @@ pub(crate) fn to_montgomery_coords(g: jubjub::ExtendedPoint) -> Option<(Scalar, 
     }
 }
 
-/// The number of chunks needed to represent a full scalar during fixed-base
-/// exponentiation.
-const FIXED_BASE_CHUNKS_PER_GENERATOR: usize = 84;
-
-lazy_static! {
-    pub static ref PROOF_GENERATION_KEY_GENERATOR: FixedGeneratorOwned =
-        generate_circuit_generator(masp_primitives::constants::PROOF_GENERATION_KEY_GENERATOR);
-
-    pub static ref NOTE_COMMITMENT_RANDOMNESS_GENERATOR: FixedGeneratorOwned =
-        generate_circuit_generator(masp_primitives::constants::NOTE_COMMITMENT_RANDOMNESS_GENERATOR);
-
-    pub static ref NULLIFIER_POSITION_GENERATOR: FixedGeneratorOwned =
-        generate_circuit_generator(masp_primitives::constants::NULLIFIER_POSITION_GENERATOR);
-
-    pub static ref VALUE_COMMITMENT_RANDOMNESS_GENERATOR: FixedGeneratorOwned =
-        generate_circuit_generator(masp_primitives::constants::VALUE_COMMITMENT_RANDOMNESS_GENERATOR);
-
-    pub static ref SPENDING_KEY_GENERATOR: FixedGeneratorOwned =
-        generate_circuit_generator(masp_primitives::constants::SPENDING_KEY_GENERATOR);
-
-    /// The pre-computed window tables `[-4, 3, 2, 1, 1, 2, 3, 4]` of different magnitudes
-    /// of the Pedersen hash segment generators.
-    pub static ref PEDERSEN_CIRCUIT_GENERATORS: Vec<Vec<Vec<(Scalar, Scalar)>>> =
-        generate_pedersen_circuit_generators();
-}
-
-/// Creates the 3-bit window table `[0, 1, ..., 8]` for different magnitudes of a fixed
-/// generator.
-fn generate_circuit_generator(mut gen: jubjub::SubgroupPoint) -> FixedGeneratorOwned {
-    let mut windows = vec![];
-
-    for _ in 0..FIXED_BASE_CHUNKS_PER_GENERATOR {
-        let mut coeffs = vec![(Scalar::zero(), Scalar::one())];
-        let mut g = gen.clone();
-        for _ in 0..7 {
-            let g_affine = jubjub::ExtendedPoint::from(g).to_affine();
-            coeffs.push((g_affine.get_u(), g_affine.get_v()));
-            g += gen;
-        }
-        windows.push(coeffs);
-
-        // gen = gen * 8
-        gen = g;
-    }
-
-    windows
-}
-
 /// Creates the 2-bit window table lookups for each 4-bit "chunk" in each segment of the
 /// Pedersen hash.
 fn generate_pedersen_circuit_generators() -> Vec<Vec<Vec<(Scalar, Scalar)>>> {
@@ -137,7 +95,7 @@ fn generate_pedersen_circuit_generators() -> Vec<Vec<Vec<(Scalar, Scalar)>>> {
             for _ in 0..PEDERSEN_HASH_CHUNKS_PER_GENERATOR {
                 // Create (x, y) coeffs for this chunk
                 let mut coeffs = vec![];
-                let mut g = gen.clone();
+                let mut g = gen;
 
                 // coeffs = g, g*2, g*3, g*4
                 for _ in 0..4 {
@@ -162,23 +120,22 @@ fn generate_pedersen_circuit_generators() -> Vec<Vec<Vec<(Scalar, Scalar)>>> {
 
 #[cfg(test)]
 mod tests {
-    use ff::PrimeField;
-    //use zcash_proofs::constants::{EDWARDS_D, MONTGOMERY_A, MONTGOMERY_SCALE};
     use super::*;
+    /// The `d` constant of the twisted Edwards curve.
+    pub(crate) const EDWARDS_D: Scalar = Scalar::from_raw([
+        0x0106_5fd6_d634_3eb1,
+        0x292d_7f6d_3757_9d26,
+        0xf5fd_9207_e6bd_7fd4,
+        0x2a93_18e7_4bfa_2b48,
+    ]);
 
     #[test]
     fn edwards_d() {
         // d = -(10240/10241)
         assert_eq!(
-            -Scalar::from_str_vartime("10240").unwrap()
-                * Scalar::from_str_vartime("10241").unwrap().invert().unwrap(),
+            -Scalar::from(10240) * Scalar::from(10241).invert().unwrap(),
             EDWARDS_D
         );
-    }
-
-    #[test]
-    fn montgomery_a() {
-        assert_eq!(Scalar::from_str_vartime("40962").unwrap(), MONTGOMERY_A);
     }
 
     #[test]
