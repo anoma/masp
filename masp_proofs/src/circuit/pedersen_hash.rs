@@ -109,9 +109,9 @@ mod test {
     use bellman::gadgets::test::*;
     use ff::PrimeField;
     use group::Curve;
-    use masp_primitives::pedersen_hash;
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
+    use masp_primitives::pedersen_hash;
 
     /// Predict the number of constraints of a Pedersen hash
     fn ph_num_constraints(input_bits: usize) -> usize {

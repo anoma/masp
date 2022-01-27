@@ -3,12 +3,13 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
-use std::iter;
 
-use zcash_primitives::sapling::{SAPLING_COMMITMENT_TREE_DEPTH, SAPLING_COMMITMENT_TREE_DEPTH_U8};
+use incrementalmerkletree::{self, bridgetree};
 use zcash_encoding::{Optional, Vector};
-use zcash_primitives::merkle_tree::{Hashable,};// MerklePath, CommitmentTree, IncrementalWitness};
-use incrementalmerkletree::{self, bridgetree, Altitude};
+use zcash_primitives::{
+    merkle_tree::Hashable,
+    sapling::{SAPLING_COMMITMENT_TREE_DEPTH, SAPLING_COMMITMENT_TREE_DEPTH_U8},
+};
 struct PathFiller<Node: Hashable> {
     queue: VecDeque<Node>,
 }
