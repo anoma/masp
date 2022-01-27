@@ -13,7 +13,6 @@ use masp_primitives::{
     redjubjub::{PrivateKey, PublicKey, Signature},
     sapling::Node,
 };
-use zcash_primitives::{sapling::Rseed, merkle_tree::MerklePath};
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
 use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
