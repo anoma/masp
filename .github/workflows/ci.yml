@@ -52,7 +52,7 @@ jobs:
           override: true
 
       - name: Fetch path to Zcash parameters
-        working-directory: ./zcash_proofs
+        working-directory: ./masp_proofs
         run: echo "::set-env name=ZCASH_PARAMS::$(cargo run --release --example get-params-path --features directories)"
       - name: Cache Zcash parameters
         id: cache-params
@@ -62,7 +62,7 @@ jobs:
           key: ${{ runner.os }}-params
       - name: Fetch Zcash parameters
         if: steps.cache-params.outputs.cache-hit != 'true'
-        working-directory: ./zcash_proofs
+        working-directory: ./masp_proofs
         run: cargo run --release --example download-params --features download-params
 
       - name: cargo fetch
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.44.1
+          toolchain: 1.58.1
           override: true
       - name: Add target
         run: rustup target add ${{ matrix.target }}
@@ -106,8 +106,8 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: fetch
-      - name: Build zcash_proofs for target
-        working-directory: ./zcash_proofs
+      - name: Build masp_proofs for target
+        working-directory: ./masp_proofs
         run: cargo build --verbose --no-default-features --target ${{ matrix.target }}
 
   codecov:
@@ -128,7 +128,7 @@ jobs:
           args: cargo-tarpaulin
 
       - name: Fetch path to Zcash parameters
-        working-directory: ./zcash_proofs
+        working-directory: ./masp_proofs
         run: echo "::set-env name=ZCASH_PARAMS::$(cargo run --release --example get-params-path --features directories)"
       - name: Cache Zcash parameters
         id: cache-params
@@ -138,7 +138,7 @@ jobs:
           key: ${{ runner.os }}-params
       - name: Fetch Zcash parameters
         if: steps.cache-params.outputs.cache-hit != 'true'
-        working-directory: ./zcash_proofs
+        working-directory: ./masp_proofs
         run: cargo run --release --example download-params --features download-params
 
       - name: Generate coverage report
