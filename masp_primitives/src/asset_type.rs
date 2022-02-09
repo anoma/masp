@@ -24,7 +24,7 @@ impl AssetType {
             if let Some(asset_type) = AssetType::new_with_nonce(name, nonce) {
                 return Ok(asset_type);
             }
-            nonce = nonce.checked_add(1).ok_or_else(|| ())?;
+            nonce = nonce.checked_add(1).ok_or(())?;
         }
     }
 
@@ -138,7 +138,7 @@ impl AssetType {
     }
 
     pub fn get_nonce(&self) -> Option<u8> {
-        return self.nonce;
+        self.nonce
     }
 }
 

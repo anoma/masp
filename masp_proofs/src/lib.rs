@@ -5,7 +5,8 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 // Catch documentation errors caused by code changes.
-#![deny(rustdoc::broken_intra_doc_links)]
+//#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(broken_intra_doc_links)]
 // Temporary until we have addressed all Result<T, ()> cases.
 #![allow(clippy::result_unit_err)]
 
@@ -110,6 +111,7 @@ pub fn download_parameters() -> Result<(), minreq::Error> {
     Ok(())
 }
 
+#[allow(clippy::upper_case_acronyms)]
 pub struct MASPParameters {
     pub spend_params: Parameters<Bls12>,
     pub spend_vk: PreparedVerifyingKey<Bls12>,
@@ -151,11 +153,11 @@ pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R) -> MASPParameter
         .expect("couldn't finish reading Sapling output parameter file");
 
     if spend_fs.into_hash() != SAPLING_SPEND_HASH {
-        panic!("Sapling spend parameter file is not correct, please clean your `~/.zcash-params/` and re-run `fetch-params`.");
+        panic!("MASP spend parameter file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
     }
 
     if output_fs.into_hash() != SAPLING_OUTPUT_HASH {
-        panic!("Sapling output parameter file is not correct, please clean your `~/.zcash-params/` and re-run `fetch-params`.");
+        panic!("MASP output parameter file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
     }
 
     // Prepare verifying keys

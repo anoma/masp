@@ -3,7 +3,8 @@
 //! This is internal to zcashd and is not an officially-supported API.
 
 // Catch documentation errors caused by code changes.
-#![deny(rustdoc::broken_intra_doc_links)]
+//#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(broken_intra_doc_links)]
 // Clippy has a default-deny lint to prevent dereferencing raw pointer arguments
 // in a non-unsafe function. However, declaring a function as unsafe has the
 // side-effect that the entire function body is treated as an unsafe {} block,
@@ -803,10 +804,7 @@ pub extern "C" fn libmasp_sapling_spend_proof(
     };
 
     // Construct the proof generation key
-    let proof_generation_key = ProofGenerationKey {
-        ak: ak.clone(),
-        nsk,
-    };
+    let proof_generation_key = ProofGenerationKey { ak, nsk };
 
     // Grab the diversifier from the caller
     let diversifier = Diversifier(unsafe { *diversifier });

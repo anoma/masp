@@ -83,9 +83,7 @@ where
     // Witness the asset type
     let asset_generator = ecc::EdwardsPoint::witness(
         cs.namespace(|| "asset_generator"),
-        value_commitment
-            .as_ref()
-            .map(|vc| vc.asset_generator.clone()),
+        value_commitment.as_ref().map(|vc| vc.asset_generator),
     )?;
 
     // Booleanize the asset type

@@ -12,9 +12,9 @@ use masp_primitives::{
     redjubjub::{PrivateKey, PublicKey, Signature},
     sapling::Node,
 };
-use zcash_primitives::{sapling::Rseed, merkle_tree::MerklePath};
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
+use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
 use super::masp_compute_value_balance;
 use crate::circuit::sapling::{Output, Spend};
@@ -188,10 +188,13 @@ impl SaplingProvingContext {
         // Construct the value commitment for the proof instance
         let value_commitment = asset_type.value_commitment(value, rcv);
 
+        // Compute the actual value commitment
+        let value_commitment_point: jubjub::ExtendedPoint = value_commitment.commitment().into();
+
         // We now have a full witness for the output proof.
         let instance = Output {
-            value_commitment: Some(value_commitment.clone()),
-            payment_address: Some(payment_address.clone()),
+            value_commitment: Some(value_commitment),
+            payment_address: Some(payment_address),
             commitment_randomness: Some(rcm),
             esk: Some(esk),
             asset_identifier: asset_type.identifier_bits(),
@@ -201,13 +204,10 @@ impl SaplingProvingContext {
         let proof =
             create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
 
-        // Compute the actual value commitment
-        let value_commitment: jubjub::ExtendedPoint = value_commitment.commitment().into();
-
         // Accumulate the value commitment in the context. We do this to check internal consistency.
-        self.cv_sum -= value_commitment; // Outputs subtract from the total.
+        self.cv_sum -= value_commitment_point; // Outputs subtract from the total.
 
-        (proof, value_commitment)
+        (proof, value_commitment_point)
     }
 
     /// Create the bindingSig for a Sapling transaction. All calls to spend_proof()
