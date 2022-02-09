@@ -75,13 +75,11 @@ pub fn download_parameters() -> Result<(), minreq::Error> {
         use std::io::Write;
 
         // Download the parts directly (Sapling parameters are small enough for this).
-        let part_1 = minreq::get(format!("{}/{}.part.1", DOWNLOAD_URL, name)).send()?;
-        let part_2 = minreq::get(format!("{}/{}.part.2", DOWNLOAD_URL, name)).send()?;
+        let params = minreq::get(format!("{}/{}?raw=true", DOWNLOAD_URL, name)).send()?;
 
         // Verify parameter file hash.
         let hash = blake2b_simd::State::new()
-            .update(part_1.as_bytes())
-            .update(part_2.as_bytes())
+            .update(params.as_bytes())
             .finalize()
             .to_hex();
         if &hash != expected_hash {
@@ -92,7 +90,7 @@ pub fn download_parameters() -> Result<(), minreq::Error> {
                     name,
                     expected_hash,
                     hash,
-                    part_1.as_bytes().len() + part_2.as_bytes().len()
+                    params.as_bytes().len()
                 ),
             )
             .into());
@@ -100,8 +98,7 @@ pub fn download_parameters() -> Result<(), minreq::Error> {
 
         // Write parameter file.
         let mut f = File::create(params_dir.join(name))?;
-        f.write_all(part_1.as_bytes())?;
-        f.write_all(part_2.as_bytes())?;
+        f.write_all(params.as_bytes())?;
         Ok(())
     };
 
