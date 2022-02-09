@@ -44,7 +44,7 @@ const MASP_SPEND_HASH: &str = "5523057113d7daa078714f9859ea03da3c959f4fe3756a0ac
 const MASP_OUTPUT_HASH: &str = "89fe551ad6c0281aebb857eb203dbf35854979503d374c83b12512dcd737e12a255869a34e3ff0f6609b78accc81ea5f5e94202e124a590730494eeeee86e755";
 
 #[cfg(feature = "download-params")]
-const DOWNLOAD_URL: &str = "https://download.z.cash/downloads";
+const DOWNLOAD_URL: &str = "https://github.com/anoma/masp/blob/test_parameters";
 
 /// Returns the default folder that the MASP proving parameters are located in.
 #[cfg(feature = "directories")]

@@ -15,7 +15,7 @@ use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 use crate::{parse_parameters, sapling::SaplingProvingContext};
 
 #[cfg(feature = "local-prover")]
-use crate::{default_params_folder, load_parameters, SAPLING_OUTPUT_NAME, SAPLING_SPEND_NAME};
+use crate::{default_params_folder, load_parameters, MASP_OUTPUT_NAME, MASP_SPEND_NAME};
 #[cfg(feature = "local-prover")]
 use std::path::Path;
 
@@ -110,8 +110,8 @@ impl LocalTxProver {
         let params_dir = default_params_folder()?;
         let (spend_path, output_path) = if params_dir.exists() {
             (
-                params_dir.join(SAPLING_SPEND_NAME),
-                params_dir.join(SAPLING_OUTPUT_NAME),
+                params_dir.join(MASP_SPEND_NAME),
+                params_dir.join(MASP_OUTPUT_NAME),
             )
         } else {
             return None;
