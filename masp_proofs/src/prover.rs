@@ -9,11 +9,8 @@ use masp_primitives::{
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };
-use zcash_primitives::{
-    sapling::Rseed,
-    merkle_tree::MerklePath,
-};
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
+use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
 use crate::{parse_parameters, sapling::SaplingProvingContext};
 
@@ -134,7 +131,7 @@ impl LocalTxProver {
     #[cfg_attr(docsrs, doc(cfg(feature = "bundled-prover")))]
     pub fn bundled() -> Self {
         let (spend_buf, output_buf) = wagyu_zcash_parameters::load_sapling_parameters();
-        let p = parse_parameters(&spend_buf[..], &output_buf[..], None);
+        let p = parse_parameters(&spend_buf[..], &output_buf[..]);
 
         LocalTxProver {
             spend_params: p.spend_params,

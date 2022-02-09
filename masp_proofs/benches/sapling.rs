@@ -6,10 +6,13 @@ use bls12_381::Bls12;
 use criterion::Criterion;
 use ff::Field;
 use group::Group;
+use masp_primitives::{
+    asset_type::AssetType,
+    primitives::{Diversifier, ProofGenerationKey},
+};
+use masp_proofs::circuit::sapling::Spend;
 use rand_core::{RngCore, SeedableRng};
 use rand_xorshift::XorShiftRng;
-use masp_primitives::{primitives::{Diversifier, ProofGenerationKey}, asset_type::AssetType};
-use masp_proofs::circuit::sapling::Spend;
 
 const TREE_DEPTH: usize = 32;
 
