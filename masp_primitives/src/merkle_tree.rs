@@ -508,7 +508,6 @@ impl<Node: Hashable> MerklePath<Node> {
 
 #[cfg(test)]
 mod tests {
-    //use zcash_primitives::merkle_tree::{CommitmentTree, Hashable, IncrementalWitness, MerklePath, PathFiller};
     use super::{CommitmentTree, Hashable, IncrementalWitness, MerklePath, PathFiller};
     use crate::sapling::Node;
 
