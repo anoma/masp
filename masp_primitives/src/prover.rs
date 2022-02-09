@@ -19,11 +19,10 @@ pub trait TxProver {
     /// Instantiate a new Sapling proving context.
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext;
 
-    /// Create the value commitment, re-randomized key, and proof for a Sapling
-    /// [`SpendDescription`], while accumulating its value commitment randomness inside
+    /// Create the value commitment, re-randomized key, and proof for a MASP
+    /// SpendDescription, while accumulating its value commitment randomness inside
     /// the context for later use.
     ///
-    /// [`SpendDescription`]: crate::transaction::components::SpendDescription
     #[allow(clippy::too_many_arguments)]
     fn spend_proof(
         &self,
@@ -38,11 +37,10 @@ pub trait TxProver {
         merkle_path: MerklePath<Node>,
     ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()>;
 
-    /// Create the value commitment and proof for a Sapling [`OutputDescription`],
+    /// Create the value commitment and proof for a MASP OutputDescription,
     /// while accumulating its value commitment randomness inside the context for later
     /// use.
     ///
-    /// [`OutputDescription`]: crate::transaction::components::OutputDescription
     fn output_proof(
         &self,
         ctx: &mut Self::SaplingProvingContext,
