@@ -19,9 +19,6 @@ use crate::{default_params_folder, load_parameters, MASP_OUTPUT_NAME, MASP_SPEND
 #[cfg(feature = "local-prover")]
 use std::path::Path;
 
-#[cfg(feature = "bundled-prover")]
-use crate::parse_parameters;
-
 /// An implementation of [`TxProver`] using Sapling Spend and Output parameters from
 /// locally-accessible paths.
 pub struct LocalTxProver {
