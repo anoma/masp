@@ -1,3 +1,5 @@
+#![allow(clippy::new_without_default)]
+use super::masp_compute_value_balance;
 use bellman::{
     gadgets::multipack,
     groth16::{verify_proof, PreparedVerifyingKey, Proof},
@@ -9,8 +11,6 @@ use masp_primitives::{
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
     redjubjub::{PublicKey, Signature},
 };
-
-use super::masp_compute_value_balance;
 
 /// A context object for verifying the Sapling components of a Zcash transaction.
 pub struct SaplingVerificationContext {

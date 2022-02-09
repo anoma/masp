@@ -480,7 +480,7 @@ pub extern "C" fn libmasp_sapling_verification_ctx_init() -> *mut SaplingVerific
 }
 
 /// Frees a Sapling verification context returned from
-/// [`librustzcash_sapling_verification_ctx_init`].
+/// [`libmasp_sapling_verification_ctx_init`].
 #[no_mangle]
 pub extern "C" fn libmasp_sapling_verification_ctx_free(ctx: *mut SaplingVerificationContext) {
     drop(unsafe { Box::from_raw(ctx) });
@@ -880,7 +880,7 @@ pub extern "C" fn libmasp_sapling_proving_ctx_init() -> *mut SaplingProvingConte
 }
 
 /// Frees a Sapling proving context returned from
-/// [`librustzcash_sapling_proving_ctx_init`].
+/// [`libmasp_sapling_proving_ctx_init`].
 #[no_mangle]
 pub extern "C" fn libmasp_sapling_proving_ctx_free(ctx: *mut SaplingProvingContext) {
     drop(unsafe { Box::from_raw(ctx) });
