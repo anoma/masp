@@ -35,13 +35,13 @@ pub mod prover;
 
 // Circuit names
 #[cfg(feature = "local-prover")]
-const SAPLING_SPEND_NAME: &str = "sapling-spend.params";
+const MASP_SPEND_NAME: &str = "masp-spend.params";
 #[cfg(feature = "local-prover")]
-const SAPLING_OUTPUT_NAME: &str = "sapling-output.params";
+const MASP_OUTPUT_NAME: &str = "masp-output.params";
 
 // Circuit hashes
-const SAPLING_SPEND_HASH: &str = "5523057113d7daa078714f9859ea03da3c959f4fe3756a0ace4eb25f7cf41d1e21099dac768c2e0045400fee03c1f8bc14eeac2190c3f282e0092419d3b967e5";
-const SAPLING_OUTPUT_HASH: &str = "89fe551ad6c0281aebb857eb203dbf35854979503d374c83b12512dcd737e12a255869a34e3ff0f6609b78accc81ea5f5e94202e124a590730494eeeee86e755";
+const MASP_SPEND_HASH: &str = "5523057113d7daa078714f9859ea03da3c959f4fe3756a0ace4eb25f7cf41d1e21099dac768c2e0045400fee03c1f8bc14eeac2190c3f282e0092419d3b967e5";
+const MASP_OUTPUT_HASH: &str = "89fe551ad6c0281aebb857eb203dbf35854979503d374c83b12512dcd737e12a255869a34e3ff0f6609b78accc81ea5f5e94202e124a590730494eeeee86e755";
 
 #[cfg(feature = "download-params")]
 const DOWNLOAD_URL: &str = "https://download.z.cash/downloads";
@@ -105,8 +105,8 @@ pub fn download_parameters() -> Result<(), minreq::Error> {
         Ok(())
     };
 
-    fetch_params(SAPLING_SPEND_NAME, SAPLING_SPEND_HASH)?;
-    fetch_params(SAPLING_OUTPUT_NAME, SAPLING_OUTPUT_HASH)?;
+    fetch_params(MASP_SPEND_NAME, MASP_SPEND_HASH)?;
+    fetch_params(MASP_OUTPUT_NAME, MASP_OUTPUT_HASH)?;
 
     Ok(())
 }
@@ -152,11 +152,11 @@ pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R) -> MASPParameter
     io::copy(&mut output_fs, &mut sink)
         .expect("couldn't finish reading Sapling output parameter file");
 
-    if spend_fs.into_hash() != SAPLING_SPEND_HASH {
+    if spend_fs.into_hash() != MASP_SPEND_HASH {
         panic!("MASP spend parameter file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
     }
 
-    if output_fs.into_hash() != SAPLING_OUTPUT_HASH {
+    if output_fs.into_hash() != MASP_OUTPUT_HASH {
         panic!("MASP output parameter file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
     }
 
