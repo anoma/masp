@@ -1,0 +1,2 @@
+masp-output.params filter=lfs diff=lfs merge=lfs -text
+masp-spend.params filter=lfs diff=lfs merge=lfs -text
