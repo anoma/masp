@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub(crate) struct TestVector {
     pub ovk: [u8; 32],
     pub ivk: [u8; 32],
@@ -19,6 +20,7 @@ pub(crate) struct TestVector {
     pub c_out: [u8; 80],
 }
 
+#[allow(dead_code)]
 pub(crate) fn make_test_vectors() -> Vec<TestVector> {
     // From https://github.com/zcash-hackworks/zcash-test-vectors/blob/master/sapling_note_encryption.py
     vec![

@@ -613,11 +613,11 @@ mod tests {
     #[test]
     fn empty_root_test_vectors() {
         let mut tmp = [0u8; 32];
-        for i in 0..HEX_EMPTY_ROOTS.len() {
+        for (i, &expected) in HEX_EMPTY_ROOTS.iter().enumerate() {
             Node::empty_root(i)
                 .write(&mut tmp[..])
                 .expect("length is 32 bytes");
-            assert_eq!(hex::encode(tmp), HEX_EMPTY_ROOTS[i]);
+            assert_eq!(hex::encode(tmp), expected);
         }
     }
 
@@ -638,11 +638,11 @@ mod tests {
     fn empty_commitment_tree_roots() {
         let tree = CommitmentTree::<Node>::empty();
         let mut tmp = [0u8; 32];
-        for i in 1..HEX_EMPTY_ROOTS.len() {
+        for (i, &expected) in HEX_EMPTY_ROOTS.iter().enumerate().skip(1) {
             tree.root_inner(i, PathFiller::empty())
                 .write(&mut tmp[..])
                 .expect("length is 32 bytes");
-            assert_eq!(hex::encode(tmp), HEX_EMPTY_ROOTS[i]);
+            assert_eq!(hex::encode(tmp), expected);
         }
     }
 
@@ -1005,10 +1005,9 @@ mod tests {
             decoded.write(&mut tmp).unwrap();
             assert_eq!(hex::encode(tmp), expected);
         }
-
+        #[allow(dead_code)]
         fn print_path_ser<Node: Hashable>(path: &MerklePath<Node>) {
-            let mut tmp = Vec::new();
-            tmp.push(TESTING_DEPTH as u8);
+            let mut tmp = vec![TESTING_DEPTH as u8];
             for node in path.auth_path.iter().rev() {
                 tmp.push(32u8);
                 node.0.write(&mut tmp).unwrap();
@@ -1018,7 +1017,7 @@ mod tests {
                 .unwrap();
             println!("{}", hex::encode(tmp));
         }
-
+        #[allow(dead_code)]
         fn print_witness_ser(witness: &TestIncrementalWitness) {
             let mut tmp = Vec::new();
             witness.write(&mut tmp).unwrap();
@@ -1060,7 +1059,7 @@ mod tests {
                 if let Some(leaf) = leaf {
                     let path = witness.path().expect("should be able to create a path");
                     let expected = MerklePath::from_slice_with_depth(
-                        &mut hex::decode(paths[paths_i]).unwrap(),
+                        &hex::decode(paths[paths_i]).unwrap(),
                         TESTING_DEPTH,
                     )
                     .unwrap();

@@ -638,10 +638,7 @@ fn test_input_circuit_with_bls12_381() {
         let nsk = jubjub::Fr::random(&mut rng);
         let ak = jubjub::SubgroupPoint::random(&mut rng);
 
-        let proof_generation_key = ProofGenerationKey {
-            ak: ak.clone(),
-            nsk: nsk.clone(),
-        };
+        let proof_generation_key = ProofGenerationKey { ak, nsk };
 
         let viewing_key = proof_generation_key.to_viewing_key();
 

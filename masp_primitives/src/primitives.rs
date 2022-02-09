@@ -1,4 +1,4 @@
-//! Structs for core Zcash primitives.
+//! Structs for core MASP primitives.
 
 use crate::keys::prf_expand;
 use crate::pedersen_hash::{pedersen_hash, Personalization};
@@ -134,6 +134,7 @@ impl PaymentAddress {
     ///
     /// Only for test code, as this explicitly bypasses the invariant.
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn from_parts_unchecked(
         diversifier: Diversifier,
         pk_d: jubjub::SubgroupPoint,
