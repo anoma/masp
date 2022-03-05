@@ -30,8 +30,8 @@ The `masp_proofs` crate contains the modified Spend and Output circuits to suppo
 
 Much of the code that supports the original Sapling circuits can be shared and reused with the MASP circuits. Therefore, the Zcash code is reused in two ways:
 
-1. Some code can be reused unmodified from `zcash_primitives` and `zcash_proofs` crates  from`librustzcash`, but Rust import visibility rules don't allow direct import of some private functions. Therefore the crates are copied here and some private fields have been changed to public. 
-2. Code from `zcash_primitives` and `zcash_proofs` that cannot be reused without modifications is placed in `masp_primitives` and `masp_proofs`. 
+1. Some code can be reused unmodified from `zcash_primitives` and `zcash_proofs` crates from `librustzcash`, which are directly imported from `librustzcash`'s GitHub repository. 
+2. Code from `zcash_primitives` and `zcash_proofs` that cannot be reused without modifications, or due to Rust import visibility rules, is placed in `masp_primitives` and `masp_proofs`. 
 
 New code related to asset types is included in `masp_primitives`. 
 
