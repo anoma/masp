@@ -63,7 +63,8 @@ impl AssetType {
         assert_eq!(VALUE_COMMITMENT_GENERATOR_PERSONALIZATION.len(), 8);
 
         // Check to see that scalar field is 255 bits
-        //assert!(jubjub::Fr::NUM_BITS == 255);
+        use ff::PrimeField;
+        assert!(bls12_381::Scalar::NUM_BITS == 255);
 
         let h = Blake2sParams::new()
             .hash_length(32)
