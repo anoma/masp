@@ -42,7 +42,7 @@ impl AssetType {
             .personal(ASSET_IDENTIFIER_PERSONALIZATION)
             .to_state()
             .update(GH_FIRST_BLOCK)
-            .update(&name)
+            .update(name)
             .update(from_ref(&nonce))
             .finalize();
 
@@ -64,7 +64,7 @@ impl AssetType {
 
         // Check to see that scalar field is 255 bits
         use ff::PrimeField;
-        assert!(bls12_381::Scalar::NUM_BITS == 255);
+        assert_eq!(bls12_381::Scalar::NUM_BITS, 255);
 
         let h = Blake2sParams::new()
             .hash_length(32)

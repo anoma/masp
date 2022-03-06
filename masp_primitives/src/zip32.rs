@@ -86,7 +86,7 @@ impl ChildIndex {
         ChildIndex::from_index(0)
     }
 
-    fn to_index(&self) -> u32 {
+    fn value(&self) -> u32 {
         match *self {
             ChildIndex::Hardened(i) => i + (1 << 31),
             ChildIndex::NonHardened(i) => i,
@@ -94,9 +94,9 @@ impl ChildIndex {
     }
 }
 
-/// A chain code
+/// A BIP-32 chain code
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct ChainCode([u8; 32]);
+pub struct ChainCode([u8; 32]);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DiversifierIndex(pub [u8; 11]);
@@ -386,7 +386,7 @@ impl ExtendedSpendingKey {
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_u8(self.depth)?;
         writer.write_all(&self.parent_fvk_tag.0)?;
-        writer.write_u32::<LittleEndian>(self.child_index.to_index())?;
+        writer.write_u32::<LittleEndian>(self.child_index.value())?;
         writer.write_all(&self.chain_code.0)?;
         writer.write_all(&self.expsk.to_bytes())?;
         writer.write_all(&self.dk.0)?;
@@ -403,6 +403,7 @@ impl ExtendedSpendingKey {
         xsk
     }
 
+    #[must_use]
     pub fn derive_child(&self, i: ChildIndex) -> Self {
         let fvk = FullViewingKey::from_expanded_spending_key(&self.expsk);
         let tmp = match i {
@@ -449,9 +450,11 @@ impl ExtendedSpendingKey {
     pub fn default_address(&self) -> (DiversifierIndex, PaymentAddress) {
         ExtendedFullViewingKey::from(self).default_address()
     }
+
     /// Derives an internal spending key given an external spending key.
     ///
     /// Specified in [ZIP 32](https://zips.z.cash/zip-0032#deriving-a-sapling-internal-spending-key).
+    #[must_use]
     pub fn derive_internal(&self) -> Self {
         let i = {
             let fvk = FullViewingKey::from_expanded_spending_key(&self.expsk);
@@ -523,7 +526,7 @@ impl ExtendedFullViewingKey {
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_u8(self.depth)?;
         writer.write_all(&self.parent_fvk_tag.0)?;
-        writer.write_u32::<LittleEndian>(self.child_index.to_index())?;
+        writer.write_u32::<LittleEndian>(self.child_index.value())?;
         writer.write_all(&self.chain_code.0)?;
         writer.write_all(&self.fvk.to_bytes())?;
         writer.write_all(&self.dk.0)?;
@@ -587,12 +590,14 @@ impl ExtendedFullViewingKey {
     pub fn default_address(&self) -> (DiversifierIndex, PaymentAddress) {
         sapling_default_address(&self.fvk, &self.dk)
     }
+
     /// Derives an internal full viewing key used for internal operations such
     /// as change and auto-shielding. The internal FVK has the same spend authority
     /// (the private key corresponding to ak) as the original, but viewing authority
     /// only for internal transfers.
     ///
     /// Specified in [ZIP 32](https://zips.z.cash/zip-0032#deriving-a-sapling-internal-full-viewing-key).
+    #[must_use]
     pub fn derive_internal(&self) -> Self {
         let (fvk_internal, dk_internal) = sapling_derive_internal_fvk(&self.fvk, &self.dk);
 
@@ -1225,10 +1230,7 @@ mod tests {
             assert_eq!(&ser[..], &tv.xsk.unwrap()[..]);
         }
 
-        for j in 0..xfvks.len() {
-            let xfvk = &xfvks[j];
-            let tv = &test_vectors[j];
-
+        for (xfvk, tv) in xfvks.iter().zip(test_vectors.iter()) {
             assert_eq!(xfvk.fvk.vk.ak.to_bytes(), tv.ak);
             assert_eq!(xfvk.fvk.vk.nk.to_bytes(), tv.nk);
 
