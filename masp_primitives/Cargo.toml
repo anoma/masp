@@ -40,8 +40,8 @@ ripemd160 = { version = "0.9", optional = true }
 secp256k1 = { version = "0.20", optional = true }
 sha2 = "0.9"
 subtle = "2.2.3"
-zcash_primitives = { git = "https://github.com/zcash/librustzcash" }
-zcash_encoding = { version = "0.0", git = "https://github.com/zcash/librustzcash" }
+zcash_primitives = { git = "https://github.com/zcash/librustzcash", rev = "2425a08" }
+zcash_encoding = { version = "0.0", git = "https://github.com/zcash/librustzcash", rev = "2425a08" }
 
 [dev-dependencies]
 criterion = "0.3"
