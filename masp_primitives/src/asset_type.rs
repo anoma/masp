@@ -13,7 +13,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::cmp::Ordering;
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Eq, Ord)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Eq)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
     nonce: Option<u8>,
@@ -28,6 +28,12 @@ impl Hash for AssetType {
 impl PartialOrd for AssetType {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.get_identifier().partial_cmp(other.get_identifier())
+    }
+}
+
+impl Ord for AssetType {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.get_identifier().cmp(other.get_identifier())
     }
 }
 
