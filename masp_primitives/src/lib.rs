@@ -20,7 +20,6 @@ pub mod prover;
 pub mod redjubjub;
 pub mod sapling;
 pub mod zip32;
-pub mod note_encryption;
 pub mod transaction;
 pub mod consensus;
 pub mod serialize;

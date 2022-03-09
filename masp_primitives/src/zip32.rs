@@ -8,6 +8,8 @@ use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use fpe::ff1::{BinaryNumeralString, FF1};
 use std::convert::TryInto;
 use std::ops::AddAssign;
+use std::str::FromStr;
+use std::io::{Error, ErrorKind};
 
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
@@ -50,7 +52,7 @@ impl From<&FullViewingKey> for FvkFingerprint {
 }
 
 /// A Sapling full viewing key tag
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct FvkTag([u8; 4]);
 
 impl FvkFingerprint {
@@ -68,7 +70,7 @@ impl FvkTag {
 }
 
 /// A child index for a derived key
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChildIndex {
     NonHardened(u32),
     Hardened(u32), // Hardened(n) == n + (1 << 31) == n' in path notation
@@ -94,9 +96,9 @@ impl ChildIndex {
     }
 }
 
-/// A BIP-32 chain code
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ChainCode([u8; 32]);
+/// A chain code
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct ChainCode([u8; 32]);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DiversifierIndex(pub [u8; 11]);
@@ -126,7 +128,7 @@ impl DiversifierIndex {
 }
 
 /// A key used to derive diversifiers for a particular child key
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DiversifierKey(pub [u8; 32]);
 
 impl DiversifierKey {
@@ -274,7 +276,7 @@ pub fn sapling_derive_internal_fvk(
 }
 
 /// A Sapling extended spending key
-#[derive(Clone)]
+#[derive(Clone, Eq, Hash)]
 pub struct ExtendedSpendingKey {
     depth: u8,
     parent_fvk_tag: FvkTag,
@@ -362,14 +364,14 @@ impl ExtendedSpendingKey {
         }
     }
 
-    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let depth = reader.read_u8()?;
         let mut tag = [0; 4];
         reader.read_exact(&mut tag)?;
         let i = reader.read_u32::<LittleEndian>()?;
         let mut c = [0; 32];
         reader.read_exact(&mut c)?;
-        let expsk = ExpandedSpendingKey::read(&mut reader)?;
+        let expsk = ExpandedSpendingKey::read(reader)?;
         let mut dk = [0; 32];
         reader.read_exact(&mut dk)?;
 
@@ -485,6 +487,14 @@ impl ExtendedSpendingKey {
             },
             dk: dk_internal,
         }
+    }
+}
+
+impl FromStr for ExtendedSpendingKey {
+    type Err = std::io::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let vec = hex::decode(s).map_err(|x| Error::new(ErrorKind::InvalidData, x))?;
+        Ok(ExtendedSpendingKey::master(vec.as_ref()))
     }
 }
 
@@ -774,12 +784,14 @@ mod tests {
 
         let mut ser = vec![];
         xsk.write(&mut ser).unwrap();
-        let xsk2 = ExtendedSpendingKey::read(&ser[..]).unwrap();
+        let mut rdr = &ser[..];
+        let xsk2 = ExtendedSpendingKey::read(&mut rdr).unwrap();
         assert_eq!(xsk2, xsk);
 
         let mut ser = vec![];
         fvk.write(&mut ser).unwrap();
-        let fvk2 = ExtendedFullViewingKey::read(&ser[..]).unwrap();
+        let mut rdr = &ser[..];
+        let fvk2 = ExtendedFullViewingKey::read(&mut rdr).unwrap();
         assert_eq!(fvk2, fvk);
     }
 

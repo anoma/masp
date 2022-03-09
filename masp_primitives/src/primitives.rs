@@ -13,6 +13,17 @@ use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
 use rand_core::{CryptoRng, RngCore};
 use std::convert::TryInto;
 use zcash_primitives::sapling::{group_hash::group_hash, Nullifier, Rseed};
+use borsh::maybestd::io::Error;
+use borsh::maybestd::io::ErrorKind;
+use borsh::maybestd::io::Write;
+use borsh::BorshDeserialize;
+use borsh::BorshSerialize;
+use std::cmp::Ordering;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::hash::Hash;
+use std::hash::Hasher;
+use std::str::FromStr;
 
 #[derive(Clone)]
 pub struct ValueCommitment {
@@ -43,10 +54,18 @@ impl ProofGenerationKey {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct ViewingKey {
     pub ak: jubjub::SubgroupPoint,
     pub nk: jubjub::SubgroupPoint,
+}
+
+impl Hash for ViewingKey {
+    fn hash<H>(&self, state: &mut H)
+    where H: Hasher {
+        self.ak.to_bytes().hash(state);
+        self.nk.to_bytes().hash(state);
+    }
 }
 
 impl ViewingKey {
@@ -94,7 +113,7 @@ impl SaplingIvk {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Diversifier(pub [u8; 11]);
 
 impl Diversifier {
@@ -109,16 +128,10 @@ impl Diversifier {
 ///
 /// `pk_d` is guaranteed to be prime-order (i.e. in the prime-order subgroup of Jubjub,
 /// and not the identity).
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PaymentAddress {
     pk_d: jubjub::SubgroupPoint,
     diversifier: Diversifier,
-}
-
-impl PartialEq for PaymentAddress {
-    fn eq(&self, other: &Self) -> bool {
-        self.pk_d == other.pk_d && self.diversifier == other.diversifier
-    }
 }
 
 impl PaymentAddress {
@@ -201,7 +214,56 @@ impl PaymentAddress {
     }
 }
 
-#[derive(Clone, Debug)]
+impl Display for PaymentAddress {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", hex::encode(&self.to_bytes()))
+    }
+}
+
+impl FromStr for PaymentAddress {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let vec = hex::decode(s).map_err(|x| Error::new(ErrorKind::InvalidData, x))?;
+        BorshDeserialize::try_from_slice(&vec)
+    }
+}
+
+impl PartialOrd for PaymentAddress {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.to_bytes().partial_cmp(&other.to_bytes())
+    }
+}
+
+impl Ord for PaymentAddress {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.to_bytes().cmp(&other.to_bytes())
+    }
+}
+
+impl Hash for PaymentAddress {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.to_bytes().hash(state)
+    }
+}
+
+impl BorshSerialize for PaymentAddress {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        writer.write(self.to_bytes().as_ref()).and(Ok(()))
+    }
+}
+
+impl BorshDeserialize for PaymentAddress {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        let data = buf.get(..43).ok_or(Error::from(ErrorKind::UnexpectedEof))?;
+        let res = Self::from_bytes(data.try_into().unwrap());
+        let pa = res.ok_or(Error::from(ErrorKind::InvalidData))?;
+        *buf = &buf[43..];
+        Ok(pa)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct Note {
     /// The asset type that the note represents
     pub asset_type: AssetType,
