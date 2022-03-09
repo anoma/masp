@@ -728,14 +728,14 @@ mod tests {
     use rand_core::OsRng;
     use std::marker::PhantomData;
     use crate::transaction::components::amount::zec;
+    use zcash_primitives::merkle_tree::{CommitmentTree, IncrementalWitness};
 
     use super::{Builder, Error};
+    use zcash_primitives::sapling::Rseed;
     use crate::{
         consensus,
         consensus::TestNetwork,
         legacy::TransparentAddress,
-        merkle_tree::{CommitmentTree, IncrementalWitness},
-        primitives::Rseed,
         prover::mock::MockTxProver,
         sapling::Node,
         transaction::components::Amount,
@@ -797,7 +797,7 @@ mod tests {
     fn binding_sig_present_if_shielded_spend() {
         let extsk = ExtendedSpendingKey::master(&[]);
         let extfvk = ExtendedFullViewingKey::from(&extsk);
-        let to = extfvk.default_address().unwrap().1;
+        let to = extfvk.default_address().1;
 
         let mut rng = OsRng;
 
@@ -805,7 +805,7 @@ mod tests {
             .create_note(zec(), 50000, Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)))
             .unwrap();
         let cmu1 = Node::new(note1.cmu().to_repr());
-        let mut tree = CommitmentTree::new();
+        let mut tree = CommitmentTree::empty();
         tree.append(cmu1).unwrap();
         let witness1 = IncrementalWitness::from_tree(&tree);
 
@@ -865,7 +865,7 @@ mod tests {
 
         let extfvk = ExtendedFullViewingKey::from(&extsk);
         let ovk = Some(extfvk.fvk.ovk);
-        let to = extfvk.default_address().unwrap().1;
+        let to = extfvk.default_address().1;
 
         // Fail if there is only a Sapling output
         // 0.0005 z-ZEC out, 0.0001 t-ZEC fee
@@ -907,7 +907,7 @@ mod tests {
             .create_note(zec(), 59999, Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)))
             .unwrap();
         let cmu1 = Node::new(note1.cmu().to_repr());
-        let mut tree = CommitmentTree::new();
+        let mut tree = CommitmentTree::empty();
         tree.append(cmu1).unwrap();
         let mut witness1 = IncrementalWitness::from_tree(&tree);
 

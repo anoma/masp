@@ -655,6 +655,7 @@ mod tests {
         COMPACT_NOTE_SIZE, ENC_CIPHERTEXT_SIZE, NOTE_PLAINTEXT_SIZE, OUT_CIPHERTEXT_SIZE,
         OUT_PLAINTEXT_SIZE,
     };
+    use zcash_primitives::sapling::Rseed;
     use crate::{
         consensus::{
             NetworkUpgrade,
@@ -662,7 +663,7 @@ mod tests {
             Parameters, TestNetwork, ZIP212_GRACE_PERIOD,
         },
         keys::OutgoingViewingKey,
-        primitives::{Diversifier, PaymentAddress, Rseed, ValueCommitment},
+        primitives::{Diversifier, PaymentAddress, ValueCommitment},
         util::generate_random_rseed,
     };
 

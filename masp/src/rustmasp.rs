@@ -908,7 +908,8 @@ pub extern "C" fn libmasp_zip32_xsk_derive(
     i: u32,
     xsk_i: *mut [c_uchar; 169],
 ) {
-    let xsk_parent = zip32::ExtendedSpendingKey::read(&unsafe { *xsk_parent }[..])
+    let mut rdr = &unsafe { *xsk_parent }[..];
+    let xsk_parent = zip32::ExtendedSpendingKey::read(&mut rdr)
         .expect("valid ExtendedSpendingKey");
     let i = zip32::ChildIndex::from_index(i);
 
