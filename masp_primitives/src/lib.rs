@@ -19,6 +19,12 @@ pub mod prover;
 pub mod redjubjub;
 pub mod sapling;
 pub mod zip32;
+pub mod note_encryption;
+pub mod transaction;
+pub mod consensus;
+pub mod serialize;
+pub mod util;
+pub mod legacy;
 
 #[cfg(test)]
 mod test_vectors;
