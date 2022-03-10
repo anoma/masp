@@ -42,15 +42,12 @@ impl AllowedConversion {
         assert_eq!(asset_generator_bytes.len(), 32);
 
         // Compute the Pedersen hash of the note contents
-        let hash_of_contents = pedersen_hash(
+        pedersen_hash(
             Personalization::NoteCommitment,
             asset_generator_bytes
                 .into_iter()
                 .flat_map(|byte| (0..8).map(move |i| ((byte >> i) & 1) == 1)),
-        );
-
-        // Compute final commitment
-        hash_of_contents
+        )
     }
 
     /// Computes the note commitment

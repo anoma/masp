@@ -180,7 +180,6 @@ fn test_convert_circuit_with_bls12_381() {
             let expected_value_commitment =
                 jubjub::ExtendedPoint::from(value_commitment.commitment()).to_affine();
 
-            let mut position = 0u64;
             let cmu = allowed_conversion.cmu();
             let mut cur = cmu;
 
@@ -210,10 +209,6 @@ fn test_convert_circuit_with_bls12_381() {
                 ))
                 .to_affine()
                 .get_u();
-
-                if b {
-                    position |= 1 << i;
-                }
             }
 
             let mut cs = TestConstraintSystem::new();
