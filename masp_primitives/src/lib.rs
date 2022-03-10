@@ -13,6 +13,7 @@ pub mod asset_type;
 pub mod constants;
 pub mod keys;
 pub mod merkle_tree;
+pub mod note_encryption;
 pub mod pedersen_hash;
 pub mod primitives;
 pub mod prover;
