@@ -15,6 +15,10 @@ use std::io::{self, Read, Write};
 use subtle::CtOption;
 use std::hash::Hasher;
 use std::hash::Hash;
+use std::fmt::Formatter;
+use std::fmt::Display;
+use std::io::Error;
+use std::str::FromStr;
 
 pub const PRF_EXPAND_PERSONALIZATION: &[u8; 16] = b"MASP__ExpandSeed";
 
@@ -56,7 +60,7 @@ impl Hash for ExpandedSpendingKey {
 }
 
 /// A Sapling full viewing key
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct FullViewingKey {
     pub vk: ViewingKey,
     pub ovk: OutgoingViewingKey,
@@ -116,14 +120,23 @@ impl ExpandedSpendingKey {
     }
 }
 
-impl Clone for FullViewingKey {
-    fn clone(&self) -> Self {
-        FullViewingKey {
-            vk: ViewingKey {
-                ak: self.vk.ak,
-                nk: self.vk.nk,
-            },
-            ovk: self.ovk,
+impl Display for FullViewingKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", hex::encode(self.to_bytes()))
+    }
+}
+
+impl FromStr for FullViewingKey {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let vec = hex::decode(s).map_err(|x| Error::new(std::io::ErrorKind::InvalidData, x))?;
+        let mut rdr = vec.as_slice();
+        let res = Self::read(&mut rdr)?;
+        if rdr.len() > 0 {
+            Err(Error::from(std::io::ErrorKind::InvalidData))
+        } else {
+            Ok(res)
         }
     }
 }
