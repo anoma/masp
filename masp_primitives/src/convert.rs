@@ -1,15 +1,19 @@
-
+use crate::asset_type::AssetType;
 use crate::pedersen_hash::{pedersen_hash, Personalization};
-use crate::{asset_type::AssetType};
-use group::{ Curve,  GroupEncoding};
-
+use crate::primitives::ValueCommitment;
+use group::{Curve, GroupEncoding};
 
 #[derive(Clone, Debug)]
 pub struct AllowedConversion {
     /// The asset type that the note represents
     pub spend_asset: AssetType,
+    pub spend_value: u64,
+
     pub output_asset: AssetType,
+    pub output_value: u64,
+
     pub mint_asset: AssetType,
+    pub mint_value: u64,
 }
 
 impl PartialEq for AllowedConversion {
@@ -30,22 +34,17 @@ impl AllowedConversion {
     /// Computes the note commitment, returning the full point.
     fn cm_full_point(&self) -> jubjub::SubgroupPoint {
         // Calculate the note contents, as bytes
-        let mut note_contents = vec![];
+        let mut asset_generator_bytes = vec![];
 
         // Write the asset generator, cofactor not cleared
-        note_contents.extend_from_slice(&self.spend_asset.asset_generator().to_bytes());
+        asset_generator_bytes.extend_from_slice(&self.asset_generator().to_bytes());
 
-                // Write the asset generator, cofactor not cleared
-                note_contents.extend_from_slice(&self.output_asset.asset_generator().to_bytes());
-                        // Write the asset generator, cofactor not cleared
-        note_contents.extend_from_slice(&self.mint_asset.asset_generator().to_bytes());
-
-        assert_eq!(note_contents.len(), 32 + 32 + 32);
+        assert_eq!(asset_generator_bytes.len(), 32);
 
         // Compute the Pedersen hash of the note contents
         let hash_of_contents = pedersen_hash(
             Personalization::NoteCommitment,
-            note_contents
+            asset_generator_bytes
                 .into_iter()
                 .flat_map(|byte| (0..8).map(move |i| ((byte >> i) & 1) == 1)),
         );
@@ -61,5 +60,21 @@ impl AllowedConversion {
         jubjub::ExtendedPoint::from(self.cm_full_point())
             .to_affine()
             .get_u()
+    }
+
+    /// Produces an asset generator without cofactor cleared
+    pub fn asset_generator(&self) -> jubjub::ExtendedPoint {
+        -self.spend_asset.asset_generator() * jubjub::Fr::from(self.spend_value)
+            + self.output_asset.asset_generator() * jubjub::Fr::from(self.output_value)
+            + self.mint_asset.asset_generator() * jubjub::Fr::from(self.mint_value)
+    }
+
+    /// Computes the value commitment for a given amount and randomness
+    pub fn value_commitment(&self, value: u64, randomness: jubjub::Fr) -> ValueCommitment {
+        ValueCommitment {
+            asset_generator: self.asset_generator(),
+            value,
+            randomness,
+        }
     }
 }

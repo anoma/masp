@@ -6,26 +6,17 @@ use masp_primitives::primitives::ValueCommitment;
 
 use super::pedersen_hash;
 use crate::circuit::sapling::expose_value_commitment;
-use zcash_proofs::circuit::ecc;
 
 use bellman::gadgets::boolean;
 use bellman::gadgets::num;
 use bellman::gadgets::Assignment;
 
-use itertools::multizip;
-
 pub const TREE_DEPTH: usize = zcash_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
 
 /// This is an instance of the `Spend` circuit.
 pub struct Convert {
-    /// Pedersen commitment to the value being spent (conversion input)
-    pub spend_value_commitment: Option<ValueCommitment>,
-
-    /// Pedersen commitment to the value being output (conversion output)
-    pub output_value_commitment: Option<ValueCommitment>,
-
-    /// Pedersen commitment to the value being minted (conversion minted)
-    pub mint_value_commitment: Option<ValueCommitment>,
+    /// Minting value commitment
+    pub cv_mint: Option<ValueCommitment>,
 
     /// The authentication path of the commitment in the tree
     pub auth_path: Vec<Option<(bls12_381::Scalar, bool)>>,
@@ -39,70 +30,30 @@ impl Circuit<bls12_381::Scalar> for Convert {
         self,
         cs: &mut CS,
     ) -> Result<(), SynthesisError> {
-        // Compute note contents:
-        // asset_generator, then value (in big endian) followed by g_d and pk_d
-        let mut note_contents = vec![];
-
         // Handle the value; we'll need it later for the
         // dummy input check.
         let mut value_num = num::Num::zero();
+
+        // Get the value in little-endian bit order
+        let (asset_generator_bits, value_bits) =
+            expose_value_commitment(cs.namespace(|| "value commitment"), self.cv_mint)?;
+
         {
-            // Get the value in little-endian bit order
-            let (spend_asset_generator_bits, spend_value_bits) = expose_value_commitment(
-                cs.namespace(|| "spend value commitment"),
-                self.spend_value_commitment,
-            )?;
-
-            // Place the asset generator in the note
-            note_contents.extend(spend_asset_generator_bits);
-
-            // Get the value in little-endian bit order
-            let (output_asset_generator_bits, output_value_bits) = expose_value_commitment(
-                cs.namespace(|| "output value commitment"),
-                self.output_value_commitment,
-            )?;
-
-            // Place the asset generator in the note
-            note_contents.extend(output_asset_generator_bits);
-
-            // Get the value in little-endian bit order
-            let (mint_asset_generator_bits, mint_value_bits) = expose_value_commitment(
-                cs.namespace(|| "mint value commitment"),
-                self.mint_value_commitment,
-            )?;
-
-            // Place the asset generator in the note
-            note_contents.extend(mint_asset_generator_bits);
-
-            for (i, spend_value_bit, output_value_bit, mint_value_bit) in multizip((
-                0..256,
-                &spend_value_bits,
-                &output_value_bits,
-                &mint_value_bits,
-            )) {
-                boolean::Boolean::enforce_equal(
-                    cs.namespace(|| format!("integrity of output value bit {}", i)),
-                    spend_value_bit,
-                    output_value_bit,
-                )?;
-                boolean::Boolean::enforce_equal(
-                    cs.namespace(|| format!("integrity of mint value bit {}", i)),
-                    spend_value_bit,
-                    mint_value_bit,
-                )?;
+            // Compute the note's value as a linear combination
+            // of the bits.
+            let mut coeff = bls12_381::Scalar::one();
+            for bit in &value_bits {
+                value_num = value_num.add_bool_with_coeff(CS::one(), bit, coeff);
+                coeff = coeff.double();
             }
         }
-
-        assert_eq!(
-            note_contents.len(),
-            256 * 3 // asset_generator bits
-        );
+        assert_eq!(asset_generator_bits.len(), 256);
 
         // Compute the hash of the note contents
-        let mut cm = pedersen_hash::pedersen_hash(
+        let cm = pedersen_hash::pedersen_hash(
             cs.namespace(|| "note content hash"),
             pedersen_hash::Personalization::NoteCommitment,
-            &note_contents,
+            &asset_generator_bits,
         )?;
 
         // This will store (least significant bit first)
@@ -204,33 +155,33 @@ fn test_convert_circuit_with_bls12_381() {
         let output_asset = AssetType::new(format!("asset {}", i + 1).as_bytes()).unwrap();
         let mint_asset = AssetType::new(b"reward").unwrap();
 
+        let spend_value = i as u64 + 1;
+        let output_value = i as u64 + 1;
+        let mint_value = i as u64 + 1;
+
+        let allowed_conversion = AllowedConversion {
+            spend_asset,
+            spend_value,
+            output_asset,
+            output_value,
+            mint_asset,
+            mint_value,
+        };
+
         let value = rng.next_u64();
-        let spend_value_commitment =
-            spend_asset.value_commitment(value, jubjub::Fr::random(&mut rng));
-        let output_value_commitment =
-            output_asset.value_commitment(value, jubjub::Fr::random(&mut rng));
-        let mint_value_commitment =
-            mint_asset.value_commitment(value, jubjub::Fr::random(&mut rng));
+
+        let value_commitment =
+            allowed_conversion.value_commitment(value, jubjub::Fr::random(&mut rng));
 
         let auth_path =
             vec![Some((bls12_381::Scalar::random(&mut rng), rng.next_u32() % 2 != 0)); tree_depth];
 
         {
-            let expected_spend_value_commitment =
-                jubjub::ExtendedPoint::from(spend_value_commitment.commitment()).to_affine();
-            let expected_output_value_commitment =
-                jubjub::ExtendedPoint::from(output_value_commitment.commitment()).to_affine();
-            let expected_mint_value_commitment =
-                jubjub::ExtendedPoint::from(mint_value_commitment.commitment()).to_affine();
-
-            let note = AllowedConversion {
-                spend_asset,
-                output_asset,
-                mint_asset,
-            };
+            let expected_value_commitment =
+                jubjub::ExtendedPoint::from(value_commitment.commitment()).to_affine();
 
             let mut position = 0u64;
-            let cmu = note.cmu();
+            let cmu = allowed_conversion.cmu();
             let mut cur = cmu;
 
             for (i, val) in auth_path.clone().into_iter().enumerate() {
@@ -268,9 +219,7 @@ fn test_convert_circuit_with_bls12_381() {
             let mut cs = TestConstraintSystem::new();
 
             let instance = Convert {
-                spend_value_commitment: Some(spend_value_commitment.clone()),
-                output_value_commitment: Some(output_value_commitment.clone()),
-                mint_value_commitment: Some(mint_value_commitment.clone()),
+                cv_mint: Some(value_commitment.clone()),
                 auth_path: auth_path.clone(),
                 anchor: Some(cur),
             };
@@ -279,51 +228,23 @@ fn test_convert_circuit_with_bls12_381() {
 
             assert!(cs.is_satisfied());
 
-            assert_eq!(cs.num_constraints(), 53734);
+            assert_eq!(cs.num_constraints(), 47358);
             assert_eq!(
                 cs.hash(),
-                "51c3073c251bab715eb4adc20e0ee75b54cd73614d82253f071e26287232fbff"
+                "f74b47ef6e59081548f81f5806bd15b1f4a65d2e57681e6db2b8db7eef2ff814"
             );
 
-            assert_eq!(cs.num_inputs(), 8);
+            assert_eq!(cs.num_inputs(), 4);
             assert_eq!(cs.get_input(0, "ONE"), bls12_381::Scalar::one());
             assert_eq!(
-                cs.get_input(
-                    1,
-                    "spend value commitment/commitment point/u/input variable"
-                ),
-                expected_spend_value_commitment.get_u()
+                cs.get_input(1, "value commitment/commitment point/u/input variable"),
+                expected_value_commitment.get_u()
             );
             assert_eq!(
-                cs.get_input(
-                    2,
-                    "spend value commitment/commitment point/v/input variable"
-                ),
-                expected_spend_value_commitment.get_v()
+                cs.get_input(2, "value commitment/commitment point/v/input variable"),
+                expected_value_commitment.get_v()
             );
-            assert_eq!(
-                cs.get_input(
-                    3,
-                    "output value commitment/commitment point/u/input variable"
-                ),
-                expected_output_value_commitment.get_u()
-            );
-            assert_eq!(
-                cs.get_input(
-                    4,
-                    "output value commitment/commitment point/v/input variable"
-                ),
-                expected_output_value_commitment.get_v()
-            );
-            assert_eq!(
-                cs.get_input(5, "mint value commitment/commitment point/u/input variable"),
-                expected_mint_value_commitment.get_u()
-            );
-            assert_eq!(
-                cs.get_input(6, "mint value commitment/commitment point/v/input variable"),
-                expected_mint_value_commitment.get_v()
-            );
-            assert_eq!(cs.get_input(7, "anchor/input variable"), cur);
+            assert_eq!(cs.get_input(3, "anchor/input variable"), cur);
         }
     }
 }
