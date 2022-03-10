@@ -2,3 +2,4 @@
 
 pub mod pedersen_hash;
 pub mod sapling;
+pub mod mint;
