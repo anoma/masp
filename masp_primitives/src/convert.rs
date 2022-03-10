@@ -3,25 +3,10 @@ use crate::pedersen_hash::{pedersen_hash, Personalization};
 use crate::primitives::ValueCommitment;
 use group::{Curve, GroupEncoding};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AllowedConversion {
     /// The asset type that the note represents
-    pub spend_asset: AssetType,
-    pub spend_value: u64,
-
-    pub output_asset: AssetType,
-    pub output_value: u64,
-
-    pub mint_asset: AssetType,
-    pub mint_value: u64,
-}
-
-impl PartialEq for AllowedConversion {
-    fn eq(&self, other: &Self) -> bool {
-        self.spend_asset == other.spend_asset
-            && self.output_asset == other.output_asset
-            && self.mint_asset == other.mint_asset
-    }
+    pub assets: Vec<(AssetType, i64)>,
 }
 
 impl AllowedConversion {
@@ -42,15 +27,12 @@ impl AllowedConversion {
         assert_eq!(asset_generator_bytes.len(), 32);
 
         // Compute the Pedersen hash of the note contents
-        let hash_of_contents = pedersen_hash(
+        pedersen_hash(
             Personalization::NoteCommitment,
             asset_generator_bytes
                 .into_iter()
                 .flat_map(|byte| (0..8).map(move |i| ((byte >> i) & 1) == 1)),
-        );
-
-        // Compute final commitment
-        hash_of_contents
+        )
     }
 
     /// Computes the note commitment
@@ -64,9 +46,30 @@ impl AllowedConversion {
 
     /// Produces an asset generator without cofactor cleared
     pub fn asset_generator(&self) -> jubjub::ExtendedPoint {
-        -self.spend_asset.asset_generator() * jubjub::Fr::from(self.spend_value)
-            + self.output_asset.asset_generator() * jubjub::Fr::from(self.output_value)
-            + self.mint_asset.asset_generator() * jubjub::Fr::from(self.mint_value)
+        let mut asset_generator = jubjub::ExtendedPoint::identity();
+        for (asset, value) in self.assets.iter() {
+            // Compute the absolute value (failing if -i64::MAX is
+            // the value)
+            let abs = match value.checked_abs() {
+                Some(a) => a as u64,
+                None => panic!("invalid conversion"),
+            };
+
+            // Is it negative? We'll have to negate later if so.
+            let is_negative = value.is_negative();
+
+            // Compute it in the exponent
+            let mut value_balance = asset.asset_generator() * jubjub::Fr::from(abs);
+
+            // Negate if necessary
+            if is_negative {
+                value_balance = -value_balance;
+            }
+
+            // Add to asset generator
+            asset_generator += value_balance;
+        }
+        asset_generator
     }
 
     /// Computes the value commitment for a given amount and randomness

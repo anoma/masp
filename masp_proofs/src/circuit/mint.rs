@@ -155,17 +155,14 @@ fn test_convert_circuit_with_bls12_381() {
         let output_asset = AssetType::new(format!("asset {}", i + 1).as_bytes()).unwrap();
         let mint_asset = AssetType::new(b"reward").unwrap();
 
-        let spend_value = i as u64 + 1;
-        let output_value = i as u64 + 1;
-        let mint_value = i as u64 + 1;
+        let spend_value = -(i as i64 + 1);
+        let output_value = i as i64 + 1;
+        let mint_value = i as i64 + 1;
 
         let allowed_conversion = AllowedConversion {
-            spend_asset,
-            spend_value,
-            output_asset,
-            output_value,
-            mint_asset,
-            mint_value,
+            assets: vec![ (spend_asset, spend_value),  (output_asset, output_value),
+            (mint_asset,
+            mint_value),]
         };
 
         let value = rng.next_u64();
@@ -180,7 +177,6 @@ fn test_convert_circuit_with_bls12_381() {
             let expected_value_commitment =
                 jubjub::ExtendedPoint::from(value_commitment.commitment()).to_affine();
 
-            let mut position = 0u64;
             let cmu = allowed_conversion.cmu();
             let mut cur = cmu;
 
@@ -210,10 +206,6 @@ fn test_convert_circuit_with_bls12_381() {
                 ))
                 .to_affine()
                 .get_u();
-
-                if b {
-                    position |= 1 << i;
-                }
             }
 
             let mut cs = TestConstraintSystem::new();
