@@ -12,8 +12,10 @@ use serde::{Serialize, Deserialize};
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::cmp::Ordering;
+use std::fmt::Formatter;
+use std::fmt::Display;
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Eq)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Eq, Copy)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
     nonce: Option<u8>,
@@ -166,7 +168,11 @@ impl AssetType {
     }
 }
 
-impl Copy for AssetType {}
+impl Display for AssetType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", hex::encode(self.get_identifier()))
+    }
+}
 
 impl Clone for AssetType {
     fn clone(&self) -> Self {
