@@ -236,7 +236,7 @@ pub fn sapling_default_address(
 }
 
 /// A Sapling extended spending key
-#[derive(Clone, Eq, Hash)]
+#[derive(Clone, Eq, Hash, Copy)]
 pub struct ExtendedSpendingKey {
     depth: u8,
     parent_fvk_tag: FvkTag,
