@@ -276,7 +276,7 @@ pub fn sapling_derive_internal_fvk(
 }
 
 /// A Sapling extended spending key
-#[derive(Clone, Eq, Hash)]
+#[derive(Clone, Eq, Hash, Copy)]
 pub struct ExtendedSpendingKey {
     depth: u8,
     parent_fvk_tag: FvkTag,
