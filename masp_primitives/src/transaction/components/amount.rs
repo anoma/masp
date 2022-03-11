@@ -8,6 +8,10 @@ use std::iter::FromIterator;
 use crate::serialize::Vector;
 use std::io::Read;
 use std::io::Write;
+use std::convert::TryInto;
+use std::ops::Index;
+use std::collections::btree_map::Keys;
+use std::collections::btree_map::Iter;
 
 const COIN: i64 = 1_0000_0000;
 const MAX_MONEY: i64 = 21_000_000 * COIN;
@@ -17,7 +21,7 @@ pub fn zec() -> AssetType {
 }
 
 pub fn default_fee() -> Amount {
-    Amount::from_u64(zec(), 10000).unwrap()
+    Amount::from(zec(), 10000).unwrap()
 }
 
 /// A type-safe representation of some quantity of Zcash.
@@ -42,24 +46,17 @@ impl Amount {
         Amount(BTreeMap::new())
     }
 
-    /// Creates an Amount from an i64.
-    ///
-    /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
-    pub fn from_i64(atype: AssetType, amount: i64) -> Result<Self, ()> {
-        if -MAX_MONEY <= amount && amount <= MAX_MONEY {
-            let mut ret = BTreeMap::new();
-            ret.insert(atype, amount);
-            Ok(Amount(ret))
-        } else {
-            Err(())
-        }
-    }
-
     /// Creates a non-negative Amount from an i64.
     ///
     /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
-    pub fn from_nonnegative_i64(atype: AssetType, amount: i64) -> Result<Self, ()> {
-        if 0 <= amount && amount <= MAX_MONEY {
+    pub fn from_nonnegative<Amt: TryInto<i64>>(
+        atype: AssetType,
+        amount: Amt
+    ) -> Result<Self, ()> {
+        let amount = amount.try_into().map_err(|_| ())?;
+        if amount == 0 {
+            Ok(Amount::zero())
+        } else if 0 <= amount && amount <= MAX_MONEY {
             let mut ret = BTreeMap::new();
             ret.insert(atype, amount);
             Ok(Amount(ret))
@@ -68,35 +65,53 @@ impl Amount {
         }
     }
 
-    /// Creates an Amount from a u64.
+    /// Creates an Amount from a type convertible to i64.
     ///
-    /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
-    pub fn from_u64(atype: AssetType, amount: u64) -> Result<Self, ()> {
-        if amount <= MAX_MONEY as u64 {
+    /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
+    pub fn from<Amt: TryInto<i64>>(
+        atype: AssetType,
+        amount: Amt
+    ) -> Result<Self, ()> {
+        let amount = amount.try_into().map_err(|_| ())?;
+        if amount == 0 {
+            Ok(Amount::zero())
+        } else if -MAX_MONEY <= amount && amount <= MAX_MONEY {
             let mut ret = BTreeMap::new();
-            ret.insert(atype, amount as i64);
+            ret.insert(atype, amount);
             Ok(Amount(ret))
         } else {
             Err(())
         }
     }
 
+    /// Deserialize an Amount object from a list of amounts denominated by
+    /// different assets
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
             let mut atype = [0; 32];
             let mut value = [0; 8];
             reader.read_exact(&mut atype)?;
             reader.read_exact(&mut value)?;
-            let atype = AssetType::from_identifier(&atype).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type"))?;
+            let atype = AssetType::from_identifier(&atype)
+                .ok_or_else(|| std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "invalid asset type"
+                ))?;
             Ok((atype, i64::from_le_bytes(value)))
         })?;
-        let mut map = BTreeMap::new();
+        let mut ret = Amount::zero();
         for (atype, amt) in vec {
-            map.insert(atype, amt);
+            ret += Amount::from(atype, amt)
+                .map_err(|_| std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "amount out of range"
+                ))?;
         }
-        Ok(Self(map))
+        Ok(ret)
     }
 
+    /// Serialize an Amount object into a list of amounts denominated by
+    /// distinct asset types
     pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let vec = Vec::<(AssetType, i64)>::from(self.clone());
         Vector::write(writer, vec.as_ref(), |writer, elt| {
@@ -106,38 +121,42 @@ impl Amount {
         })
     }
 
-    /// Returns `true` if `self` is positive and `false` if the Amount is zero or
-    /// negative.
+    /// Returns `true` iff `self` has a positive component
     pub fn has_positive(&self) -> bool {
         self.0.values().any(|x| x.is_positive())
     }
 
-    /// Returns `true` if `self` is negative and `false` if the Amount is zero or
-    /// positive.
+    /// Returns `true` iff `self` has a negative component
     pub fn has_negative(&self) -> bool {
         self.0.values().any(|x| x.is_negative())
     }
+
+    /// Returns an iterator over the amount's non-zero asset-types
+    pub fn asset_types(&self) -> Keys<'_, AssetType, i64> {
+        self.0.keys()
+    }
+
+    /// Returns an iterator over the amount's non-zero components
+    pub fn components(&self) -> Iter<'_, AssetType, i64> {
+        self.0.iter()
+    }
 }
 
-impl From<Amount> for BTreeMap<AssetType, i64> {
-    fn from(amount: Amount) -> BTreeMap<AssetType, i64> {
-        amount.0
+impl Index<&AssetType> for Amount {
+    type Output = i64;
+    /// Query how much of the given asset this amount contains
+    fn index(&self, index: &AssetType) -> &Self::Output {
+        if let Some(val) = self.0.get(index) {
+            val
+        } else {
+            &0
+        }
     }
 }
 
 impl From<Amount> for Vec<(AssetType, i64)> {
     fn from(amount: Amount) -> Vec<(AssetType, i64)> {
         Vec::from_iter(amount.0.into_iter())
-    }
-}
-
-impl From<Amount> for BTreeMap<AssetType, u64> {
-    fn from(amount: Amount) -> BTreeMap<AssetType, u64> {
-        let mut ret = BTreeMap::<AssetType, u64>::new();
-        for (atype, amount) in amount.0 {
-            ret.insert(atype, amount as u64);
-        }
-        ret
     }
 }
 
@@ -148,10 +167,16 @@ impl Add<Amount> for Amount {
         let mut ret = self.clone();
         for (atype, amount) in rhs.0 {
             ret.0.entry(atype).or_insert(0);
-            ret.0.insert(atype, ret.0[&atype] + amount);
+            let ent = ret.0[&atype] + amount;
+            if ent == 0 {
+                ret.0.remove(&atype);
+            } else if -MAX_MONEY <= ent && ent <= MAX_MONEY {
+                ret.0.insert(atype, ent);
+            } else {
+                panic!("addition should remain in range");
+            }
         }
         ret
-        //Amount::from_i64(self.0 + rhs.0).expect("addition should remain in range")
     }
 }
 
@@ -168,10 +193,16 @@ impl Sub<Amount> for Amount {
         let mut ret = self.clone();
         for (atype, amount) in rhs.0 {
             ret.0.entry(atype).or_insert(0);
-            ret.0.insert(atype, ret.0[&atype] - amount);
+            let ent = ret.0[&atype] - amount;
+            if ent == 0 {
+                ret.0.remove(&atype);
+            } else if -MAX_MONEY <= ent && ent <= MAX_MONEY {
+                ret.0.insert(atype, ent);
+            } else {
+                panic!("subtraction should remain in range");
+            }
         }
         ret
-        //Amount::from_i64(self.0 - rhs.0).expect("subtraction should remain in range")
     }
 }
 
@@ -245,28 +276,28 @@ mod tests {
     #[test]
     #[should_panic]
     fn add_panics_on_overflow() {
-        let v = Amount::from_i64(zec(), MAX_MONEY).unwrap();
-        let _sum = v + Amount::from_i64(zec(), 1).unwrap();
+        let v = Amount::from(zec(), MAX_MONEY).unwrap();
+        let _sum = v + Amount::from(zec(), 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn add_assign_panics_on_overflow() {
-        let mut a = Amount::from_i64(zec(), MAX_MONEY).unwrap();
-        a += Amount::from_i64(zec(), 1).unwrap();
+        let mut a = Amount::from(zec(), MAX_MONEY).unwrap();
+        a += Amount::from(zec(), 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn sub_panics_on_underflow() {
-        let v = Amount::from_i64(zec(), -MAX_MONEY).unwrap();
-        let _diff = v - Amount::from_i64(zec(), 1).unwrap();
+        let v = Amount::from(zec(), -MAX_MONEY).unwrap();
+        let _diff = v - Amount::from(zec(), 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn sub_assign_panics_on_underflow() {
-        let mut a = Amount::from_i64(zec(), -MAX_MONEY).unwrap();
-        a -= Amount::from_i64(zec(), 1).unwrap();
+        let mut a = Amount::from(zec(), -MAX_MONEY).unwrap();
+        a -= Amount::from(zec(), 1).unwrap();
     }
 }

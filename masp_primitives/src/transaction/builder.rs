@@ -8,7 +8,6 @@ use std::error;
 use std::fmt;
 use std::marker::PhantomData;
 use crate::transaction::AssetType;
-use std::collections::BTreeMap;
 use crate::transaction::components::amount::zec;
 #[cfg(feature = "transparent-inputs")]
 pub use secp256k1;
@@ -394,7 +393,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
 
         let alpha = jubjub::Fr::random(&mut self.rng);
 
-        self.mtx.value_balance += Amount::from_u64(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?;
+        self.mtx.value_balance += Amount::from(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?;
 
         self.spends.push(SpendDescriptionInfo {
             extsk,
@@ -418,7 +417,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
     ) -> Result<(), Error> {
         let output = SaplingOutput::new::<R, P>(self.height, &mut self.rng, ovk, to, asset_type, value, memo)?;
 
-        self.mtx.value_balance -= Amount::from_u64(asset_type, value).map_err(|_| Error::InvalidAmount)?;
+        self.mtx.value_balance -= Amount::from(asset_type, value).map_err(|_| Error::InvalidAmount)?;
 
         self.outputs.push(output);
 
@@ -487,7 +486,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
                 .mtx
                 .vout
                 .iter()
-                .map(|output| Amount::from_u64(output.asset_type, output.value).unwrap())
+                .map(|output| Amount::from(output.asset_type, output.value).unwrap())
                 .sum::<Amount>();
         if change.has_negative() {
             return Err(Error::ChangeIsNegative(change));
@@ -497,8 +496,8 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         // Change output
         //
 
-        for (change_type, change_amt) in BTreeMap::<AssetType, u64>::from(change) {
-            if change_amt > 0 {
+        for (change_type, change_amt) in change.components() {
+            if *change_amt > 0 {
                 // Send change to the specified change address. If no change address
                 // was set, send change to the first Sapling address given as input.
                 let change_address = if let Some(change_address) = self.change_address.take() {
@@ -516,7 +515,13 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
                     return Err(Error::NoChangeAddress);
                 };
 
-                self.add_sapling_output(Some(change_address.0), change_address.1, change_type, change_amt, None)?;
+                self.add_sapling_output(
+                    Some(change_address.0),
+                    change_address.1,
+                    *change_type,
+                    *change_amt as u64,
+                    None
+                )?;
             }
         }
 
@@ -859,7 +864,7 @@ mod tests {
             let builder = Builder::<TestNetwork, OsRng>::new(0);
             assert_eq!(
                 builder.build(consensus::BranchId::Sapling, &MockTxProver),
-                Err(Error::ChangeIsNegative(Amount::from_i64(zec(), -10000).unwrap()))
+                Err(Error::ChangeIsNegative(Amount::from(zec(), -10000).unwrap()))
             );
         }
 
@@ -882,7 +887,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 builder.build(consensus::BranchId::Sapling, &MockTxProver),
-                Err(Error::ChangeIsNegative(Amount::from_i64(zec(), -60000).unwrap()))
+                Err(Error::ChangeIsNegative(Amount::from(zec(), -60000).unwrap()))
             );
         }
 
@@ -899,7 +904,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 builder.build(consensus::BranchId::Sapling, &MockTxProver),
-                Err(Error::ChangeIsNegative(Amount::from_i64(zec(), -60000).unwrap()))
+                Err(Error::ChangeIsNegative(Amount::from(zec(), -60000).unwrap()))
             );
         }
 
@@ -941,7 +946,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 builder.build(consensus::BranchId::Sapling, &MockTxProver),
-                Err(Error::ChangeIsNegative(Amount::from_i64(zec(), -1).unwrap()))
+                Err(Error::ChangeIsNegative(Amount::from(zec(), -1).unwrap()))
             );
         }
 
