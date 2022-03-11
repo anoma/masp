@@ -223,7 +223,7 @@ impl TransparentInputs {
         {
             self.inputs
                 .iter()
-                .map(|input| Amount::from_u64(input.coin.asset_type, input.coin.value).unwrap())
+                .map(|input| Amount::from(input.coin.asset_type, input.coin.value).unwrap())
                 .sum::<Amount>()
         }
 
