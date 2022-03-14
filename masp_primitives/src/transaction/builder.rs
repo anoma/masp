@@ -747,20 +747,6 @@ mod tests {
         zip32::{ExtendedFullViewingKey, ExtendedSpendingKey},
     };
 
-    /*#[test]
-    fn fails_on_negative_output() {
-        let extsk = ExtendedSpendingKey::master(&[]);
-        let extfvk = ExtendedFullViewingKey::from(&extsk);
-        let ovk = extfvk.fvk.ovk;
-        let to = extfvk.default_address().unwrap().1;
-
-        let mut builder = Builder::<TestNetwork, OsRng>::new(0);
-        assert_eq!(
-            builder.add_sapling_output(Some(ovk), to, zec(), -1, None),
-            Err(Error::InvalidAmount)
-        );
-    }*/
-
     #[test]
     fn binding_sig_absent_if_no_shielded_spend_or_output() {
         use crate::consensus::{NetworkUpgrade, Parameters};
