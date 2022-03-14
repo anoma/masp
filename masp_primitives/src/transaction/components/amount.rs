@@ -140,6 +140,20 @@ impl Amount {
     pub fn components(&self) -> Iter<'_, AssetType, i64> {
         self.0.iter()
     }
+
+    /// Filters out everything but the given AssetType from this Amount
+    pub fn project(&self, index: AssetType) -> Amount {
+        Amount::from(index, if let Some(val) = self.0.get(&index) {
+            *val
+        } else {
+            0
+        }).unwrap()
+    }
+
+    /// Filters out the given AssetType from this Amount
+    pub fn reject(&self, index: AssetType) -> Amount {
+        self.clone() - self.project(index)
+    }
 }
 
 impl Index<&AssetType> for Amount {
@@ -165,13 +179,12 @@ impl Add<Amount> for Amount {
 
     fn add(self, rhs: Amount) -> Amount {
         let mut ret = self.clone();
-        for (atype, amount) in rhs.0 {
-            ret.0.entry(atype).or_insert(0);
-            let ent = ret.0[&atype] + amount;
+        for (atype, amount) in rhs.components() {
+            let ent = ret[atype] + amount;
             if ent == 0 {
-                ret.0.remove(&atype);
+                ret.0.remove(atype);
             } else if -MAX_MONEY <= ent && ent <= MAX_MONEY {
-                ret.0.insert(atype, ent);
+                ret.0.insert(*atype, ent);
             } else {
                 panic!("addition should remain in range");
             }
@@ -191,13 +204,12 @@ impl Sub<Amount> for Amount {
 
     fn sub(self, rhs: Amount) -> Amount {
         let mut ret = self.clone();
-        for (atype, amount) in rhs.0 {
-            ret.0.entry(atype).or_insert(0);
-            let ent = ret.0[&atype] - amount;
+        for (atype, amount) in rhs.components() {
+            let ent = ret[atype] - amount;
             if ent == 0 {
-                ret.0.remove(&atype);
+                ret.0.remove(atype);
             } else if -MAX_MONEY <= ent && ent <= MAX_MONEY {
-                ret.0.insert(atype, ent);
+                ret.0.insert(*atype, ent);
             } else {
                 panic!("subtraction should remain in range");
             }
