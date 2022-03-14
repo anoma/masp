@@ -12,6 +12,7 @@ use std::convert::TryInto;
 use std::ops::Index;
 use std::collections::btree_map::Keys;
 use std::collections::btree_map::Iter;
+use std::cmp::Ordering;
 
 const COIN: i64 = 1_0000_0000;
 const MAX_MONEY: i64 = 21_000_000 * COIN;
@@ -36,7 +37,7 @@ pub fn default_fee() -> Amount {
 ///
 /// [`Transaction`]: crate::transaction::Transaction
 #[derive(
-    Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialOrd, Eq, Ord, Hash
+    Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Eq, Hash
 )]
 pub struct Amount(BTreeMap<AssetType, i64>);
 
@@ -121,16 +122,6 @@ impl Amount {
         })
     }
 
-    /// Returns `true` iff `self` has a positive component
-    pub fn has_positive(&self) -> bool {
-        self.0.values().any(|x| x.is_positive())
-    }
-
-    /// Returns `true` iff `self` has a negative component
-    pub fn has_negative(&self) -> bool {
-        self.0.values().any(|x| x.is_negative())
-    }
-
     /// Returns an iterator over the amount's non-zero asset-types
     pub fn asset_types(&self) -> Keys<'_, AssetType, i64> {
         self.0.keys()
@@ -153,6 +144,31 @@ impl Amount {
     /// Filters out the given AssetType from this Amount
     pub fn reject(&self, index: AssetType) -> Amount {
         self.clone() - self.project(index)
+    }
+}
+
+impl PartialOrd for Amount {
+    /// One Amount is more than or equal to another if each corresponding
+    /// coordinate is more than the other's.
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let mut diff = other.clone();
+        for (atype, amount) in self.components() {
+            let ent = diff[atype] - amount;
+            if ent == 0 {
+                diff.0.remove(atype);
+            } else {
+                diff.0.insert(*atype, ent);
+            }
+        }
+        if diff.0.values().all(|x| *x == 0) {
+            Some(Ordering::Equal)
+        } else if diff.0.values().all(|x| *x >= 0) {
+            Some(Ordering::Less)
+        } else if diff.0.values().all(|x| *x <= 0) {
+            Some(Ordering::Greater)
+        } else {
+            None
+        }
     }
 }
 
