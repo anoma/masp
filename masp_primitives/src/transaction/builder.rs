@@ -361,11 +361,11 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
 
     /// Sets the fee used in this transaction
     pub fn set_fee(&mut self, value: Amount) -> Result<(), Error> {
-        if value.has_negative() {
-            Err(Error::InvalidAmount)
-        } else {
+        if value >= Amount::zero() {
             self.fee = value;
             Ok(())
+        } else {
+            Err(Error::InvalidAmount)
         }
     }
 
@@ -488,7 +488,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
                 .iter()
                 .map(|output| Amount::from(output.asset_type, output.value).unwrap())
                 .sum::<Amount>();
-        if change.has_negative() {
+        if !(change >= Amount::zero()) {
             return Err(Error::ChangeIsNegative(change));
         }
 
