@@ -1,16 +1,16 @@
 //! Note encryption for MASP transactions.
 
-//#![no_std]
+#![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 // Catch documentation errors caused by code changes.
 #![deny(broken_intra_doc_links)]
 #![deny(unsafe_code)]
 // TODO: #![deny(missing_docs)]
 
-//#[cfg(feature = "alloc")]
-//extern crate alloc;
-//#[cfg(feature = "alloc")]
-//use alloc::vec::Vec;
+#[cfg(feature = "alloc")]
+extern crate alloc;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use core::convert::TryInto;
 
@@ -273,8 +273,8 @@ pub trait Domain {
 /// Each batchable operation has a default implementation that calls through to the
 /// non-batched implementation. Domains can override whichever operations benefit from
 /// batched logic.
-//#[cfg(feature = "alloc")] TODO
-//#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+#[cfg(feature = "alloc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 pub trait BatchDomain: Domain {
     /// Computes `Self::kdf` on a batch of items.
     ///
@@ -513,7 +513,7 @@ pub fn try_note_decryption<D: Domain, Output: ShieldedOutput<D, ENC_CIPHERTEXT_S
     try_note_decryption_inner(domain, ivk, &ephemeral_key, output, key)
 }
 
-pub(crate) fn try_note_decryption_inner<D: Domain, Output: ShieldedOutput<D, ENC_CIPHERTEXT_SIZE>>(
+fn try_note_decryption_inner<D: Domain, Output: ShieldedOutput<D, ENC_CIPHERTEXT_SIZE>>(
     domain: &D,
     ivk: &D::IncomingViewingKey,
     ephemeral_key: &EphemeralKeyBytes,
@@ -610,7 +610,7 @@ pub fn try_compact_note_decryption<D: Domain, Output: ShieldedOutput<D, COMPACT_
     try_compact_note_decryption_inner(domain, ivk, &ephemeral_key, output, key)
 }
 
-pub(crate) fn try_compact_note_decryption_inner<D: Domain, Output: ShieldedOutput<D, COMPACT_NOTE_SIZE>>(
+fn try_compact_note_decryption_inner<D: Domain, Output: ShieldedOutput<D, COMPACT_NOTE_SIZE>>(
     domain: &D,
     ivk: &D::IncomingViewingKey,
     ephemeral_key: &EphemeralKeyBytes,

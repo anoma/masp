@@ -40,6 +40,11 @@ subtle = "2.2.3"
 zcash_primitives = { git = "https://github.com/zcash/librustzcash" }
 zcash_encoding = { version = "0.0", git = "https://github.com/zcash/librustzcash" }
 
+[dependencies.masp_note_encryption]
+version = "0.1"
+path = "../masp_note_encryption"
+features = []
+
 [dev-dependencies]
 criterion = "0.3"
 proptest = "1.0.0"
