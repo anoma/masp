@@ -646,7 +646,7 @@ mod tests {
     use rand_core::{CryptoRng, RngCore};
     use std::convert::TryInto;
     use std::str::FromStr;
-    use crate::note_encryption::AssetType;
+    use crate::transaction::components::amount::zec;
 
     use super::{
         kdf_sapling, prf_ock, sapling_ka_agree, try_sapling_compact_note_decryption,
@@ -862,7 +862,7 @@ mod tests {
 
         // Construct the value commitment for the proof instance
         let value = 100;
-        let asset_type = AssetType::new("BTC".as_bytes()).unwrap();
+        let asset_type = zec();
         let value_commitment = ValueCommitment {
             value,
             asset_generator: asset_type.asset_generator(),

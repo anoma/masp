@@ -824,19 +824,6 @@ mod tests {
         );
     }
 
-    /*#[test]
-    fn fails_on_negative_transparent_output() {
-        let mut builder = Builder::<TestNetwork, OsRng>::new(0);
-        assert_eq!(
-            builder.add_transparent_output(
-                &TransparentAddress::PublicKey([0; 20]),
-                ZEC,
-                -1,
-            ),
-            Err(Error::InvalidAmount)
-        );
-    }*/
-
     #[test]
     fn fails_on_negative_change() {
         let mut rng = OsRng;
