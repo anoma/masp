@@ -213,27 +213,31 @@ pub fn prf_ock(
 ///
 /// use ff::Field;
 /// use rand_core::OsRng;
-/// use zcash_primitives::{
+/// use zcash_primitives::sapling::Rseed;
+/// use masp_primitives::{
 ///     keys::{OutgoingViewingKey, prf_expand},
 ///     note_encryption::{Memo, SaplingNoteEncryption},
-///     primitives::{Diversifier, PaymentAddress, Rseed, ValueCommitment},
+///     primitives::{Diversifier, PaymentAddress, ValueCommitment},
+///     transaction::components::amount::zec,
 /// };
 ///
 /// let mut rng = OsRng;
 ///
-/// let diversifier = Diversifier([0; 11]);
+/// let diversifier = Diversifier([2,0,0,0,0,0,0,0,0,0,0]);
 /// let pk_d = diversifier.g_d().unwrap();
 /// let to = PaymentAddress::from_parts(diversifier, pk_d).unwrap();
 /// let ovk = Some(OutgoingViewingKey([0; 32]));
 ///
 /// let value = 1000;
 /// let rcv = jubjub::Fr::random(&mut rng);
+/// let asset_type = zec();
 /// let cv = ValueCommitment {
 ///     value,
+///     asset_generator: asset_type.asset_generator(),
 ///     randomness: rcv.clone(),
 /// };
 /// let rcm = jubjub::Fr::random(&mut rng);
-/// let note = to.create_note(value, Rseed::BeforeZip212(rcm)).unwrap();
+/// let note = to.create_note(asset_type, value, Rseed::BeforeZip212(rcm)).unwrap();
 /// let cmu = note.cmu();
 ///
 /// let mut enc = SaplingNoteEncryption::new(ovk, note, to, Memo::default(), &mut rng);
