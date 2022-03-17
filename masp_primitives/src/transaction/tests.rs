@@ -1,7 +1,7 @@
 use ff::Field;
 use rand_core::OsRng;
 
-use super::{components::Amount, sighash::signature_hash, Transaction, TransactionData};
+use super::{sighash::signature_hash, Transaction, TransactionData};
 use crate::{constants::SPENDING_KEY_GENERATOR, redjubjub::PrivateKey};
 
 #[test]
@@ -11,7 +11,7 @@ fn tx_read_write() {
     let tx = Transaction::read(&mut rdr).unwrap();
     assert_eq!(
         format!("{}", tx.txid()),
-        "64f0bd7fe30ce23753358fe3a2dc835b8fba9c0274c4e2c54a6f73114cb55639"
+        "fe1184ad4e69bc02ce502c82088f20e8a755db7291aa9023a518d99657d951ec"
     );
 
     let mut encoded = Vec::with_capacity(data.len());
