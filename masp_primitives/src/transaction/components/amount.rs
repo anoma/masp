@@ -250,56 +250,35 @@ impl Sum for Amount {
 mod tests {
     use super::{Amount, MAX_MONEY, zec};
 
-    /*#[test]
+    #[test]
     fn amount_in_range() {
-        let zero = b"\x00\x00\x00\x00\x00\x00\x00\x00";
-        assert_eq!(Amount::from_u64_le_bytes(zero.clone()).unwrap(), Amount(0));
-        assert_eq!(
-            Amount::from_nonnegative_i64_le_bytes(zero.clone()).unwrap(),
-            Amount(0)
-        );
-        assert_eq!(Amount::from_i64_le_bytes(zero.clone()).unwrap(), Amount(0));
+        let zero = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00\x00\x00\x00\x00";
+        assert_eq!(Amount::read(&mut zero.as_ref()).unwrap(), Amount::zero());
 
-        let neg_one = b"\xff\xff\xff\xff\xff\xff\xff\xff";
-        assert!(Amount::from_u64_le_bytes(neg_one.clone()).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(neg_one.clone()).is_err());
+        let neg_one = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\xff";
         assert_eq!(
-            Amount::from_i64_le_bytes(neg_one.clone()).unwrap(),
-            Amount(-1)
+            Amount::read(&mut neg_one.as_ref()).unwrap(),
+            Amount::from(zec(), -1).unwrap()
         );
 
-        let max_money = b"\x00\x40\x07\x5a\xf0\x75\x07\x00";
+        let max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x40\x07\x5a\xf0\x75\x07\x00";
         assert_eq!(
-            Amount::from_u64_le_bytes(max_money.clone()).unwrap(),
-            Amount(MAX_MONEY)
-        );
-        assert_eq!(
-            Amount::from_nonnegative_i64_le_bytes(max_money.clone()).unwrap(),
-            Amount(MAX_MONEY)
-        );
-        assert_eq!(
-            Amount::from_i64_le_bytes(max_money.clone()).unwrap(),
-            Amount(MAX_MONEY)
+            Amount::read(&mut max_money.as_ref()).unwrap(),
+            Amount::from(zec(), MAX_MONEY).unwrap()
         );
 
-        let max_money_p1 = b"\x01\x40\x07\x5a\xf0\x75\x07\x00";
-        assert!(Amount::from_u64_le_bytes(max_money_p1.clone()).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(max_money_p1.clone()).is_err());
-        assert!(Amount::from_i64_le_bytes(max_money_p1.clone()).is_err());
+        let max_money_p1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x40\x07\x5a\xf0\x75\x07\x00";
+        assert!(Amount::read(&mut max_money_p1.as_ref()).is_err());
 
-        let neg_max_money = b"\x00\xc0\xf8\xa5\x0f\x8a\xf8\xff";
-        assert!(Amount::from_u64_le_bytes(neg_max_money.clone()).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(neg_max_money.clone()).is_err());
+        let neg_max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\xc0\xf8\xa5\x0f\x8a\xf8\xff";
         assert_eq!(
-            Amount::from_i64_le_bytes(neg_max_money.clone()).unwrap(),
-            Amount(-MAX_MONEY)
+            Amount::read(&mut neg_max_money.as_ref()).unwrap(),
+            Amount::from(zec(), -MAX_MONEY).unwrap()
         );
 
-        let neg_max_money_m1 = b"\xff\xbf\xf8\xa5\x0f\x8a\xf8\xff";
-        assert!(Amount::from_u64_le_bytes(neg_max_money_m1.clone()).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(neg_max_money_m1.clone()).is_err());
-        assert!(Amount::from_i64_le_bytes(neg_max_money_m1.clone()).is_err());
-    }*/
+        let neg_max_money_m1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xbf\xf8\xa5\x0f\x8a\xf8\xff";
+        assert!(Amount::read(&mut neg_max_money_m1.as_ref()).is_err());
+    }
 
     #[test]
     #[should_panic]
