@@ -647,6 +647,7 @@ mod tests {
     use std::convert::TryInto;
     use std::str::FromStr;
     use crate::transaction::components::amount::zec;
+    use crate::note_encryption::AssetType;
 
     use super::{
         kdf_sapling, prf_ock, sapling_ka_agree, try_sapling_compact_note_decryption,
@@ -1817,9 +1818,9 @@ mod tests {
             let ovk = OutgoingViewingKey(tv.ovk);
             let ock = prf_ock(&ovk, &cv, &cmu, &epk);
             assert_eq!(ock.as_ref(), tv.ock);
-
+            
             let to = PaymentAddress::from_parts(Diversifier(tv.default_d), pk_d).unwrap();
-            let asset_type = panic!("Test vectors do not contain asset types");
+            let asset_type = AssetType::from_identifier(&tv.asset_type).unwrap();
             let note = to.create_note(asset_type, tv.v, Rseed::BeforeZip212(rcm)).unwrap();
             assert_eq!(note.cmu(), cmu);
 
