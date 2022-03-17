@@ -856,7 +856,7 @@ mod tests {
         [u8; ENC_CIPHERTEXT_SIZE],
         [u8; OUT_CIPHERTEXT_SIZE],
     ) {
-        let diversifier = find_valid_diversifier();
+        let diversifier = Diversifier([5,0,0,0,0,0,0,0,0,0,0]);
         let pk_d = diversifier.g_d().unwrap() * ivk;
         let pa = PaymentAddress::from_parts_unchecked(diversifier, pk_d);
 
