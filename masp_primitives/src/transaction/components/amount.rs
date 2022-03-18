@@ -18,7 +18,7 @@ const COIN: i64 = 1_0000_0000;
 const MAX_MONEY: i64 = 21_000_000 * COIN;
 
 pub fn zec() -> AssetType {
-    AssetType::new("ZEC".as_bytes()).unwrap()
+    AssetType::new(b"ZEC").unwrap()
 }
 
 pub fn default_fee() -> Amount {
