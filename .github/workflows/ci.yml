@@ -21,7 +21,7 @@ jobs:
         working-directory: ./masp_proofs
         shell: bash
         run: echo "MASP_PARAMS=$(cargo run --release --example get-params-path --features directories)" >> $GITHUB_ENV
-      - name: Cache Zcash parameters
+      - name: Cache MASP parameters
         id: cache-params
         uses: actions/cache@v2
         with:
@@ -49,6 +49,7 @@ jobs:
     strategy:
       matrix:
         target:
+          - wasm32-unknown-unknown
           - wasm32-wasi
 
     steps:
@@ -102,6 +103,8 @@ jobs:
           name: Clippy (1.56.1)
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --all-targets -- -D warnings
+    name: Lint
+    name: Nightly lint
 
   clippy-beta:
     name: Clippy (beta)
@@ -212,3 +215,15 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+
+  security:
+    name: Security - Cargo Audit
+    runs-on: ubuntu-latest
+    container:
+      image: rustlang/rust:nightly
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+    - name: Cargo Audit
+      run: cargo audit
