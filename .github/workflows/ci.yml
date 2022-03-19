@@ -103,7 +103,11 @@ jobs:
           name: Clippy (1.56.1)
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --all-targets -- -D warnings
+    
+  workaround:
     name: Lint
+
+  workaround2:  
     name: Nightly lint
 
   clippy-beta:
