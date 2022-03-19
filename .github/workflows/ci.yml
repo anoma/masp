@@ -87,7 +87,7 @@ jobs:
           args: --all --benches
 
   clippy:
-    name: Clippy (1.56.1)
+    name: Lint #Clippy (1.56.1)
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
@@ -103,15 +103,9 @@ jobs:
           name: Clippy (1.56.1)
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --all-targets -- -D warnings
-    
-  workaround:
-    name: Lint
-
-  workaround2:  
-    name: Nightly lint
 
   clippy-beta:
-    name: Clippy (beta)
+    name: Nightly lint # Clippy (beta)
     timeout-minutes: 30
     runs-on: ubuntu-latest
     continue-on-error: true
