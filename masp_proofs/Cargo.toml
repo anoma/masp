@@ -32,6 +32,7 @@ wagyu-zcash-parameters = { version = "0.2", optional = true }
 masp_primitives = { version = "0.5", path = "../masp_primitives" }
 zcash_primitives = { git = "https://github.com/zcash/librustzcash" }
 zcash_proofs = { git = "https://github.com/zcash/librustzcash" }
+getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 criterion = "0.3"
