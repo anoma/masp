@@ -1,13 +1,13 @@
 //! Abstractions over the proving system and parameters.
 
-use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed};
+use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey};
 
 use crate::{
-    merkle_tree::MerklePath,
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
+use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
 use crate::asset_type::AssetType;
 
@@ -19,11 +19,11 @@ pub trait TxProver {
     /// Instantiate a new Sapling proving context.
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext;
 
-    /// Create the value commitment, re-randomized key, and proof for a Sapling
-    /// [`SpendDescription`], while accumulating its value commitment randomness inside
+    /// Create the value commitment, re-randomized key, and proof for a MASP
+    /// SpendDescription, while accumulating its value commitment randomness inside
     /// the context for later use.
     ///
-    /// [`SpendDescription`]: crate::transaction::components::SpendDescription
+    #[allow(clippy::too_many_arguments)]
     fn spend_proof(
         &self,
         ctx: &mut Self::SaplingProvingContext,
@@ -37,11 +37,10 @@ pub trait TxProver {
         merkle_path: MerklePath<Node>,
     ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()>;
 
-    /// Create the value commitment and proof for a Sapling [`OutputDescription`],
+    /// Create the value commitment and proof for a MASP OutputDescription,
     /// while accumulating its value commitment randomness inside the context for later
     /// use.
     ///
-    /// [`OutputDescription`]: crate::transaction::components::OutputDescription
     fn output_proof(
         &self,
         ctx: &mut Self::SaplingProvingContext,
@@ -64,26 +63,26 @@ pub trait TxProver {
 }
 
 #[cfg(test)]
-pub(crate) mod mock {
+pub mod mock {
     use ff::Field;
     use rand_core::OsRng;
 
     use crate::{
         asset_type::AssetType,
         constants::SPENDING_KEY_GENERATOR,
-        primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed, ValueCommitment},
+        primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
     };
 
     use crate::{
-        merkle_tree::MerklePath,
         redjubjub::{PublicKey, Signature},
         sapling::Node,
     };
     use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
+    use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
     use super::TxProver;
 
-    pub(crate) struct MockTxProver;
+    pub struct MockTxProver;
 
     #[cfg(test)]
     impl TxProver for MockTxProver {
@@ -110,8 +109,8 @@ pub(crate) mod mock {
                 .commitment()
                 .into();
 
-            let rk = PublicKey(proof_generation_key.ak.clone().into())
-                .randomize(ar, SPENDING_KEY_GENERATOR);
+            let rk =
+                PublicKey(proof_generation_key.ak.into()).randomize(ar, SPENDING_KEY_GENERATOR);
 
             Ok(([0u8; GROTH_PROOF_SIZE], cv, rk))
         }

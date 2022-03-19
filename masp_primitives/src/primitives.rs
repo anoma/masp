@@ -1,23 +1,15 @@
-//! Structs for core Zcash primitives.
-
-use ff::PrimeField;
-use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
-use std::convert::TryInto;
-
-use crate::asset_type::AssetType;
-use crate::constants;
-
-use zcash_primitives::group_hash::group_hash;
-
-use crate::pedersen_hash::{pedersen_hash, Personalization};
-
-use byteorder::{LittleEndian, WriteBytesExt};
+//! Structs for core MASP primitives.
 
 use crate::keys::prf_expand;
-
+use crate::pedersen_hash::{pedersen_hash, Personalization};
+use crate::{asset_type::AssetType, constants};
 use blake2s_simd::Params as Blake2sParams;
-
+use byteorder::{LittleEndian, WriteBytesExt};
+use ff::PrimeField;
+use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
 use rand_core::{CryptoRng, RngCore};
+use std::convert::TryInto;
+use zcash_primitives::sapling::{group_hash::group_hash, Nullifier, Rseed};
 
 #[derive(Clone)]
 pub struct ValueCommitment {
@@ -42,13 +34,13 @@ pub struct ProofGenerationKey {
 impl ProofGenerationKey {
     pub fn to_viewing_key(&self) -> ViewingKey {
         ViewingKey {
-            ak: self.ak.clone(),
+            ak: self.ak,
             nk: constants::PROOF_GENERATION_KEY_GENERATOR * self.nsk,
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ViewingKey {
     pub ak: jubjub::SubgroupPoint,
     pub nk: jubjub::SubgroupPoint,
@@ -59,7 +51,7 @@ impl ViewingKey {
         self.ak + constants::SPENDING_KEY_GENERATOR * ar
     }
 
-    pub fn ivk(&self) -> jubjub::Fr {
+    pub fn ivk(&self) -> SaplingIvk {
         let mut h = [0; 32];
         h.copy_from_slice(
             Blake2sParams::new()
@@ -75,15 +67,27 @@ impl ViewingKey {
         // Drop the most significant five bits, so it can be interpreted as a scalar.
         h[31] &= 0b0000_0111;
 
-        Option::from(jubjub::Fr::from_repr(h)).expect("should be a valid scalar")
+        SaplingIvk(jubjub::Fr::from_repr(h).unwrap())
     }
+    pub fn to_payment_address(&self, diversifier: Diversifier) -> Option<PaymentAddress> {
+        self.ivk().to_payment_address(diversifier)
+    }
+}
 
+#[derive(Debug, Clone)]
+pub struct SaplingIvk(pub jubjub::Fr);
+
+impl SaplingIvk {
     pub fn to_payment_address(&self, diversifier: Diversifier) -> Option<PaymentAddress> {
         diversifier.g_d().and_then(|g_d| {
-            let pk_d = g_d * self.ivk();
+            let pk_d = g_d * self.0;
 
             PaymentAddress::from_parts(diversifier, pk_d)
         })
+    }
+
+    pub fn to_repr(&self) -> [u8; 32] {
+        self.0.to_repr()
     }
 }
 
@@ -130,6 +134,7 @@ impl PaymentAddress {
     ///
     /// Only for test code, as this explicitly bypasses the invariant.
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn from_parts_unchecked(
         diversifier: Diversifier,
         pk_d: jubjub::SubgroupPoint,
@@ -145,9 +150,7 @@ impl PaymentAddress {
             Diversifier(tmp)
         };
         // Check that the diversifier is valid
-        if diversifier.g_d().is_none() {
-            return None;
-        }
+        diversifier.g_d()?;
 
         let pk_d = jubjub::SubgroupPoint::from_bytes(bytes[11..43].try_into().unwrap());
         if pk_d.is_some().into() {
@@ -190,20 +193,9 @@ impl PaymentAddress {
             value,
             rseed: randomness,
             g_d,
-            pk_d: self.pk_d.clone(),
+            pk_d: self.pk_d,
         })
     }
-}
-
-/// Enum for note randomness before and after [ZIP 212](https://zips.z.cash/zip-0212).
-///
-/// Before ZIP 212, the note commitment trapdoor `rcm` must be a scalar value.
-/// After ZIP 212, the note randomness `rseed` is a 32-byte sequence, used to derive
-/// both the note commitment trapdoor `rcm` and the ephemeral private key `esk`.
-#[derive(Copy, Clone, Debug)]
-pub enum Rseed {
-    BeforeZip212(jubjub::Fr),
-    AfterZip212([u8; 32]),
 }
 
 #[derive(Clone, Debug)]
@@ -272,21 +264,23 @@ impl Note {
 
     /// Computes the nullifier given the viewing key and
     /// note position
-    pub fn nf(&self, viewing_key: &ViewingKey, position: u64) -> Vec<u8> {
+    pub fn nf(&self, viewing_key: &ViewingKey, position: u64) -> Nullifier {
         // Compute rho = cm + position.G
         let rho = self.cm_full_point()
             + (constants::NULLIFIER_POSITION_GENERATOR * jubjub::Fr::from(position));
 
         // Compute nf = BLAKE2s(nk | rho)
-        Blake2sParams::new()
-            .hash_length(32)
-            .personal(constants::PRF_NF_PERSONALIZATION)
-            .to_state()
-            .update(&viewing_key.nk.to_bytes())
-            .update(&rho.to_bytes())
-            .finalize()
-            .as_bytes()
-            .to_vec()
+        Nullifier::from_slice(
+            Blake2sParams::new()
+                .hash_length(32)
+                .personal(constants::PRF_NF_PERSONALIZATION)
+                .to_state()
+                .update(&viewing_key.nk.to_bytes())
+                .update(&rho.to_bytes())
+                .finalize()
+                .as_bytes(),
+        )
+        .unwrap()
     }
 
     /// Computes the note commitment

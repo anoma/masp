@@ -8,13 +8,13 @@ use group::{Curve, GroupEncoding};
 use masp_primitives::{
     asset_type::AssetType,
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
-    merkle_tree::MerklePath,
-    primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed},
+    primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey},
     redjubjub::{PrivateKey, PublicKey, Signature},
     sapling::Node,
 };
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
+use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
 use super::masp_compute_value_balance;
 use crate::circuit::sapling::{Output, Spend};
@@ -24,6 +24,12 @@ pub struct SaplingProvingContext {
     bsk: jubjub::Fr,
     // (sum of the Spend value commitments) - (sum of the Output value commitments)
     cv_sum: jubjub::ExtendedPoint,
+}
+
+impl Default for SaplingProvingContext {
+    fn default() -> Self {
+        SaplingProvingContext::new()
+    }
 }
 
 impl SaplingProvingContext {
@@ -38,6 +44,7 @@ impl SaplingProvingContext {
     /// Create the value commitment, re-randomized key, and proof for a Sapling
     /// SpendDescription, while accumulating its value commitment randomness
     /// inside the context for later use.
+    #[allow(clippy::too_many_arguments)]
     pub fn spend_proof(
         &mut self,
         proof_generation_key: ProofGenerationKey,
@@ -76,15 +83,14 @@ impl SaplingProvingContext {
         let payment_address = viewing_key.to_payment_address(diversifier).ok_or(())?;
 
         // This is the result of the re-randomization, we compute it for the caller
-        let rk =
-            PublicKey(proof_generation_key.ak.clone().into()).randomize(ar, SPENDING_KEY_GENERATOR);
+        let rk = PublicKey(proof_generation_key.ak.into()).randomize(ar, SPENDING_KEY_GENERATOR);
 
         // Let's compute the nullifier while we have the position
         let note = Note {
             asset_type,
             value,
             g_d: diversifier.g_d().expect("was a valid diversifier before"),
-            pk_d: payment_address.pk_d().clone(),
+            pk_d: *payment_address.pk_d(),
             rseed,
         };
 
@@ -128,7 +134,7 @@ impl SaplingProvingContext {
 
         // Add the nullifier through multiscalar packing
         {
-            let nullifier = multipack::bytes_to_bits_le(&nullifier);
+            let nullifier = multipack::bytes_to_bits_le(&nullifier.0);
             let nullifier = multipack::compute_multipacking(&nullifier);
 
             assert_eq!(nullifier.len(), 2);
@@ -181,10 +187,13 @@ impl SaplingProvingContext {
         // Construct the value commitment for the proof instance
         let value_commitment = asset_type.value_commitment(value, rcv);
 
+        // Compute the actual value commitment
+        let value_commitment_point: jubjub::ExtendedPoint = value_commitment.commitment().into();
+
         // We now have a full witness for the output proof.
         let instance = Output {
-            value_commitment: Some(value_commitment.clone()),
-            payment_address: Some(payment_address.clone()),
+            value_commitment: Some(value_commitment),
+            payment_address: Some(payment_address),
             commitment_randomness: Some(rcm),
             esk: Some(esk),
             asset_identifier: asset_type.identifier_bits(),
@@ -194,13 +203,10 @@ impl SaplingProvingContext {
         let proof =
             create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
 
-        // Compute the actual value commitment
-        let value_commitment: jubjub::ExtendedPoint = value_commitment.commitment().into();
-
         // Accumulate the value commitment in the context. We do this to check internal consistency.
-        self.cv_sum -= value_commitment; // Outputs subtract from the total.
+        self.cv_sum -= value_commitment_point; // Outputs subtract from the total.
 
-        (proof, value_commitment)
+        (proof, value_commitment_point)
     }
 
     /// Create the bindingSig for a Sapling transaction. All calls to spend_proof()

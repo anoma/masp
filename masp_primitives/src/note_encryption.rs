@@ -1,9 +1,6 @@
 //! Implementation of in-band secret distribution for Zcash transactions.
 
-use crate::{
-    //consensus::{self, NetworkUpgrade, ZIP212_GRACE_PERIOD},
-    primitives::{Diversifier, Note, PaymentAddress, Rseed},
-};
+use crate::primitives::{Diversifier, Note, PaymentAddress, Rseed};
 use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use crypto_api_chachapoly::{ChaCha20Ietf, ChachaPolyIetf};
@@ -15,19 +12,18 @@ use std::fmt;
 use std::str;
 
 use crate::transaction::sighash::SigHashVersion::Sapling;
-//use zcash_primitives::consensus::BranchId::Sapling;
-use zcash_primitives::consensus::NetworkUpgrade::Sapling;
 use crate::transaction::sighash::SigHashVersion::Sapling;
-//use zcash_primitives::consensus::BranchId::Sapling;
-use zcash_primitives::consensus::NetworkUpgrade::Sapling;
-//use zcash_primitives::consensus::BranchId::Canopy;
-use zcash_primitives::consensus::NetworkUpgrade::Canopy;
 use zcash_primitives::consensus;
+use zcash_primitives::consensus::NetworkUpgrade::Canopy;
+use zcash_primitives::consensus::NetworkUpgrade::Sapling;
+use zcash_primitives::consensus::NetworkUpgrade::Sapling;
+
+use zcash_primitives::sapling::note_encryption::sapling_ka_agree;
 
 use crate::keys::OutgoingViewingKey;
 
-pub const KDF_SAPLING_PERSONALIZATION: &[u8; 16] = b"Zcash_SaplingKDF";
-pub const PRF_OCK_PERSONALIZATION: &[u8; 16] = b"Zcash_Derive_ock";
+pub const KDF_SAPLING_PERSONALIZATION: &[u8; 16] = b"MASP_SaplingKDF";
+pub const PRF_OCK_PERSONALIZATION: &[u8; 16] = b"MASP_Derive_ock";
 
 const COMPACT_NOTE_SIZE: usize = 1 + // version
     11 + // diversifier
@@ -137,16 +133,6 @@ impl str::FromStr for Memo {
     fn from_str(memo: &str) -> Result<Self, Self::Err> {
         Memo::from_bytes(memo.as_bytes()).ok_or(())
     }
-}
-
-/// Sapling key agreement for note encryption.
-///
-/// Implements section 5.4.4.3 of the Zcash Protocol Specification.
-pub fn sapling_ka_agree(esk: &jubjub::Fr, pk_d: &jubjub::ExtendedPoint) -> jubjub::SubgroupPoint {
-    // [8 esk] pk_d
-    // <ExtendedPoint as CofactorGroup>::clear_cofactor is implemented using
-    // ExtendedPoint::mul_by_cofactor in the jubjub crate.
-    CofactorGroup::clear_cofactor(&(pk_d * esk))
 }
 
 /// Sapling KDF for note encryption.
@@ -619,17 +605,15 @@ mod tests {
         try_sapling_output_recovery_with_ock, Memo, SaplingNoteEncryption, COMPACT_NOTE_SIZE,
         ENC_CIPHERTEXT_SIZE, NOTE_PLAINTEXT_SIZE, OUT_CIPHERTEXT_SIZE, OUT_PLAINTEXT_SIZE,
     };
-    use zcash_primitives::{
-        consensus::{
-            NetworkUpgrade,
-            NetworkUpgrade::{Canopy, Sapling},
-            Parameters, TestNetwork, ZIP212_GRACE_PERIOD,
-        },
-    };
     use crate::{
         keys::OutgoingViewingKey,
         primitives::{Diversifier, PaymentAddress, Rseed, ValueCommitment},
         util::generate_random_rseed,
+    };
+    use zcash_primitives::consensus::{
+        NetworkUpgrade,
+        NetworkUpgrade::{Canopy, Sapling},
+        Parameters, TestNetwork, ZIP212_GRACE_PERIOD,
     };
 
     #[test]

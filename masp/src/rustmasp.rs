@@ -3,7 +3,8 @@
 //! This is internal to zcashd and is not an officially-supported API.
 
 // Catch documentation errors caused by code changes.
-#![deny(intra_doc_link_resolution_failure)]
+//#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(broken_intra_doc_links)]
 // Clippy has a default-deny lint to prevent dereferencing raw pointer arguments
 // in a non-unsafe function. However, declaring a function as unsafe has the
 // side-effect that the entire function body is treated as an unsafe {} block,
@@ -39,7 +40,7 @@ use std::ffi::OsString;
 #[cfg(target_os = "windows")]
 use std::os::windows::ffi::OsStringExt;
 
-use zcash_primitives::note_encryption::sapling_ka_agree;
+use zcash_primitives::sapling::{note_encryption::sapling_ka_agree, Rseed};
 
 use masp_primitives::{
     asset_type::AssetType,
@@ -47,8 +48,7 @@ use masp_primitives::{
         ASSET_IDENTIFIER_LENGTH, CRH_IVK_PERSONALIZATION, PROOF_GENERATION_KEY_GENERATOR,
         SPENDING_KEY_GENERATOR,
     },
-    merkle_tree::MerklePath,
-    primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed, ViewingKey},
+    primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, ViewingKey},
     redjubjub::{self, Signature},
     sapling::{merkle_hash, spend_sig},
     zip32,
@@ -58,6 +58,7 @@ use masp_proofs::{
     load_parameters,
     sapling::{SaplingProvingContext, SaplingVerificationContext},
 };
+use zcash_primitives::merkle_tree::MerklePath;
 
 #[cfg(test)]
 mod tests;
@@ -126,17 +127,16 @@ pub extern "C" fn libmasp_init_zksnark_params(
 
 fn init_zksnark_params(spend_path: &Path, output_path: &Path) {
     // Load params
-    let (spend_params, spend_vk, output_params, output_vk) =
-        load_parameters(spend_path, output_path);
+    let p = load_parameters(spend_path, output_path);
 
     // Caller is responsible for calling this function once, so
     // these global mutations are safe.
     unsafe {
-        SAPLING_SPEND_PARAMS = Some(spend_params);
-        SAPLING_OUTPUT_PARAMS = Some(output_params);
+        SAPLING_SPEND_PARAMS = Some(p.spend_params);
+        SAPLING_OUTPUT_PARAMS = Some(p.output_params);
 
-        SAPLING_SPEND_VK = Some(spend_vk);
-        SAPLING_OUTPUT_VK = Some(output_vk);
+        SAPLING_SPEND_VK = Some(p.spend_vk);
+        SAPLING_OUTPUT_VK = Some(p.output_vk);
     }
 }
 
@@ -377,7 +377,7 @@ pub extern "C" fn libmasp_sapling_compute_nf(
     let vk = ViewingKey { ak, nk };
     let nf = note.nf(&vk, position);
     let result = unsafe { &mut *result };
-    result.copy_from_slice(&nf);
+    result.copy_from_slice(&nf.0);
 
     true
 }
@@ -480,7 +480,7 @@ pub extern "C" fn libmasp_sapling_verification_ctx_init() -> *mut SaplingVerific
 }
 
 /// Frees a Sapling verification context returned from
-/// [`librustzcash_sapling_verification_ctx_init`].
+/// [`libmasp_sapling_verification_ctx_init`].
 #[no_mangle]
 pub extern "C" fn libmasp_sapling_verification_ctx_free(ctx: *mut SaplingVerificationContext) {
     drop(unsafe { Box::from_raw(ctx) });
@@ -804,10 +804,7 @@ pub extern "C" fn libmasp_sapling_spend_proof(
     };
 
     // Construct the proof generation key
-    let proof_generation_key = ProofGenerationKey {
-        ak: ak.clone(),
-        nsk,
-    };
+    let proof_generation_key = ProofGenerationKey { ak, nsk };
 
     // Grab the diversifier from the caller
     let diversifier = Diversifier(unsafe { *diversifier });
@@ -883,7 +880,7 @@ pub extern "C" fn libmasp_sapling_proving_ctx_init() -> *mut SaplingProvingConte
 }
 
 /// Frees a Sapling proving context returned from
-/// [`librustzcash_sapling_proving_ctx_init`].
+/// [`libmasp_sapling_proving_ctx_init`].
 #[no_mangle]
 pub extern "C" fn libmasp_sapling_proving_ctx_free(ctx: *mut SaplingProvingContext) {
     drop(unsafe { Box::from_raw(ctx) });
@@ -955,9 +952,9 @@ pub extern "C" fn libmasp_zip32_xfvk_address(
         .expect("valid ExtendedFullViewingKey");
     let j = zip32::DiversifierIndex(unsafe { *j });
 
-    let addr = match xfvk.address(j) {
-        Ok(addr) => addr,
-        Err(_) => return false,
+    let addr = match xfvk.find_address(j) {
+        Some(addr) => addr,
+        None => return false,
     };
 
     let j_ret = unsafe { &mut *j_ret };
@@ -978,7 +975,7 @@ pub extern "C" fn libmasp_new_asset_identifier(
     identifier_result: *mut [c_uchar; ASSET_IDENTIFIER_LENGTH],
     nonce_result: *mut u8,
 ) -> bool {
-    let asset_type = match AssetType::new(&unsafe { std::slice::from_raw_parts(name, name_length) })
+    let asset_type = match AssetType::new(unsafe { std::slice::from_raw_parts(name, name_length) })
     {
         Ok(asset_type) => asset_type,
         Err(_) => return false,
@@ -1004,7 +1001,7 @@ pub extern "C" fn libmasp_asset_from_name_and_nonce(
     result: *mut [c_uchar; ASSET_IDENTIFIER_LENGTH],
 ) -> bool {
     if let Some(asset_type) = AssetType::new_with_nonce(
-        &unsafe { std::slice::from_raw_parts(name, name_length) },
+        unsafe { std::slice::from_raw_parts(name, name_length) },
         nonce,
     ) {
         let identifier_result = unsafe { &mut *result };

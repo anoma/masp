@@ -5,9 +5,10 @@ use group::Curve;
 
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
 
-use masp_primitives::constants;
-
-use masp_primitives::primitives::{PaymentAddress, ProofGenerationKey, ValueCommitment};
+use masp_primitives::{
+    constants,
+    primitives::{PaymentAddress, ProofGenerationKey, ValueCommitment},
+};
 
 use super::pedersen_hash;
 use crate::constants::{
@@ -82,9 +83,7 @@ where
     // Witness the asset type
     let asset_generator = ecc::EdwardsPoint::witness(
         cs.namespace(|| "asset_generator"),
-        value_commitment
-            .as_ref()
-            .map(|vc| vc.asset_generator.clone()),
+        value_commitment.as_ref().map(|vc| vc.asset_generator),
     )?;
 
     // Booleanize the asset type
@@ -609,10 +608,11 @@ fn test_input_circuit_with_bls12_381() {
     use masp_primitives::{
         asset_type::AssetType,
         pedersen_hash,
-        primitives::{Diversifier, Note, ProofGenerationKey, Rseed},
+        primitives::{Diversifier, Note, ProofGenerationKey},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
+    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -621,7 +621,7 @@ fn test_input_circuit_with_bls12_381() {
 
     let tree_depth = 32;
 
-    for i in 0..400 {
+    for i in 0..400u32 {
         let asset_type = if i < 10 {
             AssetType::new(b"default")
         } else {
@@ -638,10 +638,7 @@ fn test_input_circuit_with_bls12_381() {
         let nsk = jubjub::Fr::random(&mut rng);
         let ak = jubjub::SubgroupPoint::random(&mut rng);
 
-        let proof_generation_key = ProofGenerationKey {
-            ak: ak.clone(),
-            nsk: nsk.clone(),
-        };
+        let proof_generation_key = ProofGenerationKey { ak, nsk };
 
         let viewing_key = proof_generation_key.to_viewing_key();
 
@@ -673,14 +670,14 @@ fn test_input_circuit_with_bls12_381() {
             let note = Note {
                 asset_type,
                 value: value_commitment.value,
-                g_d: g_d.clone(),
-                pk_d: payment_address.pk_d().clone(),
-                rseed: Rseed::BeforeZip212(commitment_randomness.clone()),
+                g_d,
+                pk_d: *payment_address.pk_d(),
+                rseed: Rseed::BeforeZip212(commitment_randomness),
             };
 
             let mut position = 0u64;
             let cmu = note.cmu();
-            let mut cur = cmu.clone();
+            let mut cur = cmu;
 
             for (i, val) in auth_path.clone().into_iter().enumerate() {
                 let (uncle, b) = val.unwrap();
@@ -715,7 +712,7 @@ fn test_input_circuit_with_bls12_381() {
             }
 
             let expected_nf = note.nf(&viewing_key, position);
-            let expected_nf = multipack::bytes_to_bits_le(&expected_nf);
+            let expected_nf = multipack::bytes_to_bits_le(&expected_nf.0);
             let expected_nf = multipack::compute_multipacking(&expected_nf);
             assert_eq!(expected_nf.len(), 2);
 
@@ -780,10 +777,11 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
     use masp_primitives::{
         asset_type::AssetType,
         pedersen_hash,
-        primitives::{Diversifier, Note, ProofGenerationKey, Rseed},
+        primitives::{Diversifier, Note, ProofGenerationKey},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
+    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x59, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -826,17 +824,11 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
     .unwrap();
 
     for i in 0..10 {
-        let value_commitment = asset_type.value_commitment(
-            i,
-            jubjub::Fr::from_str_vartime(&(1000 * (i + 1)).to_string()).unwrap(),
-        );
-
-        let nsk = jubjub::Fr::random(&mut rng);
-        let ak = jubjub::SubgroupPoint::random(&mut rng);
+        let value_commitment = asset_type.value_commitment(i, jubjub::Fr::from(1000 * (i + 1)));
 
         let proof_generation_key = ProofGenerationKey {
-            ak: ak.clone(),
-            nsk: nsk.clone(),
+            ak: jubjub::SubgroupPoint::random(&mut rng),
+            nsk: jubjub::Fr::random(&mut rng),
         };
 
         let viewing_key = proof_generation_key.to_viewing_key();
@@ -868,23 +860,23 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
                 jubjub::ExtendedPoint::from(value_commitment.commitment()).to_affine();
             assert_eq!(
                 expected_value_commitment.get_u(),
-                bls12_381::Scalar::from_str_vartime(&expected_commitment_us[i as usize]).unwrap()
+                bls12_381::Scalar::from_str_vartime(expected_commitment_us[i as usize]).unwrap()
             );
             assert_eq!(
                 expected_value_commitment.get_v(),
-                bls12_381::Scalar::from_str_vartime(&expected_commitment_vs[i as usize]).unwrap()
+                bls12_381::Scalar::from_str_vartime(expected_commitment_vs[i as usize]).unwrap()
             );
             let note = Note {
                 asset_type,
                 value: value_commitment.value,
-                g_d: g_d.clone(),
-                pk_d: payment_address.pk_d().clone(),
-                rseed: Rseed::BeforeZip212(commitment_randomness.clone()),
+                g_d,
+                pk_d: *payment_address.pk_d(),
+                rseed: Rseed::BeforeZip212(commitment_randomness),
             };
 
             let mut position = 0u64;
             let cmu = note.cmu();
-            let mut cur = cmu.clone();
+            let mut cur = cmu;
 
             for (i, val) in auth_path.clone().into_iter().enumerate() {
                 let (uncle, b) = val.unwrap();
@@ -919,7 +911,7 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
             }
 
             let expected_nf = note.nf(&viewing_key, position);
-            let expected_nf = multipack::bytes_to_bits_le(&expected_nf);
+            let expected_nf = multipack::bytes_to_bits_le(&expected_nf.0);
             let expected_nf = multipack::compute_multipacking(&expected_nf);
             assert_eq!(expected_nf.len(), 2);
 
@@ -972,10 +964,11 @@ fn test_output_circuit_with_bls12_381() {
     use group::Group;
     use masp_primitives::{
         asset_type::AssetType,
-        primitives::{Diversifier, ProofGenerationKey, Rseed},
+        primitives::{Diversifier, ProofGenerationKey},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
+    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -999,10 +992,7 @@ fn test_output_circuit_with_bls12_381() {
         let nsk = jubjub::Fr::random(&mut rng);
         let ak = jubjub::SubgroupPoint::random(&mut rng);
 
-        let proof_generation_key = ProofGenerationKey {
-            ak: ak.clone(),
-            nsk: nsk.clone(),
-        };
+        let proof_generation_key = ProofGenerationKey { ak, nsk };
 
         let viewing_key = proof_generation_key.to_viewing_key();
 
@@ -1031,7 +1021,7 @@ fn test_output_circuit_with_bls12_381() {
                 value_commitment: Some(value_commitment.clone()),
                 payment_address: Some(payment_address.clone()),
                 commitment_randomness: Some(commitment_randomness),
-                esk: Some(esk.clone()),
+                esk: Some(esk),
                 asset_identifier: asset_type.identifier_bits(),
             };
 

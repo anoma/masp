@@ -1,13 +1,13 @@
 [package]
 name = "masp_proofs"
 description = "Experimental MASP zk-SNARK circuits and proving APIs, based on zcash_proofs"
-version = "0.4.0"
+version = "0.5.0"
 authors = [
     "Jack Grigg <jack@z.cash>",
-    "joe <joe@cryptium.ch>",
+    "joe <joe@heliax.dev>",
 ]
-#homepage = "https://github.com/zcash/librustzcash"
-#repository = "https://github.com/zcash/librustzcash"
+homepage = "https://github.com/anoma/masp"
+repository = "https://github.com/anoma/masp"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 edition = "2018"
@@ -17,21 +17,22 @@ all-features = true
 
 [dependencies]
 bellman = { version = "0.11.1", default-features = false, features = ["groth16"] }
-blake2b_simd = "0.5"
+blake2b_simd = "1.0.0"
 bls12_381 = "0.6"
 byteorder = "1"
-directories = { version = "3", optional = true }
+directories = { version = "4.0.1", optional = true }
 ff = "0.11"
 group = "0.11"
-itertools = "0.9"
+itertools = "0.10.1"
 jubjub = "0.8"
 lazy_static = "1"
 minreq = { version = "2", features = ["https"], optional = true }
 rand_core = "0.6"
 wagyu-zcash-parameters = { version = "0.2", optional = true }
-masp_primitives = { version = "0.4", path = "../masp_primitives" }
-zcash_primitives = { path = "../zcash_primitives" }
-zcash_proofs = { path = "../zcash_proofs" }
+masp_primitives = { version = "0.5", path = "../masp_primitives" }
+zcash_primitives = { git = "https://github.com/zcash/librustzcash" }
+zcash_proofs = { git = "https://github.com/zcash/librustzcash" }
+getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 criterion = "0.3"
@@ -44,6 +45,8 @@ download-params = ["minreq"]
 local-prover = ["directories"]
 multicore = ["bellman/multicore"]
 
+[lib]
+bench = false
 [[bench]]
 name = "sapling"
 harness = false

@@ -1,4 +1,4 @@
-//! Helpers for creating Sapling proofs.
+//! Helpers for creating MASP Sapling proofs.
 
 use masp_primitives::asset_type::AssetType;
 

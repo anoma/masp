@@ -1,8 +1,10 @@
-use crate::constants::{
-    ASSET_IDENTIFIER_LENGTH, ASSET_IDENTIFIER_PERSONALIZATION, GH_FIRST_BLOCK,
-    VALUE_COMMITMENT_GENERATOR_PERSONALIZATION,
+use crate::{
+    constants::{
+        ASSET_IDENTIFIER_LENGTH, ASSET_IDENTIFIER_PERSONALIZATION, GH_FIRST_BLOCK,
+        VALUE_COMMITMENT_GENERATOR_PERSONALIZATION,
+    },
+    primitives::ValueCommitment,
 };
-use crate::primitives::ValueCommitment;
 use blake2s_simd::Params as Blake2sParams;
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
 
@@ -22,7 +24,7 @@ impl AssetType {
             if let Some(asset_type) = AssetType::new_with_nonce(name, nonce) {
                 return Ok(asset_type);
             }
-            nonce = nonce.checked_add(1).ok_or_else(|| ())?;
+            nonce = nonce.checked_add(1).ok_or(())?;
         }
     }
 
@@ -40,7 +42,7 @@ impl AssetType {
             .personal(ASSET_IDENTIFIER_PERSONALIZATION)
             .to_state()
             .update(GH_FIRST_BLOCK)
-            .update(&name)
+            .update(name)
             .update(from_ref(&nonce))
             .finalize();
 
@@ -61,7 +63,8 @@ impl AssetType {
         assert_eq!(VALUE_COMMITMENT_GENERATOR_PERSONALIZATION.len(), 8);
 
         // Check to see that scalar field is 255 bits
-        //assert!(jubjub::Fr::NUM_BITS == 255);
+        use ff::PrimeField;
+        assert_eq!(bls12_381::Scalar::NUM_BITS, 255);
 
         let h = Blake2sParams::new()
             .hash_length(32)
@@ -136,7 +139,7 @@ impl AssetType {
     }
 
     pub fn get_nonce(&self) -> Option<u8> {
-        return self.nonce;
+        self.nonce
     }
 }
 

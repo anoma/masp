@@ -1,3 +1,5 @@
+#![allow(clippy::new_without_default)]
+use super::masp_compute_value_balance;
 use bellman::{
     gadgets::multipack,
     groth16::{verify_proof, PreparedVerifyingKey, Proof},
@@ -9,8 +11,6 @@ use masp_primitives::{
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
     redjubjub::{PublicKey, Signature},
 };
-
-use super::masp_compute_value_balance;
 
 /// A context object for verifying the Sapling components of a Zcash transaction.
 pub struct SaplingVerificationContext {
@@ -28,6 +28,7 @@ impl SaplingVerificationContext {
 
     /// Perform consensus checks on a Sapling SpendDescription, while
     /// accumulating its value commitment inside the context for later use.
+    #[allow(clippy::too_many_arguments)]
     pub fn check_spend(
         &mut self,
         cv: jubjub::ExtendedPoint,
@@ -55,7 +56,12 @@ impl SaplingVerificationContext {
         (&mut data_to_be_signed[32..64]).copy_from_slice(&sighash_value[..]);
 
         // Verify the spend_auth_sig
-        if !rk.verify(&data_to_be_signed, &spend_auth_sig, SPENDING_KEY_GENERATOR) {
+        if !rk.verify_with_zip216(
+            &data_to_be_signed,
+            &spend_auth_sig,
+            SPENDING_KEY_GENERATOR,
+            true, // zip216_enabled = true
+        ) {
             return false;
         }
 
@@ -137,7 +143,7 @@ impl SaplingVerificationContext {
         binding_sig: Signature,
     ) -> bool {
         // Obtain current cv_sum from the context
-        let mut bvk = PublicKey(self.cv_sum.clone());
+        let mut bvk = PublicKey(self.cv_sum);
 
         // Compute value balance
         let value_balances = assets_and_values
@@ -163,10 +169,11 @@ impl SaplingVerificationContext {
         (&mut data_to_be_signed[32..64]).copy_from_slice(&sighash_value[..]);
 
         // Verify the binding_sig
-        bvk.verify(
+        bvk.verify_with_zip216(
             &data_to_be_signed,
             &binding_sig,
             VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
+            true, // zip216_enabled = true
         )
     }
 }

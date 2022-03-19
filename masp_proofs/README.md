@@ -1,6 +1,6 @@
-# zcash_proofs
+# masp_proofs
 
-This library contains the zk-SNARK circuits for Zcash, and the APIs for creating
+This library contains the zk-SNARK circuits for MASP, based on the circuits for Zcash Sapling, and the APIs for creating
 and verifying proofs.
 
 ## License

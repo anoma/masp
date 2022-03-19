@@ -84,7 +84,7 @@ where
         }
 
         let mut table: &[Vec<jubjub::SubgroupPoint>] =
-            &generators.next().expect("we don't have enough generators");
+            generators.next().expect("we don't have enough generators");
         let window = PEDERSEN_HASH_EXP_WINDOW_SIZE as usize;
         let window_mask = (1u64 << window) - 1;
 
@@ -137,7 +137,7 @@ pub mod test {
     fn test_pedersen_hash_points() {
         let test_vectors = pedersen_hash_vectors::get_vectors();
 
-        assert!(test_vectors.len() > 0);
+        assert!(!test_vectors.is_empty());
 
         for v in test_vectors.iter() {
             let input_bools: Vec<bool> = v.input_bits.iter().map(|&i| i == 1).collect();
