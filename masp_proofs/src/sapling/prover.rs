@@ -8,13 +8,15 @@ use group::{Curve, GroupEncoding};
 use masp_primitives::{
     asset_type::AssetType,
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
+    merkle_tree::MerklePath,
     primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey},
     redjubjub::{PrivateKey, PublicKey, Signature},
     sapling::Node,
+    transaction::amount::Amount,
 };
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
-use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
+use zcash_primitives::sapling::Rseed;
 
 use super::masp_compute_value_balance;
 use crate::circuit::sapling::{Output, Spend};
@@ -213,7 +215,7 @@ impl SaplingProvingContext {
     /// and output_proof() must be completed before calling this function.
     pub fn binding_sig(
         &self,
-        assets_and_values: &[(AssetType, i64)],
+        assets_and_values: &[(AssetType, Amount)],
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
         // Initialize secure RNG

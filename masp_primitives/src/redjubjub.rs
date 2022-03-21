@@ -3,12 +3,21 @@
 //!
 //! [RedJubjub]: https://zips.z.cash/protocol/protocol.pdf#concretereddsa
 
+use crate::transaction::util::{
+    deserialize_extended_point, sdeserialize_extended_point, sserialize_extended_point,
+};
+use borsh::{BorshDeserialize, BorshSerialize};
 use ff::{Field, PrimeField};
 use group::GroupEncoding;
 use jubjub::{AffinePoint, ExtendedPoint, SubgroupPoint};
 use rand_core::RngCore;
+use serde::{Deserialize, Serialize};
 use std::io::{self, Read, Write};
 use std::ops::{AddAssign, MulAssign, Neg};
+use std::{
+    cmp::Ordering,
+    hash::{Hash, Hasher},
+};
 
 use zcash_primitives::sapling::util::hash_to_scalar;
 
@@ -28,7 +37,20 @@ fn h_star(a: &[u8], b: &[u8]) -> jubjub::Fr {
     hash_to_scalar(b"MASP__RedJubjubH", a, b)
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    BorshSerialize,
+    BorshDeserialize,
+    Serialize,
+    Deserialize,
+    PartialOrd,
+    PartialEq,
+    Ord,
+    Eq,
+    Hash,
+)]
 pub struct Signature {
     rbar: [u8; 32],
     sbar: [u8; 32],
@@ -36,8 +58,36 @@ pub struct Signature {
 
 pub struct PrivateKey(pub jubjub::Fr);
 
-#[derive(Debug, Clone)]
-pub struct PublicKey(pub ExtendedPoint);
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
+pub struct PublicKey(
+    #[serde(serialize_with = "sserialize_extended_point")]
+    #[serde(deserialize_with = "sdeserialize_extended_point")]
+    pub ExtendedPoint,
+);
+
+impl PartialOrd for PublicKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.to_bytes().partial_cmp(&other.0.to_bytes())
+    }
+}
+
+impl Hash for PublicKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_bytes().hash(state);
+    }
+}
+
+impl BorshDeserialize for PublicKey {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Ok(Self(deserialize_extended_point(buf)?))
+    }
+}
+
+impl BorshSerialize for PublicKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        BorshSerialize::serialize(&self.0.to_bytes(), writer)
+    }
+}
 
 impl Signature {
     pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {

@@ -1,6 +1,6 @@
 //! Helpers for creating MASP Sapling proofs.
 
-use masp_primitives::asset_type::AssetType;
+use masp_primitives::{asset_type::AssetType, transaction::amount::Amount};
 
 mod prover;
 mod verifier;
@@ -9,10 +9,13 @@ pub use self::prover::SaplingProvingContext;
 pub use self::verifier::SaplingVerificationContext;
 
 // This function computes `value` in the exponent of the value commitment base
-fn masp_compute_value_balance(asset_type: AssetType, value: i64) -> Option<jubjub::ExtendedPoint> {
+fn masp_compute_value_balance(
+    asset_type: AssetType,
+    value: Amount,
+) -> Option<jubjub::ExtendedPoint> {
     // Compute the absolute value (failing if -i64::MAX is
     // the value)
-    let abs = match value.checked_abs() {
+    let abs = match i64::from(value).checked_abs() {
         Some(a) => a as u64,
         None => return None,
     };
