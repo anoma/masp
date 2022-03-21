@@ -1,43 +1,36 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use core::fmt::Debug;
-use std::convert::TryInto;
-
 use ff::PrimeField;
 use group::GroupEncoding;
+use std::collections::BTreeMap;
+use std::convert::TryInto;
 use std::io::{self, Read, Write};
 
-use zcash_note_encryption::{
+use masp_note_encryption::{
     EphemeralKeyBytes, ShieldedOutput, COMPACT_NOTE_SIZE, ENC_CIPHERTEXT_SIZE,
 };
 
 use crate::{
+    asset_type::AssetType,
+    note_encryption::SaplingDomain,
+    redjubjub::{self, PublicKey, Signature},
+    transaction::{amount::Amount, util::*},
+};
+use zcash_primitives::{
     consensus,
-    sapling::{
-        note_encryption::SaplingDomain,
-        redjubjub::{self, PublicKey, Signature},
-        Nullifier,
+    sapling::Nullifier,
+    transaction::components::{
+        sapling::{Authorization, GrothProofBytes, Unproven},
+        GROTH_PROOF_SIZE,
     },
 };
 
-use super::{amount::Amount, GROTH_PROOF_SIZE};
-
-pub type GrothProofBytes = [u8; GROTH_PROOF_SIZE];
-
+pub mod amount;
 pub mod builder;
+pub mod serialize;
+pub mod util;
 
-pub trait Authorization: Debug {
-    type Proof: Clone + Debug;
-    type AuthSig: Clone + Debug;
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Unproven;
-
-impl Authorization for Unproven {
-    type Proof = ();
-    type AuthSig = ();
-}
-
-#[derive(Debug, Copy, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Copy, Clone)]
 pub struct Authorized {
     pub binding_sig: redjubjub::Signature,
 }
@@ -53,16 +46,22 @@ pub trait MapAuth<A: Authorization, B: Authorization> {
     fn map_authorization(&self, a: A) -> B;
 }
 
-#[derive(Debug, Clone)]
-pub struct Bundle<A: Authorization> {
+#[derive(Clone)]
+pub struct Bundle<A: Authorization + PartialEq + BorshSerialize + BorshDeserialize> {
     pub shielded_spends: Vec<SpendDescription<A>>,
     pub shielded_outputs: Vec<OutputDescription<A::Proof>>,
-    pub value_balance: Amount,
+    pub value_balance: BTreeMap<AssetType, Amount>,
     pub authorization: A,
 }
 
-impl<A: Authorization> Bundle<A> {
-    pub fn map_authorization<B: Authorization, F: MapAuth<A, B>>(self, f: F) -> Bundle<B> {
+impl<A: Authorization + PartialEq + BorshSerialize + BorshDeserialize> Bundle<A> {
+    pub fn map_authorization<
+        B: Authorization + PartialEq + BorshSerialize + BorshDeserialize,
+        F: MapAuth<A, B>,
+    >(
+        self,
+        f: F,
+    ) -> Bundle<B> {
         Bundle {
             shielded_spends: self
                 .shielded_spends
@@ -94,17 +93,60 @@ impl<A: Authorization> Bundle<A> {
     }
 }
 
-#[derive(Clone)]
-pub struct SpendDescription<A: Authorization> {
+#[derive(Clone, PartialEq, Eq)]
+pub struct SpendDescription<A: Authorization + PartialEq> {
+    //#[serde(serialize_with = "sserialize_extended_point")]
+    //#[serde(deserialize_with = "sdeserialize_extended_point")]
     pub cv: jubjub::ExtendedPoint,
+    //#[serde(serialize_with = "sserialize_scalar")]
+    //#[serde(deserialize_with = "sdeserialize_scalar")]
     pub anchor: bls12_381::Scalar,
+    //#[serde(serialize_with = "sserialize_nullifier")]
+    //#[serde(deserialize_with = "sdeserialize_scalar")]
     pub nullifier: Nullifier,
     pub rk: PublicKey,
+    //#[serde(serialize_with = "sserialize_array::<_, u8, u8, GROTH_PROOF_SIZE>")]
+    //#[serde(deserialize_with = "sdeserialize_array::<_, u8, u8, GROTH_PROOF_SIZE>")]
     pub zkproof: A::Proof,
     pub spend_auth_sig: A::AuthSig,
 }
 
-impl<A: Authorization> std::fmt::Debug for SpendDescription<A> {
+/*impl<A: Authorization + PartialEq> PartialOrd for SpendDescription<A> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        (
+            self.cv.to_bytes(),
+            self.anchor.to_bytes(),
+            self.nullifier,
+            self.rk,
+            self.zkproof,
+            self.spend_auth_sig,
+        )
+            .partial_cmp(&(
+                other.cv.to_bytes(),
+                other.anchor.to_bytes(),
+                other.nullifier,
+                other.rk,
+                other.zkproof,
+                other.spend_auth_sig,
+            ))
+    }
+}
+
+impl<A: Authorization + PartialEq> Hash for SpendDescription<A> {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        self.cv.to_bytes().hash(state);
+        self.anchor.to_bytes().hash(state);
+        self.nullifier.hash(state);
+        self.rk.hash(state);
+        self.zkproof.hash(state);
+        self.spend_auth_sig.hash(state);
+    }
+}*/
+
+impl<A: Authorization + PartialEq> std::fmt::Debug for SpendDescription<A> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(
             f,
@@ -254,13 +296,60 @@ impl SpendDescriptionV5 {
 
 #[derive(Clone)]
 pub struct OutputDescription<Proof> {
+    //#[serde(serialize_with = "sserialize_extended_point")]
+    //#[serde(deserialize_with = "sdeserialize_extended_point")]
     pub cv: jubjub::ExtendedPoint,
+    //#[serde(serialize_with = "sserialize_scalar")]
+    //#[serde(deserialize_with = "sdeserialize_scalar")]
     pub cmu: bls12_381::Scalar,
+    //#[serde(serialize_with = "sserialize_extended_point")]
+    //#[serde(deserialize_with = "sdeserialize_extended_point")]
     pub ephemeral_key: EphemeralKeyBytes,
-    pub enc_ciphertext: [u8; 580],
+    //#[serde(serialize_with = "sserialize_array::<_, u8, u8, 580 + 32>")]
+    //#[serde(deserialize_with = "sdeserialize_array::<_, u8, u8, 580 + 32>")]
+    pub enc_ciphertext: [u8; 580 + 32],
+    //#[serde(serialize_with = "sserialize_array::<_, u8, u8, 80>")]
+    //#[serde(deserialize_with = "sdeserialize_array::<_, u8, u8, 80>")]
     pub out_ciphertext: [u8; 80],
+    //#[serde(serialize_with = "sserialize_array::<_, u8, u8, GROTH_PROOF_SIZE>")]
+    //#[serde(deserialize_with = "sdeserialize_array::<_, u8, u8, GROTH_PROOF_SIZE>")]
     pub zkproof: Proof,
 }
+
+/*impl<Proof: PartialEq> PartialOrd for OutputDescription<Proof> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        (
+            self.cv.to_bytes(),
+            self.cmu.to_bytes(),
+            self.ephemeral_key.to_bytes(),
+            self.enc_ciphertext,
+            self.out_ciphertext,
+            self.zkproof,
+        )
+            .partial_cmp(&(
+                other.cv.to_bytes(),
+                other.cmu.to_bytes(),
+                other.ephemeral_key.to_bytes(),
+                other.enc_ciphertext,
+                other.out_ciphertext,
+                other.zkproof,
+            ))
+    }
+}
+
+impl<Proof: Hash> Hash for OutputDescription<Proof> {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        self.cv.to_bytes().hash(state);
+        self.cmu.to_bytes().hash(state);
+        self.ephemeral_key.to_bytes().hash(state);
+        self.enc_ciphertext.hash(state);
+        self.out_ciphertext.hash(state);
+        self.zkproof.hash(state);
+    }
+}*/
 
 impl<P: consensus::Parameters, A> ShieldedOutput<SaplingDomain<P>, ENC_CIPHERTEXT_SIZE>
     for OutputDescription<A>
@@ -278,7 +367,7 @@ impl<P: consensus::Parameters, A> ShieldedOutput<SaplingDomain<P>, ENC_CIPHERTEX
     }
 }
 
-impl<A> std::fmt::Debug for OutputDescription<A> {
+impl<A: Authorization + PartialEq> std::fmt::Debug for OutputDescription<A> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(
             f,
@@ -305,7 +394,7 @@ impl OutputDescription<GrothProofBytes> {
         let mut ephemeral_key = EphemeralKeyBytes([0u8; 32]);
         reader.read_exact(&mut ephemeral_key.0)?;
 
-        let mut enc_ciphertext = [0u8; 580];
+        let mut enc_ciphertext = [0u8; 580 + 32];
         let mut out_ciphertext = [0u8; 80];
         reader.read_exact(&mut enc_ciphertext)?;
         reader.read_exact(&mut out_ciphertext)?;
@@ -345,7 +434,7 @@ pub struct OutputDescriptionV5 {
     pub cv: jubjub::ExtendedPoint,
     pub cmu: bls12_381::Scalar,
     pub ephemeral_key: EphemeralKeyBytes,
-    pub enc_ciphertext: [u8; 580],
+    pub enc_ciphertext: [u8; 580 + 32],
     pub out_ciphertext: [u8; 80],
 }
 
@@ -360,7 +449,7 @@ impl OutputDescriptionV5 {
         let mut ephemeral_key = EphemeralKeyBytes([0u8; 32]);
         reader.read_exact(&mut ephemeral_key.0)?;
 
-        let mut enc_ciphertext = [0u8; 580];
+        let mut enc_ciphertext = [0u8; 580 + 32];
         let mut out_ciphertext = [0u8; 80];
         reader.read_exact(&mut enc_ciphertext)?;
         reader.read_exact(&mut out_ciphertext)?;
@@ -432,10 +521,10 @@ pub mod testing {
 
     use crate::{
         constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
-        sapling::{
-            redjubjub::{PrivateKey, PublicKey},
-            Nullifier,
-        },
+        redjubjub::{PrivateKey, PublicKey},
+    };
+    use zcash_primitives::{
+        sapling::Nullifier,
         transaction::{
             components::{amount::testing::arb_amount, GROTH_PROOF_SIZE},
             TxVersion,
@@ -489,8 +578,8 @@ pub mod testing {
             cmu in vec(any::<u8>(), 64)
                 .prop_map(|v| <[u8;64]>::try_from(v.as_slice()).unwrap())
                 .prop_map(|v| bls12_381::Scalar::from_bytes_wide(&v)),
-            enc_ciphertext in vec(any::<u8>(), 580)
-                .prop_map(|v| <[u8;580]>::try_from(v.as_slice()).unwrap()),
+            enc_ciphertext in vec(any::<u8>(), 580 + 32)
+                .prop_map(|v| <[u8;580 + 32]>::try_from(v.as_slice()).unwrap()),
             epk in arb_extended_point(),
             out_ciphertext in vec(any::<u8>(), 80)
                 .prop_map(|v| <[u8;80]>::try_from(v.as_slice()).unwrap()),

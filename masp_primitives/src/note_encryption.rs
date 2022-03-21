@@ -7,28 +7,25 @@ use jubjub::{AffinePoint, ExtendedPoint};
 use rand_core::RngCore;
 use std::convert::TryInto;
 
-pub mod batch;
-pub mod domain;
-
+use crate::asset_type::AssetType;
+//use crate::constants::ASSET_IDENTIFIER_LENGTH;
 use masp_note_encryption::{
     try_compact_note_decryption, try_note_decryption, try_output_recovery_with_ock,
     try_output_recovery_with_ovk, BatchDomain, Domain, EphemeralKeyBytes, NoteEncryption,
     NotePlaintextBytes, OutPlaintextBytes, OutgoingCipherKey, ShieldedOutput, COMPACT_NOTE_SIZE,
     ENC_CIPHERTEXT_SIZE, NOTE_PLAINTEXT_SIZE, OUT_PLAINTEXT_SIZE,
 };
-use crate::constants::ASSET_IDENTIFIER_LENGTH;
-use crate::asset_type::AssetType;
 
-use zcash_primitives::{
-    memo::MemoBytes,
-    consensus::{self, BlockHeight, NetworkUpgrade::Canopy, ZIP212_GRACE_PERIOD},
-    transaction::components::{sapling::{GrothProofBytes} },
-    sapling::Rseed,
-};
-use zcash_primitives::transaction::components::OutputDescription;
 use crate::{
     keys::OutgoingViewingKey,
     primitives::{Diversifier, Note, PaymentAddress, SaplingIvk},
+    transaction::{amount::Amount, OutputDescription},
+};
+use zcash_primitives::{
+    consensus::{self, BlockHeight, NetworkUpgrade::Canopy, ZIP212_GRACE_PERIOD},
+    memo::MemoBytes,
+    sapling::Rseed,
+    transaction::components::sapling::GrothProofBytes,
 };
 
 pub const KDF_SAPLING_PERSONALIZATION: &[u8; 16] = b"MASP__SaplingKDF";
@@ -105,10 +102,9 @@ where
 
     // The unwraps below are guaranteed to succeed by the assertion above
     let diversifier = Diversifier(plaintext[1..12].try_into().unwrap());
-    let value = u64::from_le_bytes(plaintext[12..20].try_into().unwrap()); // TODO: Amount::from_u64_le_bytes
-    let asset_type_end = 20+ASSET_IDENTIFIER_LENGTH;
-    let asset_type = AssetType::from_identifier(plaintext[20..asset_type_end].try_into().unwrap())?;
-    let r: [u8; 32] = plaintext[asset_type_end..COMPACT_NOTE_SIZE].try_into().unwrap();
+    let value = Amount::from_u64_le_bytes(plaintext[12..20].try_into().unwrap()).ok()?;
+    let asset_type = AssetType::from_identifier(plaintext[20..52].try_into().unwrap())?;
+    let r: [u8; 32] = plaintext[52..COMPACT_NOTE_SIZE].try_into().unwrap();
 
     let rseed = if plaintext[0] == 0x01 {
         let rcm = Option::from(jubjub::Fr::from_repr(r))?;
@@ -211,16 +207,13 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
             .write_u64::<LittleEndian>(note.value)
             .unwrap();
 
-        let asset_type_end = 20 + ASSET_IDENTIFIER_LENGTH;
-        use std::io::Write;
-        (&mut input[20..asset_type_end]).write(note.asset_type.get_identifier()).unwrap();
-
+        input[20..52].copy_from_slice(note.asset_type.get_identifier());
         match note.rseed {
             Rseed::BeforeZip212(rcm) => {
-                input[asset_type_end..COMPACT_NOTE_SIZE].copy_from_slice(rcm.to_repr().as_ref());
+                input[52..COMPACT_NOTE_SIZE].copy_from_slice(rcm.to_repr().as_ref());
             }
             Rseed::AfterZip212(rseed) => {
-                input[asset_type_end..COMPACT_NOTE_SIZE].copy_from_slice(&rseed);
+                input[52..COMPACT_NOTE_SIZE].copy_from_slice(&rseed);
             }
         }
 
@@ -488,8 +481,8 @@ mod tests {
     use rand_core::{CryptoRng, RngCore};
     use std::convert::TryInto;
 
-    use super::domain::{
-         EphemeralKeyBytes, NoteEncryption, OutgoingCipherKey, ENC_CIPHERTEXT_SIZE,
+    use masp_note_encryption::{
+        EphemeralKeyBytes, NoteEncryption, OutgoingCipherKey, ENC_CIPHERTEXT_SIZE,
         NOTE_PLAINTEXT_SIZE, OUT_CIPHERTEXT_SIZE, OUT_PLAINTEXT_SIZE,
     };
 
@@ -503,19 +496,20 @@ mod tests {
     use zcash_primitives::consensus::{
         BlockHeight,
         NetworkUpgrade::{Canopy, Sapling},
-        Parameters, TestNetwork, TEST_NETWORK, ZIP212_GRACE_PERIOD};
+        Parameters, TestNetwork, TEST_NETWORK, ZIP212_GRACE_PERIOD,
+    };
 
-        use zcash_primitives::{
-            memo::MemoBytes,
-            sapling::util::generate_random_rseed,
-            transaction::components::{sapling::{GrothProofBytes, CompactOutputDescription, OutputDescription}, GROTH_PROOF_SIZE },
-            sapling::Rseed,
-        };
     use crate::{
         keys::OutgoingViewingKey,
-        primitives::{Diversifier, PaymentAddress,  SaplingIvk, ValueCommitment},
+        primitives::{Diversifier, PaymentAddress, SaplingIvk, ValueCommitment},
+        transaction::{CompactOutputDescription, OutputDescription},
     };
-    use crate::note_encryption::batch;
+    use zcash_primitives::{
+        memo::MemoBytes,
+        sapling::util::generate_random_rseed,
+        //sapling::Rseed,
+        transaction::components::{sapling::GrothProofBytes, GROTH_PROOF_SIZE},
+    };
 
     fn random_enc_ciphertext<R: RngCore + CryptoRng>(
         height: BlockHeight,
@@ -566,7 +560,7 @@ mod tests {
         // Construct the value commitment for the proof instance
         let value = 100; // TODO Amount::from_u64(100).unwrap();
 
-        let asset_type = AssetType::new(b"random");
+        let asset_type = AssetType::new("BTC".as_bytes()).unwrap();
         let value_commitment = asset_type.value_commitment(value, jubjub::Fr::random(&mut rng));
 
         let cv = value_commitment.commitment().into();
@@ -731,7 +725,7 @@ mod tests {
     #[test]
     fn decryption_with_invalid_cmu() {
         let mut rng = OsRng;
-        let heights = [ 
+        let heights = [
             TEST_NETWORK.activation_height(Sapling).unwrap(),
             TEST_NETWORK.activation_height(Canopy).unwrap(),
         ];
@@ -1294,7 +1288,7 @@ mod tests {
             );
         }
     }
-/*
+    /*
     #[test]
     fn test_vectors() {
         let test_vectors = crate::test_vectors::note_encryption::make_test_vectors();
@@ -1463,7 +1457,10 @@ mod tests {
             })
             .collect();
 
-        let res = batch::try_note_decryption(&[invalid_ivk.clone(), valid_ivk.clone()], &outputs);
+        let res = masp_note_encryption::batch::try_note_decryption(
+            &[invalid_ivk.clone(), valid_ivk.clone()],
+            &outputs,
+        );
         assert_eq!(res.len(), 20);
         // The batched trial decryptions with invalid_ivk failed.
         assert_eq!(&res[..10], &vec![None; 10][..]);

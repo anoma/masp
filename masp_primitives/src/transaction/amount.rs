@@ -1,11 +1,9 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use std::convert::TryFrom;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 
-use orchard::value as orchard;
-
-pub const COIN: i64 = 1_0000_0000;
-pub const MAX_MONEY: i64 = 21_000_000 * COIN;
+pub const MAX_MONEY: i64 = i64::MAX;
 
 pub const DEFAULT_FEE: Amount = Amount(1000);
 
@@ -20,7 +18,9 @@ pub const DEFAULT_FEE: Amount = Amount(1000);
 /// by the network consensus rules.
 ///
 /// [`Transaction`]: crate::transaction::Transaction
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(
+    Clone, Copy, Default, Debug, PartialEq, PartialOrd, Eq, Ord, BorshSerialize, BorshDeserialize,
+)]
 pub struct Amount(i64);
 
 impl memuse::DynamicUsage for Amount {
@@ -211,14 +211,6 @@ impl Neg for Amount {
 
     fn neg(self) -> Self {
         Amount(-self.0)
-    }
-}
-
-impl TryFrom<orchard::ValueSum> for Amount {
-    type Error = ();
-
-    fn try_from(v: orchard::ValueSum) -> Result<Amount, Self::Error> {
-        i64::try_from(v).map_err(|_| ()).and_then(Amount::try_from)
     }
 }
 

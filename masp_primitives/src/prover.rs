@@ -2,14 +2,15 @@
 
 use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey};
 
+use crate::asset_type::AssetType;
+use crate::merkle_tree::MerklePath;
 use crate::{
     redjubjub::{PublicKey, Signature},
     sapling::Node,
+    transaction::amount::Amount,
 };
+use zcash_primitives::sapling::Rseed;
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
-
-use crate::asset_type::AssetType;
 
 /// Interface for creating zero-knowledge proofs for shielded transactions.
 pub trait TxProver {
@@ -57,7 +58,7 @@ pub trait TxProver {
     fn binding_sig(
         &self,
         ctx: &mut Self::SaplingProvingContext,
-        assets_and_values: &[(AssetType, i64)],
+        assets_and_values: &[(AssetType, Amount)],
         sighash: &[u8; 32],
     ) -> Result<Signature, ()>;
 }
@@ -73,14 +74,15 @@ pub mod mock {
         primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
     };
 
+    use super::TxProver;
+    use crate::merkle_tree::MerklePath;
     use crate::{
         redjubjub::{PublicKey, Signature},
         sapling::Node,
+        transaction::amount::Amount,
     };
+    use zcash_primitives::sapling::Rseed;
     use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-    use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
-
-    use super::TxProver;
 
     pub struct MockTxProver;
 
@@ -137,7 +139,7 @@ pub mod mock {
         fn binding_sig(
             &self,
             _ctx: &mut Self::SaplingProvingContext,
-            _assets_and_values: &[(AssetType, i64)],
+            _assets_and_values: &[(AssetType, Amount)],
             _sighash: &[u8; 32],
         ) -> Result<Signature, ()> {
             Err(())

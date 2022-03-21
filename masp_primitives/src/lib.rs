@@ -19,6 +19,7 @@ pub mod primitives;
 pub mod prover;
 pub mod redjubjub;
 pub mod sapling;
+pub mod transaction;
 pub mod zip32;
 
 #[cfg(test)]

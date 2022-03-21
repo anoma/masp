@@ -4,13 +4,15 @@ use bellman::groth16::{Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
 use masp_primitives::{
     asset_type::AssetType,
+    merkle_tree::MerklePath,
     primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
     prover::TxProver,
     redjubjub::{PublicKey, Signature},
     sapling::Node,
+    transaction::amount::Amount,
 };
+use zcash_primitives::sapling::Rseed;
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
 use crate::{parse_parameters, sapling::SaplingProvingContext};
 
@@ -207,7 +209,7 @@ impl TxProver for LocalTxProver {
     fn binding_sig(
         &self,
         ctx: &mut Self::SaplingProvingContext,
-        assets_and_values: &[(AssetType, i64)],
+        assets_and_values: &[(AssetType, Amount)],
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
         ctx.binding_sig(assets_and_values, sighash)

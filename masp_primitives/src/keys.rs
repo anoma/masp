@@ -11,6 +11,7 @@ use crate::{
 use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
+use std::hash::{Hash, Hasher};
 use std::io::{self, Read, Write};
 use subtle::CtOption;
 
@@ -34,15 +35,22 @@ pub fn prf_expand_vec(sk: &[u8], ts: &[&[u8]]) -> Blake2bHash {
 }
 
 /// An outgoing viewing key
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct OutgoingViewingKey(pub [u8; 32]);
 
 /// A Sapling expanded spending key
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ExpandedSpendingKey {
     pub ask: jubjub::Fr,
     pub nsk: jubjub::Fr,
     pub ovk: OutgoingViewingKey,
+}
+impl Hash for ExpandedSpendingKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ask.to_bytes().hash(state);
+        self.nsk.to_bytes().hash(state);
+        self.ovk.hash(state);
+    }
 }
 
 /// A Sapling full viewing key

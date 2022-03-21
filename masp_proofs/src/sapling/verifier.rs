@@ -10,6 +10,7 @@ use masp_primitives::{
     asset_type::AssetType,
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
     redjubjub::{PublicKey, Signature},
+    transaction::amount::Amount,
 };
 
 /// A context object for verifying the Sapling components of a Zcash transaction.
@@ -138,7 +139,7 @@ impl SaplingVerificationContext {
     /// have been checked before calling this function.
     pub fn final_check(
         &self,
-        assets_and_values: &[(AssetType, i64)],
+        assets_and_values: &[(AssetType, Amount)],
         sighash_value: &[u8; 32],
         binding_sig: Signature,
     ) -> bool {

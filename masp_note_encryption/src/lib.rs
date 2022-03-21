@@ -23,9 +23,11 @@ use chacha20poly1305::{
     ChaCha20Poly1305,
 };
 
+//use crate::constants::ASSET_IDENTIFIER_LENGTH;
+pub const ASSET_IDENTIFIER_LENGTH: usize = 32;
+use borsh::{BorshDeserialize, BorshSerialize};
 use rand_core::RngCore;
 use subtle::{Choice, ConstantTimeEq};
-use crate::constants::ASSET_IDENTIFIER_LENGTH;
 
 #[cfg(feature = "alloc")]
 #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
@@ -35,7 +37,7 @@ pub mod batch;
 pub const COMPACT_NOTE_SIZE: usize = 1 + // version
     11 + // diversifier
     8  + // value
-    ASSET_IDENTIFIER_LENGTH + // asset type
+    ASSET_IDENTIFIER_LENGTH + // asset_type.identifier
     32; // rseed (or rcm prior to ZIP 212)
 /// The size of [`NotePlaintextBytes`].
 pub const NOTE_PLAINTEXT_SIZE: usize = COMPACT_NOTE_SIZE + 512;
@@ -66,7 +68,7 @@ impl AsRef<[u8]> for OutgoingCipherKey {
 /// Newtype representing the byte encoding of an [`EphemeralPublicKey`].
 ///
 /// [`EphemeralPublicKey`]: Domain::EphemeralPublicKey
-#[derive(Clone, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
 pub struct EphemeralKeyBytes(pub [u8; 32]);
 
 impl AsRef<[u8]> for EphemeralKeyBytes {
