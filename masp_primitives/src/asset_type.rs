@@ -6,9 +6,11 @@ use crate::{
     primitives::ValueCommitment,
 };
 use blake2s_simd::Params as Blake2sParams;
+use borsh::{BorshDeserialize, BorshSerialize};
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
+use std::hash::{Hash, Hasher};
 
-#[derive(Debug)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, Eq, Ord)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
     nonce: Option<u8>,
@@ -141,6 +143,10 @@ impl AssetType {
     pub fn get_nonce(&self) -> Option<u8> {
         self.nonce
     }
+
+    pub fn dummy() -> Self {
+        Self::from_identifier(&[0u8; ASSET_IDENTIFIER_LENGTH]).unwrap()
+    }
 }
 
 impl Copy for AssetType {}
@@ -158,4 +164,21 @@ impl PartialEq for AssetType {
     fn eq(&self, other: &Self) -> bool {
         self.get_identifier() == other.get_identifier()
     }
+}
+
+impl std::hash::Hash for AssetType {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.get_identifier().hash(state)
+    }
+}
+
+impl PartialOrd for AssetType {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.get_identifier().partial_cmp(other.get_identifier())
+    }
+}
+
+#[test]
+fn dummy_asset() {
+    AssetType::dummy();
 }

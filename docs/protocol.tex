@@ -3188,6 +3188,17 @@ $\EphemeralPublic = \scalarmult{\EphemeralPrivate}{\DiversifiedTransmitBase}$.
   \item It is \emph{not} checked that $\ValueCommitRandOld{} < \ParamJ{r}$ or that $\NoteCommitRandOld{} < \ParamJ{r}$.
 \end{pnotes}
 } %sapling
+
+\lsubsection{In-pool asset conversion and minting}
+
+In some cases, it may be desirable to purposefully violate the non-exchangeability and non-forgeability property. 
+In particular, certain asset types may be exchanged at fixed public rates, 
+and new amounts of certain assets can be minted under certain conditions. 
+
+Consider the example where holders of asset A should receive 1 unit of 
+
+
+
 \begin{comment}
 \sapling{
 \lsubsection{In-band secret distribution (\SaplingText)}{saplinginband}

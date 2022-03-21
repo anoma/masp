@@ -13,11 +13,13 @@ pub mod asset_type;
 pub mod constants;
 pub mod keys;
 pub mod merkle_tree;
+pub mod note_encryption;
 pub mod pedersen_hash;
 pub mod primitives;
 pub mod prover;
 pub mod redjubjub;
 pub mod sapling;
+pub mod transaction;
 pub mod zip32;
 
 #[cfg(test)]

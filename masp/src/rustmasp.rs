@@ -48,9 +48,11 @@ use masp_primitives::{
         ASSET_IDENTIFIER_LENGTH, CRH_IVK_PERSONALIZATION, PROOF_GENERATION_KEY_GENERATOR,
         SPENDING_KEY_GENERATOR,
     },
+    merkle_tree::MerklePath,
     primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, ViewingKey},
     redjubjub::{self, Signature},
     sapling::{merkle_hash, spend_sig},
+    transaction::amount::Amount,
     zip32,
 };
 use masp_proofs::{
@@ -58,7 +60,6 @@ use masp_proofs::{
     load_parameters,
     sapling::{SaplingProvingContext, SaplingVerificationContext},
 };
-use zcash_primitives::merkle_tree::MerklePath;
 
 #[cfg(test)]
 mod tests;
@@ -721,14 +722,14 @@ fn collect_assets_and_values(
     asset_identifiers: *const c_uchar,
     value_balances: *const i64,
     asset_count: size_t,
-) -> Option<Vec<(AssetType, i64)>> {
+) -> Option<Vec<(AssetType, Amount)>> {
     use std::convert::TryInto;
     unsafe { std::slice::from_raw_parts(asset_identifiers, asset_count * ASSET_IDENTIFIER_LENGTH) }
         .chunks_exact(ASSET_IDENTIFIER_LENGTH)
         .zip(unsafe { std::slice::from_raw_parts(value_balances, asset_count) })
         .map(|(asset_identifier, value)| {
             AssetType::from_identifier(asset_identifier.try_into().expect("invalid asset id chunk"))
-                .map(|id| (id, *value))
+                .zip(Amount::from_i64(*value).ok())
         })
         .collect()
 }

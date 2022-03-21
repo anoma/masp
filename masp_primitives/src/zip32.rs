@@ -7,7 +7,9 @@ use blake2b_simd::Params as Blake2bParams;
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use fpe::ff1::{BinaryNumeralString, FF1};
 use std::convert::TryInto;
+use std::io::{Error, ErrorKind};
 use std::ops::AddAssign;
+use std::str::FromStr;
 
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
@@ -50,7 +52,7 @@ impl From<&FullViewingKey> for FvkFingerprint {
 }
 
 /// A Sapling full viewing key tag
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct FvkTag([u8; 4]);
 
 impl FvkFingerprint {
@@ -68,7 +70,7 @@ impl FvkTag {
 }
 
 /// A child index for a derived key
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChildIndex {
     NonHardened(u32),
     Hardened(u32), // Hardened(n) == n + (1 << 31) == n' in path notation
@@ -95,10 +97,10 @@ impl ChildIndex {
 }
 
 /// A BIP-32 chain code
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ChainCode([u8; 32]);
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DiversifierIndex(pub [u8; 11]);
 
 impl Default for DiversifierIndex {
@@ -126,7 +128,7 @@ impl DiversifierIndex {
 }
 
 /// A key used to derive diversifiers for a particular child key
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DiversifierKey(pub [u8; 32]);
 
 impl DiversifierKey {
@@ -274,7 +276,7 @@ pub fn sapling_derive_internal_fvk(
 }
 
 /// A Sapling extended spending key
-#[derive(Clone)]
+#[derive(Clone, Eq, Hash)]
 pub struct ExtendedSpendingKey {
     depth: u8,
     parent_fvk_tag: FvkTag,
@@ -485,6 +487,14 @@ impl ExtendedSpendingKey {
             },
             dk: dk_internal,
         }
+    }
+}
+
+impl FromStr for ExtendedSpendingKey {
+    type Err = std::io::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let vec = hex::decode(s).map_err(|x| Error::new(ErrorKind::InvalidData, x))?;
+        Ok(ExtendedSpendingKey::master(vec.as_ref()))
     }
 }
 
