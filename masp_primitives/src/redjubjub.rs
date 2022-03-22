@@ -17,7 +17,7 @@ use std::cmp::Ordering;
 
 use zcash_primitives::sapling::util::hash_to_scalar;
 use crate::util::{
-    deserialize_extended_point, sdeserialize_extended_point, sserialize_extended_point,
+    sdeserialize_extended_point, sserialize_extended_point,
 };
 
 fn read_scalar<R: Read>(mut reader: R) -> io::Result<jubjub::Fr> {
@@ -36,7 +36,7 @@ fn h_star(a: &[u8], b: &[u8]) -> jubjub::Fr {
     hash_to_scalar(b"MASP__RedJubjubH", a, b)
 }
 
-#[derive(Copy, Clone, Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialOrd, PartialEq, Ord, Eq, Hash)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialOrd, PartialEq, Ord, Eq, Hash)]
 pub struct Signature {
     rbar: [u8; 32],
     sbar: [u8; 32],
@@ -65,13 +65,13 @@ impl Hash for PublicKey {
 
 impl BorshDeserialize for PublicKey {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Ok(Self(deserialize_extended_point(buf)?))
+        Self::read(buf)
     }
 }
 
 impl BorshSerialize for PublicKey {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        BorshSerialize::serialize(&self.0.to_bytes(), writer)
+        self.write(writer)
     }
 }
 
@@ -87,6 +87,18 @@ impl Signature {
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(&self.rbar)?;
         writer.write_all(&self.sbar)
+    }
+}
+
+impl BorshDeserialize for Signature {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for Signature {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
     }
 }
 
