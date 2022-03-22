@@ -29,7 +29,7 @@ const PHGR_PROOF_SIZE: usize = 33 + 33 + 65 + 33 + 33 + 33 + 33 + 33;
 const ZC_NUM_JS_INPUTS: usize = 2;
 const ZC_NUM_JS_OUTPUTS: usize = 2;
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Hash)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Serialize, Deserialize, Hash)]
 pub struct OutPoint {
     hash: [u8; 32],
     n: u32,
@@ -61,7 +61,19 @@ impl OutPoint {
     }
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, Hash, PartialEq, Eq, PartialOrd)]
+impl BorshDeserialize for OutPoint {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for OutPoint {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Hash, PartialEq, Eq, PartialOrd)]
 pub struct TxIn {
     pub prevout: OutPoint,
     pub script_sig: Script,
@@ -98,7 +110,19 @@ impl TxIn {
     }
 }
 
-#[derive(Clone, Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Hash, PartialOrd, PartialEq, Ord, Eq)]
+impl BorshDeserialize for TxIn {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for TxIn {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Hash, PartialOrd, PartialEq, Ord, Eq)]
 pub struct TxOut {
     pub asset_type: AssetType,
     pub value: u64,
@@ -131,6 +155,18 @@ impl TxOut {
         writer.write_all(self.asset_type.get_identifier())?;
         writer.write_all(&self.value.to_le_bytes())?;
         self.script_pubkey.write(&mut writer)
+    }
+}
+
+impl BorshDeserialize for TxOut {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for TxOut {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
     }
 }
 
@@ -167,36 +203,6 @@ impl Hash for SpendDescription {
     }
 }
 
-impl BorshSerialize for SpendDescription {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        BorshSerialize::serialize(&self.cv.to_bytes(), writer)?;
-        BorshSerialize::serialize(&self.anchor.to_bytes(), writer)?;
-        BorshSerialize::serialize(&self.nullifier, writer)?;
-        BorshSerialize::serialize(&self.rk, writer)?;
-        writer.write(self.zkproof.as_ref())?;
-        BorshSerialize::serialize(&self.spend_auth_sig, writer)
-    }
-}
-
-impl BorshDeserialize for SpendDescription {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        let cv = deserialize_extended_point(buf)?;
-        let anchor = deserialize_scalar(buf)?;
-        let nullifier = BorshDeserialize::deserialize(buf)?;
-        let rk = BorshDeserialize::deserialize(buf)?;
-        let zkproof = deserialize_array(buf)?;
-        let spend_auth_sig = BorshDeserialize::deserialize(buf)?;
-        Ok(Self {
-            cv,
-            anchor,
-            nullifier,
-            rk,
-            zkproof,
-            spend_auth_sig,
-        })
-    }
-}
-
 impl std::fmt::Debug for SpendDescription {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(
@@ -204,6 +210,18 @@ impl std::fmt::Debug for SpendDescription {
             "SpendDescription(cv = {:?}, anchor = {:?}, nullifier = {:?}, rk = {:?}, spend_auth_sig = {:?})",
             self.cv, self.anchor, self.nullifier, self.rk, self.spend_auth_sig
         )
+    }
+}
+
+impl BorshDeserialize for SpendDescription {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for SpendDescription {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
     }
 }
 
@@ -316,38 +334,15 @@ impl Hash for OutputDescription {
     }
 }
 
-
 impl BorshDeserialize for OutputDescription {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        let cv = deserialize_extended_point(buf)?;
-        let cmu = deserialize_scalar(buf)?;
-        let ephemeral_key = Option::from(jubjub::ExtendedPoint::from_bytes(
-            &BorshDeserialize::deserialize(buf)?,
-        ))
-        .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
-        let enc_ciphertext = deserialize_array(buf)?;
-        let out_ciphertext = deserialize_array(buf)?;
-        let zkproof = deserialize_array(buf)?;
-        Ok(Self {
-            cv,
-            cmu,
-            ephemeral_key,
-            enc_ciphertext,
-            out_ciphertext,
-            zkproof,
-        })
+        Self::read(buf)
     }
 }
 
 impl BorshSerialize for OutputDescription {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        BorshSerialize::serialize(&self.cv.to_bytes(), writer)?;
-        BorshSerialize::serialize(&self.cmu.to_bytes(), writer)?;
-        BorshSerialize::serialize(&self.ephemeral_key.to_bytes(), writer)?;
-        writer.write(self.enc_ciphertext.as_ref())?;
-        writer.write(self.out_ciphertext.as_ref())?;
-        writer.write(self.zkproof.as_ref())?;
-        Ok(())
+        self.write(writer)
     }
 }
 

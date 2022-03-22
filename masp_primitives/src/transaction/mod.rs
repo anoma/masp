@@ -55,7 +55,7 @@ impl fmt::Display for TxId {
 }
 
 /// A Zcash transaction.
-#[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, Hash, Eq, PartialOrd)]
+#[derive(Debug, Serialize, Deserialize, Clone, Hash, Eq, PartialOrd)]
 pub struct Transaction {
     txid: TxId,
     data: TransactionData,
@@ -355,5 +355,17 @@ impl Transaction {
         }
 
         Ok(())
+    }
+}
+
+impl BorshSerialize for Transaction {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl BorshDeserialize for Transaction {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
     }
 }

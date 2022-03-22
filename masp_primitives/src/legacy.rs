@@ -28,7 +28,7 @@ enum OpCode {
 }
 
 /// A serialized script, used inside transparent inputs and outputs of a transaction.
-#[derive(Clone, Debug, Default, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Hash, PartialOrd, PartialEq, Ord, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, Hash, PartialOrd, PartialEq, Ord, Eq)]
 pub struct Script(pub Vec<u8>);
 
 impl Script {
@@ -64,6 +64,18 @@ impl Script {
         } else {
             None
         }
+    }
+}
+
+impl BorshDeserialize for Script {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for Script {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
     }
 }
 
