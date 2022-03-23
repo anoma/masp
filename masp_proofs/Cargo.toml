@@ -16,9 +16,11 @@ edition = "2018"
 all-features = true
 
 [dependencies]
-bellman = { version = "0.11.1", default-features = false, features = ["groth16"] }
+#bellman = { version = "0.11.1", default-features = false, features = ["groth16"] }
+bellman = { path = "../../bellman", default-features = false, features = ["groth16"] }
 blake2b_simd = "1.0.0"
-bls12_381 = "0.6"
+#bls12_381 = "0.6"
+bls12_381 = { path = "../../bls12_381" }
 byteorder = "1"
 directories = { version = "4.0.1", optional = true }
 ff = "0.11"
@@ -44,6 +46,7 @@ bundled-prover = ["wagyu-zcash-parameters"]
 download-params = ["minreq"]
 local-prover = ["directories"]
 multicore = ["bellman/multicore"]
+serialize_params = []
 
 [lib]
 bench = false
@@ -62,3 +65,7 @@ required-features = ["download-params"]
 
 [badges]
 maintenance = { status = "actively-developed" }
+
+[[bin]]
+name = "serialize_params"
+required-features = ["serialize_params"]
