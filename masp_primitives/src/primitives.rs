@@ -5,7 +5,6 @@ use crate::{
     constants,
     keys::prf_expand,
     pedersen_hash::{pedersen_hash, Personalization},
-    redjubjub::{PrivateKey, PublicKey, Signature},
 };
 use blake2s_simd::Params as Blake2sParams;
 use borsh::{

@@ -8,7 +8,6 @@ use crate::{
 use blake2s_simd::Params as Blake2sParams;
 use borsh::{BorshDeserialize, BorshSerialize};
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
-use std::hash::{Hash, Hasher};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, Eq, Ord)]
 pub struct AssetType {

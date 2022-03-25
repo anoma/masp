@@ -14,13 +14,13 @@ use crate::{
     asset_type::AssetType,
     note_encryption::SaplingDomain,
     redjubjub::{self, PublicKey, Signature},
-    transaction::{amount::Amount, util::*},
+    transaction::amount::Amount,
 };
 use zcash_primitives::{
     consensus,
     sapling::Nullifier,
     transaction::components::{
-        sapling::{Authorization, GrothProofBytes, Unproven},
+        sapling::{Authorization, GrothProofBytes},
         GROTH_PROOF_SIZE,
     },
 };

@@ -106,8 +106,8 @@ impl<Proof: BorshSerialize> BorshSerialize for OutputDescription<Proof> {
         BorshSerialize::serialize(&self.cv.to_bytes(), writer)?;
         BorshSerialize::serialize(&self.cmu.to_bytes(), writer)?;
         BorshSerialize::serialize(&self.ephemeral_key, writer)?;
-        writer.write(self.enc_ciphertext.as_ref());
-        writer.write(self.out_ciphertext.as_ref());
+        writer.write(self.enc_ciphertext.as_ref())?;
+        writer.write(self.out_ciphertext.as_ref())?;
         BorshSerialize::serialize(&self.zkproof, writer)?;
         Ok(())
     }

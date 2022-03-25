@@ -44,6 +44,8 @@ bundled-prover = ["wagyu-zcash-parameters"]
 download-params = ["minreq"]
 local-prover = ["directories"]
 multicore = ["bellman/multicore"]
+serialize-params = []
+embed-verifying-key = []
 
 [lib]
 bench = false
@@ -62,3 +64,7 @@ required-features = ["download-params"]
 
 [badges]
 maintenance = { status = "actively-developed" }
+
+[[bin]]
+name = "serialize_params"
+required-features = ["serialize-params"]
