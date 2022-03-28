@@ -9,7 +9,3 @@ members = [
 lto = true
 panic = 'abort'
 codegen-units = 1
-
-[patch.crates-io]
-incrementalmerkletree = { git = "https://github.com/zcash/incrementalmerkletree.git", rev = "dd57b430dee7c0b163f4035fef2280cd1935036c" }
-orchard = { git = "https://github.com/zcash/orchard.git", rev = "3ddf6c49f7484ed1295bd5351317bbfe49e14472" }

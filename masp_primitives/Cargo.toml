@@ -29,7 +29,7 @@ ff = "0.11"
 fpe = "0.5"
 group = "0.11"
 hex = "0.4"
-incrementalmerkletree = "0.2"
+incrementalmerkletree = "=0.3.0-beta.1"
 jubjub = "0.8"
 lazy_static = "1"
 proptest = { version = "1.0.0", optional = true }
@@ -38,7 +38,6 @@ rand_core = "0.6"
 subtle = "2.2.3"
 zcash_primitives = { git = "https://github.com/zcash/librustzcash" }
 zcash_encoding = { version = "0.0", git = "https://github.com/zcash/librustzcash" }
-#getrandom = { version = "0.2", features = ["js, custom"] }
 
 [dev-dependencies]
 criterion = "0.3"
