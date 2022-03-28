@@ -16,7 +16,7 @@ pub const TREE_DEPTH: usize = zcash_primitives::sapling::SAPLING_COMMITMENT_TREE
 /// This is an instance of the `Spend` circuit.
 pub struct Convert {
     /// Minting value commitment
-    pub cv_mint: Option<ValueCommitment>,
+    pub value_commitment: Option<ValueCommitment>,
 
     /// The authentication path of the commitment in the tree
     pub auth_path: Vec<Option<(bls12_381::Scalar, bool)>>,
@@ -36,7 +36,7 @@ impl Circuit<bls12_381::Scalar> for Convert {
 
         // Get the value in little-endian bit order
         let (asset_generator_bits, value_bits) =
-            expose_value_commitment(cs.namespace(|| "value commitment"), self.cv_mint)?;
+            expose_value_commitment(cs.namespace(|| "value commitment"), self.value_commitment)?;
 
         {
             // Compute the note's value as a linear combination
@@ -213,7 +213,7 @@ fn test_convert_circuit_with_bls12_381() {
             let mut cs = TestConstraintSystem::new();
 
             let instance = Convert {
-                cv_mint: Some(value_commitment.clone()),
+                value_commitment: Some(value_commitment.clone()),
                 auth_path: auth_path.clone(),
                 anchor: Some(cur),
             };
