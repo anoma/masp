@@ -61,6 +61,19 @@ pub struct Transaction {
     data: TransactionData,
 }
 
+impl borsh::BorshSchema for Transaction {
+    fn add_definitions_recursively(
+        _definitions: &mut std::collections::HashMap<
+                borsh::schema::Declaration,
+            borsh::schema::Definition,
+            >,
+    ) {}
+
+    fn declaration() -> borsh::schema::Declaration {
+        "Transaction".into()
+    }
+}
+
 impl Deref for Transaction {
     type Target = TransactionData;
 
