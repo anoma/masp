@@ -19,6 +19,8 @@ use std::fmt::Formatter;
 use std::fmt::Display;
 use std::io::Error;
 use std::str::FromStr;
+use serde::{Deserialize, Serialize};
+use crate::util::{sserialize_fr, sdeserialize_fr};
 
 pub const PRF_EXPAND_PERSONALIZATION: &[u8; 16] = b"MASP__ExpandSeed";
 
@@ -40,13 +42,17 @@ pub fn prf_expand_vec(sk: &[u8], ts: &[&[u8]]) -> Blake2bHash {
 }
 
 /// An outgoing viewing key
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct OutgoingViewingKey(pub [u8; 32]);
 
 /// A Sapling expanded spending key
-#[derive(Clone, PartialEq, Eq, Copy)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
 pub struct ExpandedSpendingKey {
+    #[serde(serialize_with = "sserialize_fr")]
+    #[serde(deserialize_with = "sdeserialize_fr")]
     pub ask: jubjub::Fr,
+    #[serde(serialize_with = "sserialize_fr")]
+    #[serde(deserialize_with = "sdeserialize_fr")]
     pub nsk: jubjub::Fr,
     pub ovk: OutgoingViewingKey,
 }
@@ -60,7 +66,7 @@ impl Hash for ExpandedSpendingKey {
 }
 
 /// A Sapling full viewing key
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub struct FullViewingKey {
     pub vk: ViewingKey,
     pub ovk: OutgoingViewingKey,

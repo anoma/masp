@@ -11,6 +11,7 @@ use std::ops::AddAssign;
 use std::str::FromStr;
 use std::io::{Error, ErrorKind};
 
+use serde::{Deserialize, Serialize};
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
     primitives::{Diversifier, PaymentAddress, ViewingKey},
@@ -52,7 +53,7 @@ impl From<&FullViewingKey> for FvkFingerprint {
 }
 
 /// A Sapling full viewing key tag
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct FvkTag([u8; 4]);
 
 impl FvkFingerprint {
@@ -70,7 +71,7 @@ impl FvkTag {
 }
 
 /// A child index for a derived key
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChildIndex {
     NonHardened(u32),
     Hardened(u32), // Hardened(n) == n + (1 << 31) == n' in path notation
@@ -97,7 +98,7 @@ impl ChildIndex {
 }
 
 /// A chain code
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct ChainCode([u8; 32]);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -128,7 +129,7 @@ impl DiversifierIndex {
 }
 
 /// A key used to derive diversifiers for a particular child key
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DiversifierKey(pub [u8; 32]);
 
 impl DiversifierKey {
@@ -276,7 +277,7 @@ pub fn sapling_derive_internal_fvk(
 }
 
 /// A Sapling extended spending key
-#[derive(Clone, Eq, Hash, Copy)]
+#[derive(Serialize, Deserialize, Clone, Eq, Hash, Copy)]
 pub struct ExtendedSpendingKey {
     depth: u8,
     parent_fvk_tag: FvkTag,

@@ -13,17 +13,14 @@ use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
 use rand_core::{CryptoRng, RngCore};
 use std::convert::TryInto;
 use zcash_primitives::sapling::{group_hash::group_hash, Nullifier, Rseed};
-use borsh::maybestd::io::Error;
-use borsh::maybestd::io::ErrorKind;
-use borsh::maybestd::io::Write;
-use borsh::BorshDeserialize;
-use borsh::BorshSerialize;
+use borsh::maybestd::io::{Error, ErrorKind, Write};
+use borsh::{BorshDeserialize, BorshSerialize};
 use std::cmp::Ordering;
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::hash::Hash;
-use std::hash::Hasher;
+use std::fmt::{Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
+use serde::{Deserialize, Serialize};
+use crate::util::{sserialize_subgroup_point, sdeserialize_subgroup_point};
 
 #[derive(Clone)]
 pub struct ValueCommitment {
@@ -54,9 +51,13 @@ impl ProofGenerationKey {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub struct ViewingKey {
+    #[serde(serialize_with = "sserialize_subgroup_point")]
+    #[serde(deserialize_with = "sdeserialize_subgroup_point")]
     pub ak: jubjub::SubgroupPoint,
+    #[serde(serialize_with = "sserialize_subgroup_point")]
+    #[serde(deserialize_with = "sdeserialize_subgroup_point")]
     pub nk: jubjub::SubgroupPoint,
 }
 
@@ -113,7 +114,7 @@ impl SaplingIvk {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Diversifier(pub [u8; 11]);
 
 impl Diversifier {
@@ -128,8 +129,10 @@ impl Diversifier {
 ///
 /// `pk_d` is guaranteed to be prime-order (i.e. in the prime-order subgroup of Jubjub,
 /// and not the identity).
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PaymentAddress {
+    #[serde(serialize_with = "sserialize_subgroup_point")]
+    #[serde(deserialize_with = "sdeserialize_subgroup_point")]
     pk_d: jubjub::SubgroupPoint,
     diversifier: Diversifier,
 }
