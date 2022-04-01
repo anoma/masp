@@ -20,7 +20,8 @@ use std::fmt::Display;
 use std::io::Error;
 use std::str::FromStr;
 use serde::{Deserialize, Serialize};
-use crate::util::{sserialize_fr, sdeserialize_fr};
+use std::convert::TryFrom;
+use crate::util::{sserialize_fr, sdeserialize_fr, SerdeArray};
 
 pub const PRF_EXPAND_PERSONALIZATION: &[u8; 16] = b"MASP__ExpandSeed";
 
@@ -67,6 +68,7 @@ impl Hash for ExpandedSpendingKey {
 
 /// A Sapling full viewing key
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+#[serde(try_from = "SerdeArray<u8, 96>", into = "SerdeArray<u8, 96>")]
 pub struct FullViewingKey {
     pub vk: ViewingKey,
     pub ovk: OutgoingViewingKey,
@@ -206,6 +208,24 @@ impl FullViewingKey {
         self.write(&mut result[..])
             .expect("should be able to serialize a FullViewingKey");
         result
+    }
+}
+
+impl Into<SerdeArray<u8, 96>> for FullViewingKey {
+    fn into(self) -> SerdeArray<u8, 96> {
+        let mut buf = [0; 96];
+        let mut ptr = &mut buf[..];
+        self.write(&mut ptr).expect("FullViewingKey to serialize");
+        SerdeArray::from(buf)
+    }
+}
+
+impl TryFrom<SerdeArray<u8, 96>> for FullViewingKey {
+    type Error = std::io::Error;
+    fn try_from(arr: SerdeArray<u8, 96>) -> std::io::Result<FullViewingKey> {
+        let buf: [u8; 96] = arr.into();
+        let mut ptr = &buf[..];
+        FullViewingKey::read(&mut ptr)
     }
 }
 
