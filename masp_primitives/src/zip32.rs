@@ -70,6 +70,7 @@ impl FvkTag {
 
 /// A child index for a derived key
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[serde(tag = "type")]
 pub enum ChildIndex {
     NonHardened(u32),
     Hardened(u32), // Hardened(n) == n + (1 << 31) == n' in path notation
