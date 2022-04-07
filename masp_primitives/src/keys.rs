@@ -19,9 +19,6 @@ use std::fmt::Formatter;
 use std::fmt::Display;
 use std::io::Error;
 use std::str::FromStr;
-use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
-use crate::util::{sserialize_fr, sdeserialize_fr, SerdeArray};
 
 pub const PRF_EXPAND_PERSONALIZATION: &[u8; 16] = b"MASP__ExpandSeed";
 
@@ -43,17 +40,13 @@ pub fn prf_expand_vec(sk: &[u8], ts: &[&[u8]]) -> Blake2bHash {
 }
 
 /// An outgoing viewing key
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct OutgoingViewingKey(pub [u8; 32]);
 
 /// A Sapling expanded spending key
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
+#[derive(Clone, PartialEq, Eq, Copy)]
 pub struct ExpandedSpendingKey {
-    #[serde(serialize_with = "sserialize_fr")]
-    #[serde(deserialize_with = "sdeserialize_fr")]
     pub ask: jubjub::Fr,
-    #[serde(serialize_with = "sserialize_fr")]
-    #[serde(deserialize_with = "sdeserialize_fr")]
     pub nsk: jubjub::Fr,
     pub ovk: OutgoingViewingKey,
 }
@@ -67,8 +60,7 @@ impl Hash for ExpandedSpendingKey {
 }
 
 /// A Sapling full viewing key
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
-#[serde(try_from = "SerdeArray<u8, 96>", into = "SerdeArray<u8, 96>")]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct FullViewingKey {
     pub vk: ViewingKey,
     pub ovk: OutgoingViewingKey,
@@ -208,24 +200,6 @@ impl FullViewingKey {
         self.write(&mut result[..])
             .expect("should be able to serialize a FullViewingKey");
         result
-    }
-}
-
-impl Into<SerdeArray<u8, 96>> for FullViewingKey {
-    fn into(self) -> SerdeArray<u8, 96> {
-        let mut buf = [0; 96];
-        let mut ptr = &mut buf[..];
-        self.write(&mut ptr).expect("FullViewingKey to serialize");
-        SerdeArray::from(buf)
-    }
-}
-
-impl TryFrom<SerdeArray<u8, 96>> for FullViewingKey {
-    type Error = std::io::Error;
-    fn try_from(arr: SerdeArray<u8, 96>) -> std::io::Result<FullViewingKey> {
-        let buf: [u8; 96] = arr.into();
-        let mut ptr = &buf[..];
-        FullViewingKey::read(&mut ptr)
     }
 }
 

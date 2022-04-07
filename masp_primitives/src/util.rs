@@ -71,25 +71,6 @@ where
     x.to_bytes().serialize(s)
 }
 
-pub fn sdeserialize_subgroup_point<'de, D>(
-    deserializer: D,
-) -> Result<jubjub::SubgroupPoint, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: [u8; 32] = Deserialize::deserialize(deserializer)?;
-    Option::from(jubjub::SubgroupPoint::from_bytes(&s))
-        .ok_or_else(|| Error::from(ErrorKind::InvalidData))
-        .map_err(serde::de::Error::custom)
-}
-
-pub fn sserialize_subgroup_point<S>(x: &jubjub::SubgroupPoint, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    x.to_bytes().serialize(s)
-}
-
 pub fn sdeserialize_scalar<'de, D>(deserializer: D) -> Result<bls12_381::Scalar, D::Error>
 where
     D: Deserializer<'de>,
@@ -101,23 +82,6 @@ where
 }
 
 pub fn sserialize_scalar<S>(x: &bls12_381::Scalar, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    x.to_bytes().serialize(s)
-}
-
-pub fn sdeserialize_fr<'de, D>(deserializer: D) -> Result<jubjub::Fr, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: [u8; 32] = Deserialize::deserialize(deserializer)?;
-    Option::from(jubjub::Fr::from_bytes(&s))
-        .ok_or_else(|| Error::from(ErrorKind::InvalidData))
-        .map_err(serde::de::Error::custom)
-}
-
-pub fn sserialize_fr<S>(x: &jubjub::Fr, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {

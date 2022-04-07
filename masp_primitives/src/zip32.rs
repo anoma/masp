@@ -10,9 +10,6 @@ use std::ops::AddAssign;
 use std::str::FromStr;
 use std::io::{Error, ErrorKind};
 
-use crate::util::SerdeArray;
-use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
     primitives::{Diversifier, PaymentAddress, ViewingKey},
@@ -53,7 +50,7 @@ impl From<&FullViewingKey> for FvkFingerprint {
 }
 
 /// A Sapling full viewing key tag
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct FvkTag([u8; 4]);
 
 impl FvkFingerprint {
@@ -71,7 +68,7 @@ impl FvkTag {
 }
 
 /// A child index for a derived key
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChildIndex {
     NonHardened(u32),
     Hardened(u32), // Hardened(n) == n + (1 << 31) == n' in path notation
@@ -98,7 +95,7 @@ impl ChildIndex {
 }
 
 /// A chain code
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct ChainCode([u8; 32]);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -129,7 +126,7 @@ impl DiversifierIndex {
 }
 
 /// A key used to derive diversifiers for a particular child key
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DiversifierKey(pub [u8; 32]);
 
 impl DiversifierKey {
@@ -239,8 +236,7 @@ pub fn sapling_default_address(
 }
 
 /// A Sapling extended spending key
-#[derive(Clone, Eq, Hash, Copy, Serialize, Deserialize)]
-#[serde(try_from = "SerdeArray<u8, 169>", into = "SerdeArray<u8, 169>")]
+#[derive(Clone, Eq, Hash, Copy)]
 pub struct ExtendedSpendingKey {
     depth: u8,
     parent_fvk_tag: FvkTag,
@@ -414,24 +410,6 @@ impl ExtendedSpendingKey {
     /// the diversifier index that generated that address.
     pub fn default_address(&self) -> (DiversifierIndex, PaymentAddress) {
         ExtendedFullViewingKey::from(self).default_address()
-    }
-}
-
-impl Into<SerdeArray<u8, 169>> for ExtendedSpendingKey {
-    fn into(self) -> SerdeArray<u8, 169> {
-        let mut buf = [0; 169];
-        let mut ptr = &mut buf[..];
-        self.write(&mut ptr).expect("ExtendedSpendingKey to serialize");
-        SerdeArray::from(buf)
-    }
-}
-
-impl TryFrom<SerdeArray<u8, 169>> for ExtendedSpendingKey {
-    type Error = std::io::Error;
-    fn try_from(arr: SerdeArray<u8, 169>) -> std::io::Result<ExtendedSpendingKey> {
-        let buf: [u8; 169] = arr.into();
-        let mut ptr = &buf[..];
-        ExtendedSpendingKey::read(&mut ptr)
     }
 }
 
