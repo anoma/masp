@@ -9,6 +9,7 @@ use fpe::ff1::{BinaryNumeralString, FF1};
 use std::ops::AddAssign;
 use std::str::FromStr;
 use std::io::{Error, ErrorKind};
+use borsh::{BorshSerialize, BorshDeserialize};
 
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
@@ -410,6 +411,18 @@ impl ExtendedSpendingKey {
     /// the diversifier index that generated that address.
     pub fn default_address(&self) -> (DiversifierIndex, PaymentAddress) {
         ExtendedFullViewingKey::from(self).default_address()
+    }
+}
+
+impl BorshDeserialize for ExtendedSpendingKey {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for ExtendedSpendingKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
     }
 }
 
