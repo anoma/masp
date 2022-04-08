@@ -31,7 +31,7 @@ jubjub = "0.8"
 libc = "0.2"
 lazy_static = "1"
 rand_core = "0.6"
-zcash_primitives = { git = "https://github.com/zcash/librustzcash" }
+zcash_primitives = { git = "https://github.com/zcash/librustzcash", rev = "43c18d0" }
 masp_primitives = { path = "../masp_primitives" }
 masp_proofs = { path = "../masp_proofs" }
 itertools = "0.10.1"
@@ -42,5 +42,3 @@ maintenance = { status = "actively-developed" }
 
 [dependencies.zcash_note_encryption]
 version = "0.1"
-git = "https://github.com/zcash/librustzcash/"
-features = ["pre-zip-212"]
