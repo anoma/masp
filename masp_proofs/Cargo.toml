@@ -30,8 +30,8 @@ minreq = { version = "2", features = ["https"], optional = true }
 rand_core = "0.6"
 wagyu-zcash-parameters = { version = "0.2", optional = true }
 masp_primitives = { version = "0.5", path = "../masp_primitives" }
-zcash_primitives = { git = "https://github.com/zcash/librustzcash" }
-zcash_proofs = { git = "https://github.com/zcash/librustzcash", features = ["multicore"] }
+zcash_primitives = { git = "https://github.com/zcash/librustzcash", rev = "43c18d0" }
+zcash_proofs = { git = "https://github.com/zcash/librustzcash", features = ["multicore"], rev = "43c18d0" }
 getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
