@@ -60,7 +60,7 @@ impl Hash for ExpandedSpendingKey {
 }
 
 /// A Sapling full viewing key
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct FullViewingKey {
     pub vk: ViewingKey,
     pub ovk: OutgoingViewingKey,

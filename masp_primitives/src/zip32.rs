@@ -288,7 +288,7 @@ pub struct ExtendedSpendingKey {
 }
 
 // A Sapling extended full viewing key
-#[derive(Clone)]
+#[derive(Clone, Eq, Hash, Copy)]
 pub struct ExtendedFullViewingKey {
     depth: u8,
     parent_fvk_tag: FvkTag,
