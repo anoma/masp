@@ -105,6 +105,14 @@ impl LocalTxProver {
     #[cfg_attr(docsrs, doc(cfg(feature = "local-prover")))]
     pub fn with_default_location() -> Option<Self> {
         let params_dir = default_params_folder()?;
+        Self::from_location(&params_dir)
+    }
+
+    /// Attempts to create a `LocalTxProver` using parameters from the specified local
+    /// location.
+    #[cfg(feature = "local-prover")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "local-prover")))]
+    pub fn from_location(params_dir: &Path) -> Option<Self> {
         let (spend_path, output_path) = if params_dir.exists() {
             (
                 params_dir.join(MASP_SPEND_NAME),
