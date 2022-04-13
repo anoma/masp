@@ -3,6 +3,7 @@ use bellman::groth16::VerifyingKey;
 use bls12_381::Bls12;
 use wasm_bindgen_test::*;
 use web_sys::console;
+use pairing::Engine;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -85,4 +86,29 @@ fn bench_embedverifier_prepare() {
         let _prepared_output_vk = prepare_verifying_key(&output_vk);
     });
     console::log_1(&format!("bench_embedverifier prepare:        {}", bench_result).into());
+}
+
+#[wasm_bindgen_test]
+fn bench_embedverifier_pairing() {
+    // Set bench time to 20s
+    let run_time = 20.0;
+
+    // Load spend_vk
+    let spend_vk: VerifyingKey<Bls12> =
+        VerifyingKey::<Bls12>::read(&include_bytes!("../src/params/spend_TESTING_vk.params")[..])
+            .unwrap();
+
+    // Load output_vk
+    let output_vk: VerifyingKey<Bls12> =
+        VerifyingKey::<Bls12>::read(&include_bytes!("../src/params/output_TESTING_vk.params")[..])
+            .unwrap();
+
+    let bench_result = easybench_wasm::bench_limit(run_time, || {
+        // Pairing spend_vk
+        <Bls12 as Engine>::pairing(&spend_vk.alpha_g1, &spend_vk.beta_g2);
+
+        // Pairing output_vk
+        <Bls12 as Engine>::pairing(&output_vk.alpha_g1, &output_vk.beta_g2);
+    });
+    console::log_1(&format!("bench_embedverifier pairing:        {}", bench_result).into());
 }
