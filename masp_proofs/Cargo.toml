@@ -33,6 +33,9 @@ masp_primitives = { version = "0.5", path = "../masp_primitives" }
 zcash_primitives = { git = "https://github.com/zcash/librustzcash" }
 zcash_proofs = { git = "https://github.com/zcash/librustzcash" }
 getrandom = { version = "0.2", features = ["js"] }
+wasm-bindgen-test = "0.3.10"
+web-sys = { version = "0.3", features = [ "console" ] }
+easybench-wasm = "0.2.1"
 
 [dev-dependencies]
 criterion = "0.3"
