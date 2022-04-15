@@ -25,6 +25,8 @@ mod constants;
 pub mod hashreader;
 pub mod sapling;
 
+#[cfg(feature = "embed-verifying-key")]
+pub mod params;
 #[cfg(any(feature = "local-prover", feature = "bundled-prover"))]
 #[cfg_attr(
     docsrs,
@@ -136,7 +138,7 @@ pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R) -> MASPParameter
     let spend_params = Parameters::<Bls12>::read(&mut spend_fs, false)
         .expect("couldn't deserialize Sapling spend parameters file");
     let output_params = Parameters::<Bls12>::read(&mut output_fs, false)
-        .expect("couldn't deserialize Sapling spend parameters file");
+        .expect("couldn't deserialize Sapling output parameters file");
 
     // There is extra stuff (the transcript) at the end of the parameter file which is
     // used to verify the parameter validity, but we're not interested in that. We do

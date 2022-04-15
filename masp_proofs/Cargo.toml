@@ -44,6 +44,7 @@ bundled-prover = ["wagyu-zcash-parameters"]
 download-params = ["minreq"]
 local-prover = ["directories"]
 multicore = ["bellman/multicore"]
+embed-verifying-key = []
 
 [lib]
 bench = false
@@ -58,6 +59,10 @@ required-features = ["directories"]
 
 [[example]]
 name = "download-params"
+required-features = ["download-params"]
+
+[[example]]
+name = "serialize-params"
 required-features = ["download-params"]
 
 [badges]
