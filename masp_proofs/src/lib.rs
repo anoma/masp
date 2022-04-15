@@ -39,10 +39,13 @@ pub mod prover;
 const MASP_SPEND_NAME: &str = "masp-spend.params";
 #[cfg(feature = "local-prover")]
 const MASP_OUTPUT_NAME: &str = "masp-output.params";
+#[cfg(feature = "local-prover")]
+const MASP_CONVERT_NAME: &str = "masp-convert.params";
 
 // Circuit hashes
 const MASP_SPEND_HASH: &str = "5523057113d7daa078714f9859ea03da3c959f4fe3756a0ace4eb25f7cf41d1e21099dac768c2e0045400fee03c1f8bc14eeac2190c3f282e0092419d3b967e5";
 const MASP_OUTPUT_HASH: &str = "89fe551ad6c0281aebb857eb203dbf35854979503d374c83b12512dcd737e12a255869a34e3ff0f6609b78accc81ea5f5e94202e124a590730494eeeee86e755";
+const MASP_CONVERT_HASH: &str = "7a6b038c45ddd841e500484b1c72fa021d874de5a83bf8bce6c0fd8f3c63d491243495df2661682333728a8b14c439985b63b0d6ed61044286e2f86734d66d9b";
 
 #[cfg(feature = "download-params")]
 const DOWNLOAD_URL: &str = "https://github.com/anoma/masp/blob/test_parameters";
@@ -105,6 +108,7 @@ pub fn download_parameters() -> Result<(), minreq::Error> {
 
     fetch_params(MASP_SPEND_NAME, MASP_SPEND_HASH)?;
     fetch_params(MASP_OUTPUT_NAME, MASP_OUTPUT_HASH)?;
+    fetch_params(MASP_CONVERT_NAME, MASP_CONVERT_HASH)?;
 
     Ok(())
 }
@@ -115,30 +119,41 @@ pub struct MASPParameters {
     pub spend_vk: PreparedVerifyingKey<Bls12>,
     pub output_params: Parameters<Bls12>,
     pub output_vk: PreparedVerifyingKey<Bls12>,
+    pub convert_params: Parameters<Bls12>,
+    pub convert_vk: PreparedVerifyingKey<Bls12>,
 }
-pub fn load_parameters(spend_path: &Path, output_path: &Path) -> MASPParameters {
+pub fn load_parameters(
+    spend_path: &Path,
+    output_path: &Path,
+    convert_path: &Path,
+) -> MASPParameters {
     // Load from each of the paths
     let spend_fs = File::open(spend_path).expect("couldn't load Sapling spend parameters file");
     let output_fs = File::open(output_path).expect("couldn't load Sapling output parameters file");
+    let convert_fs = File::open(convert_path).expect("couldn't load convert parameters file");
 
     parse_parameters(
         BufReader::with_capacity(1024 * 1024, spend_fs),
         BufReader::with_capacity(1024 * 1024, output_fs),
+        BufReader::with_capacity(1024 * 1024, convert_fs),
     )
 }
 
 /// Parse Bls12 keys from bytes as serialized by [`Parameters::write`].
 ///
 /// This function will panic if it encounters unparseable data.
-pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R) -> MASPParameters {
+pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R, convert_fs: R) -> MASPParameters {
     let mut spend_fs = hashreader::HashReader::new(spend_fs);
     let mut output_fs = hashreader::HashReader::new(output_fs);
+    let mut convert_fs = hashreader::HashReader::new(convert_fs);
 
     // Deserialize params
     let spend_params = Parameters::<Bls12>::read(&mut spend_fs, false)
         .expect("couldn't deserialize Sapling spend parameters file");
     let output_params = Parameters::<Bls12>::read(&mut output_fs, false)
         .expect("couldn't deserialize Sapling output parameters file");
+    let convert_params = Parameters::<Bls12>::read(&mut convert_fs, false)
+        .expect("couldn't deserialize convert parameters file");
 
     // There is extra stuff (the transcript) at the end of the parameter file which is
     // used to verify the parameter validity, but we're not interested in that. We do
@@ -149,6 +164,7 @@ pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R) -> MASPParameter
         .expect("couldn't finish reading Sapling spend parameter file");
     io::copy(&mut output_fs, &mut sink)
         .expect("couldn't finish reading Sapling output parameter file");
+    io::copy(&mut convert_fs, &mut sink).expect("couldn't finish reading convert parameter file");
 
     if spend_fs.into_hash() != MASP_SPEND_HASH {
         panic!("MASP spend parameter file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
@@ -158,14 +174,21 @@ pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R) -> MASPParameter
         panic!("MASP output parameter file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
     }
 
+    if convert_fs.into_hash() != MASP_CONVERT_HASH {
+        panic!("MASP convert file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
+    }
+
     // Prepare verifying keys
     let spend_vk = prepare_verifying_key(&spend_params.vk);
     let output_vk = prepare_verifying_key(&output_params.vk);
+    let convert_vk = prepare_verifying_key(&convert_params.vk);
 
     MASPParameters {
         spend_params,
         spend_vk,
         output_params,
         output_vk,
+        convert_params,
+        convert_vk,
     }
 }

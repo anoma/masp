@@ -96,6 +96,8 @@ pub extern "C" fn libmasp_init_zksnark_params(
     spend_path_len: usize,
     output_path: *const u8,
     output_path_len: usize,
+    convert_path: *const u8,
+    convert_path_len: usize,
 ) {
     let spend_path = Path::new(OsStr::from_bytes(unsafe {
         slice::from_raw_parts(spend_path, spend_path_len)
@@ -103,8 +105,11 @@ pub extern "C" fn libmasp_init_zksnark_params(
     let output_path = Path::new(OsStr::from_bytes(unsafe {
         slice::from_raw_parts(output_path, output_path_len)
     }));
+    let convert_path = Path::new(OsStr::from_bytes(unsafe {
+        slice::from_raw_parts(convert_path, convert_path_len)
+    }));
 
-    init_zksnark_params(spend_path, output_path)
+    init_zksnark_params(spend_path, output_path, convert_path)
 }
 
 /// Loads the zk-SNARK parameters into memory and saves paths as necessary.
@@ -125,9 +130,9 @@ pub extern "C" fn libmasp_init_zksnark_params(
     init_zksnark_params(Path::new(&spend_path), Path::new(&output_path))
 }
 
-fn init_zksnark_params(spend_path: &Path, output_path: &Path) {
+fn init_zksnark_params(spend_path: &Path, output_path: &Path, convert_path: &Path) {
     // Load params
-    let p = load_parameters(spend_path, output_path);
+    let p = load_parameters(spend_path, output_path, convert_path);
 
     // Caller is responsible for calling this function once, so
     // these global mutations are safe.

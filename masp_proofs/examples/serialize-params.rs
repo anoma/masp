@@ -8,11 +8,13 @@ fn main() {
         let params = masp_proofs::load_parameters(
             &path.join("masp-spend.params"),
             &path.join("masp-output.params"),
+            &path.join("masp-convert.params"),
         );
 
         for (filename, vk) in [
             ("spend_TESTING_vk.params", params.spend_params.vk),
             ("output_TESTING_vk.params", params.output_params.vk),
+            ("convert_TESTING_vk.params", params.convert_params.vk),
         ]
         .iter()
         {

@@ -15,7 +15,9 @@ use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 use crate::{parse_parameters, sapling::SaplingProvingContext};
 
 #[cfg(feature = "local-prover")]
-use crate::{default_params_folder, load_parameters, MASP_OUTPUT_NAME, MASP_SPEND_NAME};
+use crate::{
+    default_params_folder, load_parameters, MASP_CONVERT_NAME, MASP_OUTPUT_NAME, MASP_SPEND_NAME,
+};
 #[cfg(feature = "local-prover")]
 use std::path::Path;
 
@@ -46,8 +48,8 @@ impl LocalTxProver {
     ///
     /// This function will panic if the paths do not point to valid parameter files with
     /// the expected hashes.
-    pub fn new(spend_path: &Path, output_path: &Path) -> Self {
-        let p = load_parameters(spend_path, output_path);
+    pub fn new(spend_path: &Path, output_path: &Path, convert_path: &Path) -> Self {
+        let p = load_parameters(spend_path, output_path, convert_path);
         LocalTxProver {
             spend_params: p.spend_params,
             spend_vk: p.spend_vk,
@@ -70,8 +72,12 @@ impl LocalTxProver {
     ///
     /// This function will panic if the byte arrays do not contain valid parameters with
     /// the expected hashes.
-    pub fn from_bytes(spend_param_bytes: &[u8], output_param_bytes: &[u8]) -> Self {
-        let p = parse_parameters(spend_param_bytes, output_param_bytes);
+    pub fn from_bytes(
+        spend_param_bytes: &[u8],
+        output_param_bytes: &[u8],
+        convert_param_bytes: &[u8],
+    ) -> Self {
+        let p = parse_parameters(spend_param_bytes, output_param_bytes, convert_param_bytes);
 
         LocalTxProver {
             spend_params: p.spend_params,
@@ -105,10 +111,11 @@ impl LocalTxProver {
     #[cfg_attr(docsrs, doc(cfg(feature = "local-prover")))]
     pub fn with_default_location() -> Option<Self> {
         let params_dir = default_params_folder()?;
-        let (spend_path, output_path) = if params_dir.exists() {
+        let (spend_path, output_path, convert_path) = if params_dir.exists() {
             (
                 params_dir.join(MASP_SPEND_NAME),
                 params_dir.join(MASP_OUTPUT_NAME),
+                params_dir.join(MASP_CONVERT_NAME),
             )
         } else {
             return None;
@@ -117,25 +124,25 @@ impl LocalTxProver {
             return None;
         }
 
-        Some(LocalTxProver::new(&spend_path, &output_path))
+        Some(LocalTxProver::new(&spend_path, &output_path, &convert_path))
     }
 
-    /// Creates a `LocalTxProver` using Sapling parameters bundled inside the binary.
-    ///
-    /// This requires the `bundled-prover` feature, which will increase the binary size by
-    /// around 50 MiB.
-    #[cfg(feature = "bundled-prover")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "bundled-prover")))]
-    pub fn bundled() -> Self {
-        let (spend_buf, output_buf) = wagyu_zcash_parameters::load_sapling_parameters();
-        let p = parse_parameters(&spend_buf[..], &output_buf[..]);
+    // /// Creates a `LocalTxProver` using Sapling parameters bundled inside the binary.
+    // ///
+    // /// This requires the `bundled-prover` feature, which will increase the binary size by
+    // /// around 50 MiB.
+    // #[cfg(feature = "bundled-prover")]
+    // #[cfg_attr(docsrs, doc(cfg(feature = "bundled-prover")))]
+    // pub fn bundled() -> Self {
+    //     let (spend_buf, output_buf) = wagyu_zcash_parameters::load_sapling_parameters();
+    //     let p = parse_parameters(&spend_buf[..], &output_buf[..]);
 
-        LocalTxProver {
-            spend_params: p.spend_params,
-            spend_vk: p.spend_vk,
-            output_params: p.output_params,
-        }
-    }
+    //     LocalTxProver {
+    //         spend_params: p.spend_params,
+    //         spend_vk: p.spend_vk,
+    //         output_params: p.output_params,
+    //     }
+    // }
 }
 
 impl TxProver for LocalTxProver {
