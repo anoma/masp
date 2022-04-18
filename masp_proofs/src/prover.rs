@@ -4,6 +4,7 @@ use bellman::groth16::{Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
 use masp_primitives::{
     asset_type::AssetType,
+    convert::AllowedConversion,
     primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
     prover::TxProver,
     redjubjub::{PublicKey, Signature},
@@ -27,6 +28,8 @@ pub struct LocalTxProver {
     spend_params: Parameters<Bls12>,
     spend_vk: PreparedVerifyingKey<Bls12>,
     output_params: Parameters<Bls12>,
+    convert_params: Parameters<Bls12>,
+    convert_vk: PreparedVerifyingKey<Bls12>,
 }
 
 impl LocalTxProver {
@@ -36,11 +39,12 @@ impl LocalTxProver {
     ///
     /// ```should_panic
     /// use std::path::Path;
-    /// use zcash_proofs::prover::LocalTxProver;
+    /// use masp_proofs::prover::LocalTxProver;
     ///
     /// let tx_prover = LocalTxProver::new(
     ///     Path::new("/path/to/sapling-spend.params"),
     ///     Path::new("/path/to/sapling-output.params"),
+    ///     Path::new("/path/to/convert.params"),
     /// );
     /// ```
     ///
@@ -54,6 +58,8 @@ impl LocalTxProver {
             spend_params: p.spend_params,
             spend_vk: p.spend_vk,
             output_params: p.output_params,
+            convert_params: p.convert_params,
+            convert_vk: p.convert_vk,
         }
     }
 
@@ -63,9 +69,9 @@ impl LocalTxProver {
     ///
     /// ```should_panic
     /// use std::path::Path;
-    /// use zcash_proofs::prover::LocalTxProver;
+    /// use masp_proofs::prover::LocalTxProver;
     ///
-    /// let tx_prover = LocalTxProver::from_bytes(&[0u8], &[0u8]);
+    /// let tx_prover = LocalTxProver::from_bytes(&[0u8], &[0u8], &[0u8]);
     /// ```
     ///
     /// # Panics
@@ -83,6 +89,8 @@ impl LocalTxProver {
             spend_params: p.spend_params,
             spend_vk: p.spend_vk,
             output_params: p.output_params,
+            convert_params: p.convert_params,
+            convert_vk: p.convert_vk,
         }
     }
 
@@ -95,7 +103,7 @@ impl LocalTxProver {
     /// # Examples
     ///
     /// ```
-    /// use zcash_proofs::prover::LocalTxProver;
+    /// use masp_proofs::prover::LocalTxProver;
     ///
     /// match LocalTxProver::with_default_location() {
     ///     Some(tx_prover) => (),
@@ -209,6 +217,31 @@ impl TxProver for LocalTxProver {
             .expect("should be able to serialize a proof");
 
         (zkproof, cv)
+    }
+
+    fn convert_proof(
+        &self,
+        ctx: &mut Self::SaplingProvingContext,
+        allowed_conversion: AllowedConversion,
+        value: u64,
+        anchor: bls12_381::Scalar,
+        merkle_path: MerklePath<Node>,
+    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), ()> {
+        let (proof, cv) = ctx.convert_proof(
+            allowed_conversion,
+            value,
+            anchor,
+            merkle_path,
+            &self.convert_params,
+            &self.convert_vk,
+        )?;
+
+        let mut zkproof = [0u8; GROTH_PROOF_SIZE];
+        proof
+            .write(&mut zkproof[..])
+            .expect("should be able to serialize a proof");
+
+        Ok((zkproof, cv))
     }
 
     fn binding_sig(

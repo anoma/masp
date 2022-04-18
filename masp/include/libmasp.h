@@ -125,6 +125,21 @@ extern "C" {
         unsigned char *zkproof
     );
 
+    /// This function (using the proving context) constructs a Convert proof
+    /// given the necessary witness information. It outputs `cv` (the value
+    /// commitment) and the proof.
+    bool libmasp_sapling_convert_proof(
+        void *ctx,
+        const unsigned char *asset_identifiers,
+        int64_t *value_balances,
+        size_t asset_count,
+        const uint64_t value,
+        const unsigned char *anchor,
+        const unsigned char *witness,
+        unsigned char *cv,
+        unsigned char *zkproof
+    );
+
     /// This function (using the proving context) constructs a binding
     /// signature. You must provide the intended valueBalance so that
     /// we can internally check consistency.
@@ -156,6 +171,15 @@ extern "C" {
         const unsigned char *zkproof,
         const unsigned char *spendAuthSig,
         const unsigned char *sighashValue
+    );
+
+    /// Check the validity of a Convert description,
+    /// accumulating the value commitment into the context.
+    bool libmasp_sapling_check_convert(
+        void *ctx,
+        const unsigned char *cv,
+        const unsigned char *anchor,
+        const unsigned char *zkproof
     );
 
     /// Check the validity of a Sapling Output description,

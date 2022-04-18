@@ -133,6 +133,36 @@ impl SaplingVerificationContext {
         verify_proof(verifying_key, &zkproof, &public_input[..]).is_ok()
     }
 
+    /// Perform consensus checks on a Sapling ConvertDescription, while
+    /// accumulating its value commitment inside the context for later use.
+    pub fn check_convert(
+        &mut self,
+        cv: jubjub::ExtendedPoint,
+        anchor: bls12_381::Scalar,
+        zkproof: Proof<Bls12>,
+        verifying_key: &PreparedVerifyingKey<Bls12>,
+    ) -> bool {
+        if cv.is_small_order().into() {
+            return false;
+        }
+
+        // Accumulate the value commitment in the context
+        self.cv_sum += cv;
+
+        // Construct public input for circuit
+        let mut public_input = [bls12_381::Scalar::zero(); 3];
+        {
+            let affine = cv.to_affine();
+            let (u, v) = (affine.get_u(), affine.get_v());
+            public_input[0] = u;
+            public_input[1] = v;
+        }
+        public_input[2] = anchor;
+
+        // Verify the proof
+        verify_proof(verifying_key, &zkproof, &public_input[..]).is_ok()
+    }
+
     /// Perform consensus checks on the valueBalance and bindingSig parts of a
     /// Sapling transaction. All SpendDescriptions and OutputDescriptions must
     /// have been checked before calling this function.
