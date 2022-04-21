@@ -33,11 +33,11 @@ impl LocalTxProver {
     ///
     /// ```should_panic
     /// use std::path::Path;
-    /// use zcash_proofs::prover::LocalTxProver;
+    /// use masp_proofs::prover::LocalTxProver;
     ///
     /// let tx_prover = LocalTxProver::new(
-    ///     Path::new("/path/to/sapling-spend.params"),
-    ///     Path::new("/path/to/sapling-output.params"),
+    ///     Path::new("/path/to/masp-spend.params"),
+    ///     Path::new("/path/to/masp-output.params"),
     /// );
     /// ```
     ///
@@ -60,7 +60,7 @@ impl LocalTxProver {
     ///
     /// ```should_panic
     /// use std::path::Path;
-    /// use zcash_proofs::prover::LocalTxProver;
+    /// use masp_proofs::prover::LocalTxProver;
     ///
     /// let tx_prover = LocalTxProver::from_bytes(&[0u8], &[0u8]);
     /// ```

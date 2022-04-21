@@ -1,6 +1,6 @@
-//! *Zcash circuits and proofs.*
+//! *MASP circuits and proofs.*
 //!
-//! `zcash_proofs` contains the zk-SNARK circuits used by Zcash, and the APIs for creating
+//! `masp_proofs` contains the zk-SNARK circuits used by MASP, and the APIs for creating
 //! and verifying proofs.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]

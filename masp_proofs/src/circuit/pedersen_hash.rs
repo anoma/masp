@@ -1,10 +1,10 @@
 //! Gadget for Zcash's Pedersen hash.
 
+use crate::circuit::ecc::{EdwardsPoint, MontgomeryPoint};
 use bellman::gadgets::boolean::Boolean;
 use bellman::gadgets::lookup::*;
 use bellman::{ConstraintSystem, SynthesisError};
 pub use masp_primitives::pedersen_hash::Personalization;
-use zcash_proofs::circuit::ecc::{EdwardsPoint, MontgomeryPoint};
 
 use crate::constants::PEDERSEN_CIRCUIT_GENERATORS;
 

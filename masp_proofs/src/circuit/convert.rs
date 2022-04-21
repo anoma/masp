@@ -11,7 +11,7 @@ use bellman::gadgets::boolean;
 use bellman::gadgets::num;
 use bellman::gadgets::Assignment;
 
-pub const TREE_DEPTH: usize = zcash_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
+pub const TREE_DEPTH: usize = masp_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
 
 /// This is an instance of the `Convert` circuit.
 pub struct Convert {

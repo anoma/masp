@@ -11,11 +11,14 @@ use masp_primitives::{
 };
 
 use super::pedersen_hash;
-use crate::constants::{
-    NOTE_COMMITMENT_RANDOMNESS_GENERATOR, NULLIFIER_POSITION_GENERATOR,
-    PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
+use crate::{
+    circuit::ecc,
+    constants::{
+        NOTE_COMMITMENT_RANDOMNESS_GENERATOR, NULLIFIER_POSITION_GENERATOR,
+        PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR,
+        VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
+    },
 };
-use zcash_proofs::circuit::ecc;
 
 use bellman::gadgets::blake2s;
 use bellman::gadgets::boolean;
@@ -25,7 +28,7 @@ use bellman::gadgets::Assignment;
 
 use itertools::multizip;
 
-pub const TREE_DEPTH: usize = zcash_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
+pub const TREE_DEPTH: usize = masp_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
 
 /// This is an instance of the `Spend` circuit.
 pub struct Spend {
