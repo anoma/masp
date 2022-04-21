@@ -128,7 +128,7 @@ impl LocalTxProver {
         } else {
             return None;
         };
-        if !(spend_path.exists() && output_path.exists()) {
+        if !(spend_path.exists() && output_path.exists() && convert_path.exists()) {
             return None;
         }
 
