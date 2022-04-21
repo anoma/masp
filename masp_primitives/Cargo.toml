@@ -19,10 +19,11 @@ all-features = true
 [dependencies]
 aes = "0.7"
 bitvec = "0.22"
-bip0039 = { version = "0.9", features = ["std", "all-languages"] }
+bip0039 = { version = "0.9", features = [ "all-languages"] }
 blake2b_simd = "1"
 blake2s_simd = "1"
 bls12_381 = "0.6"
+borsh = "0.9"
 byteorder = "1"
 chacha20poly1305 = "0.9"
 ff = "0.11"
@@ -43,6 +44,8 @@ zcash_encoding = { version = "0.0", git = "https://github.com/zcash/librustzcash
 criterion = "0.3"
 proptest = "1.0.0"
 rand_xorshift = "0.3"
+#zcash_primitives = { git = "https://github.com/zcash/librustzcash", rev = "43c18d0", features = ["test-dependencies"] }
+
 
 [features]
 test-dependencies = ["proptest"]

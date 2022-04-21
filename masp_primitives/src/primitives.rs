@@ -1,8 +1,11 @@
 //! Structs for core MASP primitives.
 
-use crate::keys::prf_expand;
-use crate::pedersen_hash::{pedersen_hash, Personalization};
-use crate::{asset_type::AssetType, constants};
+use crate::{
+    asset_type::AssetType,
+    constants,
+    keys::prf_expand,
+    pedersen_hash::{pedersen_hash, Personalization},
+};
 use blake2s_simd::Params as Blake2sParams;
 use byteorder::{LittleEndian, WriteBytesExt};
 use ff::PrimeField;
@@ -10,6 +13,15 @@ use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
 use rand_core::{CryptoRng, RngCore};
 use std::convert::TryInto;
 use zcash_primitives::sapling::{group_hash::group_hash, Nullifier, Rseed};
+
+use borsh::{
+    maybestd::io::{Error, ErrorKind, Write},
+    BorshDeserialize, BorshSerialize,
+};
+use std::{
+    fmt::{Display, Formatter},
+    hash::{Hash, Hasher},
+};
 
 #[derive(Clone)]
 pub struct ValueCommitment {
@@ -40,7 +52,7 @@ impl ProofGenerationKey {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct ViewingKey {
     pub ak: jubjub::SubgroupPoint,
     pub nk: jubjub::SubgroupPoint,

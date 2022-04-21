@@ -159,3 +159,14 @@ impl PartialEq for AssetType {
         self.get_identifier() == other.get_identifier()
     }
 }
+
+#[cfg(any(test, feature = "test-dependencies"))]
+pub mod testing {
+    use proptest::prelude::*;
+
+    prop_compose! {
+        pub fn arb_asset_type()(name in proptest::collection::vec(prop::num::u8::ANY, 0..64)) -> super::AssetType {
+            super::AssetType::new(&name).unwrap()
+        }
+    }
+}

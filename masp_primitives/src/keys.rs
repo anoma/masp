@@ -34,7 +34,7 @@ pub fn prf_expand_vec(sk: &[u8], ts: &[&[u8]]) -> Blake2bHash {
 }
 
 /// An outgoing viewing key
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OutgoingViewingKey(pub [u8; 32]);
 
 /// A Sapling expanded spending key
@@ -46,7 +46,7 @@ pub struct ExpandedSpendingKey {
 }
 
 /// A Sapling full viewing key
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct FullViewingKey {
     pub vk: ViewingKey,
     pub ovk: OutgoingViewingKey,
@@ -106,7 +106,7 @@ impl ExpandedSpendingKey {
     }
 }
 
-impl Clone for FullViewingKey {
+/*impl Clone for FullViewingKey {
     fn clone(&self) -> Self {
         FullViewingKey {
             vk: ViewingKey {
@@ -116,7 +116,7 @@ impl Clone for FullViewingKey {
             ovk: self.ovk,
         }
     }
-}
+}*/
 
 impl FullViewingKey {
     pub fn from_expanded_spending_key(expsk: &ExpandedSpendingKey) -> Self {

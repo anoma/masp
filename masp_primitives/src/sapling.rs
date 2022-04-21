@@ -143,3 +143,39 @@ pub(crate) fn spend_sig_internal<R: RngCore>(
     // Do the signing
     rsk.sign(&data_to_be_signed, rng, SPENDING_KEY_GENERATOR)
 }
+
+#[cfg(any(test, feature = "test-dependencies"))]
+pub mod testing {
+    use proptest::prelude::*;
+
+    use crate::zip32::testing::arb_extended_spending_key;
+
+    use super::Node;
+    use crate::primitives::{Note, PaymentAddress};
+    use zcash_primitives::sapling::{NoteValue, Rseed};
+
+    pub fn arb_payment_address() -> impl Strategy<Value = PaymentAddress> {
+        arb_extended_spending_key().prop_map(|sk| sk.default_address().1)
+    }
+    prop_compose! {
+        pub fn arb_node()(value in prop::array::uniform32(prop::num::u8::ANY)) -> Node {
+            Node::new(value)
+        }
+    }
+
+    prop_compose! {
+        pub fn arb_note(value: NoteValue)(
+            asset_type in crate::asset_type::testing::arb_asset_type(),
+            addr in arb_payment_address(),
+            rseed in prop::array::uniform32(prop::num::u8::ANY).prop_map(Rseed::AfterZip212)
+        ) -> Note {
+            Note {
+                value: value.into(),
+                g_d: addr.g_d().unwrap(), // this unwrap is safe because arb_payment_address always generates an address with a valid g_d
+                pk_d: *addr.pk_d(),
+                rseed,
+                asset_type
+            }
+        }
+    }
+}
