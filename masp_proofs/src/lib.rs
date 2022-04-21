@@ -25,8 +25,8 @@ mod constants;
 pub mod hashreader;
 pub mod sapling;
 
-#[cfg(feature = "embed-verifying-key")]
-pub mod params;
+// #[cfg(feature = "embed-verifying-key")]
+// pub mod params;
 #[cfg(any(feature = "local-prover", feature = "bundled-prover"))]
 #[cfg_attr(
     docsrs,
