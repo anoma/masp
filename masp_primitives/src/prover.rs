@@ -3,14 +3,14 @@
 use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey};
 
 use crate::{
+    asset_type::AssetType,
+    merkle_tree::MerklePath,
+    primitives::Rseed,
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };
-use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
-use crate::asset_type::AssetType;
-
+pub const GROTH_PROOF_SIZE: usize = 48 + 96 + 48;
 /// Interface for creating zero-knowledge proofs for shielded transactions.
 pub trait TxProver {
     /// Type for persisting any necessary context across multiple Sapling proofs.
@@ -70,15 +70,12 @@ pub mod mock {
     use crate::{
         asset_type::AssetType,
         constants::SPENDING_KEY_GENERATOR,
-        primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
-    };
-
-    use crate::{
+        merkle_tree::MerklePath,
+        primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
+        prover::GROTH_PROOF_SIZE,
         redjubjub::{PublicKey, Signature},
         sapling::Node,
     };
-    use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-    use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
     use super::TxProver;
 

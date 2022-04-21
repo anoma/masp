@@ -5,8 +5,7 @@ use ff::Field;
 use group::{Curve, Group};
 use jubjub::ExtendedPoint;
 use lazy_static::lazy_static;
-use masp_primitives::constants::PEDERSEN_HASH_GENERATORS;
-use zcash_primitives::constants::PEDERSEN_HASH_CHUNKS_PER_GENERATOR;
+use masp_primitives::constants::{PEDERSEN_HASH_CHUNKS_PER_GENERATOR, PEDERSEN_HASH_GENERATORS};
 use zcash_proofs::constants::{generate_circuit_generator, FixedGeneratorOwned};
 
 /// The scaling factor used for conversion to and from the Montgomery form.

@@ -3,6 +3,7 @@
 use crate::{
     asset_type::AssetType,
     constants,
+    group_hash::group_hash,
     keys::prf_expand,
     pedersen_hash::{pedersen_hash, Personalization},
 };
@@ -12,16 +13,19 @@ use ff::PrimeField;
 use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
 use rand_core::{CryptoRng, RngCore};
 use std::convert::TryInto;
-use zcash_primitives::sapling::{group_hash::group_hash, Nullifier, Rseed};
+use subtle::{Choice, ConstantTimeEq};
 
-use borsh::{
+use core::array::TryFromSliceError;
+use core::convert::TryFrom;
+
+/*use borsh::{
     maybestd::io::{Error, ErrorKind, Write},
     BorshDeserialize, BorshSerialize,
 };
 use std::{
     fmt::{Display, Formatter},
     hash::{Hash, Hasher},
-};
+};*/
 
 #[derive(Clone)]
 pub struct ValueCommitment {
@@ -210,6 +214,47 @@ impl PaymentAddress {
     }
 }
 
+/// Typesafe wrapper for nullifier values.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Nullifier(pub [u8; 32]);
+
+impl Nullifier {
+    pub fn from_slice(bytes: &[u8]) -> Result<Nullifier, TryFromSliceError> {
+        bytes.try_into().map(Nullifier)
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.to_vec()
+    }
+}
+impl AsRef<[u8]> for Nullifier {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl ConstantTimeEq for Nullifier {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.0.ct_eq(&other.0)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NoteValue(u64);
+
+impl TryFrom<u64> for NoteValue {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Ok(NoteValue(value)) // TODO: is a check necessary
+    }
+}
+
+impl From<NoteValue> for u64 {
+    fn from(value: NoteValue) -> u64 {
+        value.0
+    }
+}
 #[derive(Clone, Debug)]
 pub struct Note {
     /// The asset type that the note represents
@@ -305,35 +350,24 @@ impl Note {
     }
 
     pub fn rcm(&self) -> jubjub::Fr {
-        match self.rseed {
-            Rseed::BeforeZip212(rcm) => rcm,
-            Rseed::AfterZip212(rseed) => {
-                jubjub::Fr::from_bytes_wide(prf_expand(&rseed, &[0x04]).as_array())
-            }
-        }
+        jubjub::Fr::from_bytes_wide(prf_expand(&self.rseed.0, &[0x04]).as_array())
     }
 
-    pub fn generate_or_derive_esk<R: RngCore + CryptoRng>(&self, rng: &mut R) -> jubjub::Fr {
-        match self.derive_esk() {
-            None => {
-                // create random 64 byte buffer
-                let mut buffer = [0u8; 64];
-                rng.fill_bytes(&mut buffer);
-
-                // reduce to uniform value
-                jubjub::Fr::from_bytes_wide(&buffer)
-            }
-            Some(esk) => esk,
-        }
+    pub fn derive_esk(&self) -> jubjub::Fr {
+        jubjub::Fr::from_bytes_wide(prf_expand(&self.rseed.0, &[0x05]).as_array())
     }
+}
 
-    /// Returns the derived `esk` if this note was created after ZIP 212 activated.
-    pub fn derive_esk(&self) -> Option<jubjub::Fr> {
-        match self.rseed {
-            Rseed::BeforeZip212(_) => None,
-            Rseed::AfterZip212(rseed) => Some(jubjub::Fr::from_bytes_wide(
-                prf_expand(&rseed, &[0x05]).as_array(),
-            )),
-        }
+#[derive(Copy, Clone, Debug)]
+pub struct Rseed(pub [u8; 32]);
+
+impl Rseed {
+    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        Self::random_internal(rng)
+    }
+    pub fn random_internal<R: RngCore>(rng: &mut R) -> Rseed {
+        let mut buffer = [0u8; 32];
+        rng.fill_bytes(&mut buffer);
+        Rseed(buffer)
     }
 }

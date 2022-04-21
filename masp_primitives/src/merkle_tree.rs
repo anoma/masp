@@ -4,12 +4,80 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 
+use crate::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
+use core::convert::TryFrom;
 use incrementalmerkletree::{
     self,
     bridgetree::{self, Leaf},
+    Altitude,
 };
 use zcash_encoding::{Optional, Vector};
-use zcash_primitives::{merkle_tree::Hashable, sapling::SAPLING_COMMITMENT_TREE_DEPTH};
+/// A hashable node within a Merkle tree.
+pub trait Hashable: Clone + Copy {
+    /// Parses a node from the given byte source.
+    fn read<R: Read>(reader: R) -> io::Result<Self>;
+
+    /// Serializes this node.
+    fn write<W: Write>(&self, writer: W) -> io::Result<()>;
+
+    /// Returns the parent node within the tree of the two given nodes.
+    fn combine(_: usize, _: &Self, _: &Self) -> Self;
+
+    /// Returns a blank leaf node.
+    fn blank() -> Self;
+
+    /// Returns the empty root for the given depth.
+    fn empty_root(_: usize) -> Self;
+}
+
+/// A hashable node within a Merkle tree.
+pub trait HashSer {
+    /// Parses a node from the given byte source.
+    fn read<R: Read>(reader: R) -> io::Result<Self>
+    where
+        Self: Sized;
+
+    /// Serializes this node.
+    fn write<W: Write>(&self, writer: W) -> io::Result<()>;
+}
+
+impl<T> Hashable for T
+where
+    T: incrementalmerkletree::Hashable + HashSer + Copy,
+{
+    /// Parses a node from the given byte source.
+    fn read<R: Read>(reader: R) -> io::Result<Self> {
+        <Self as HashSer>::read(reader)
+    }
+
+    /// Serializes this node.
+    fn write<W: Write>(&self, writer: W) -> io::Result<()> {
+        <Self as HashSer>::write(self, writer)
+    }
+
+    /// Returns the parent node within the tree of the two given nodes.
+    fn combine(alt: usize, lhs: &Self, rhs: &Self) -> Self {
+        <Self as incrementalmerkletree::Hashable>::combine(
+            Altitude::from(
+                u8::try_from(alt).expect("Tree heights greater than 255 are unsupported."),
+            ),
+            lhs,
+            rhs,
+        )
+    }
+
+    /// Returns a blank leaf node.
+    fn blank() -> Self {
+        <Self as incrementalmerkletree::Hashable>::empty_leaf()
+    }
+
+    /// Returns the empty root for the given depth.
+    fn empty_root(alt: usize) -> Self {
+        <Self as incrementalmerkletree::Hashable>::empty_root(Altitude::from(
+            u8::try_from(alt).expect("Tree heights greater than 255 are unsupported."),
+        ))
+    }
+}
 struct PathFiller<Node: Hashable> {
     queue: VecDeque<Node>,
 }

@@ -2,8 +2,10 @@
 
 use crate::{
     constants::SPENDING_KEY_GENERATOR,
+    merkle_tree::{HashSer, Hashable},
     pedersen_hash::{pedersen_hash, Personalization},
     primitives::Note,
+    redjubjub::{PrivateKey, PublicKey, Signature},
 };
 use bitvec::{order::Lsb0, view::AsBits};
 use ff::PrimeField;
@@ -13,11 +15,7 @@ use lazy_static::lazy_static;
 use rand_core::{CryptoRng, RngCore};
 use std::io::{self, Read, Write};
 
-use crate::redjubjub::{PrivateKey, PublicKey, Signature};
-use zcash_primitives::{
-    merkle_tree::{HashSer, Hashable},
-    sapling::SAPLING_COMMITMENT_TREE_DEPTH,
-};
+pub const SAPLING_COMMITMENT_TREE_DEPTH: usize = 32;
 
 /// Compute a parent node in the Sapling commitment tree given its two children.
 pub fn merkle_hash(depth: usize, lhs: &[u8; 32], rhs: &[u8; 32]) -> [u8; 32] {
@@ -151,8 +149,7 @@ pub mod testing {
     use crate::zip32::testing::arb_extended_spending_key;
 
     use super::Node;
-    use crate::primitives::{Note, PaymentAddress};
-    use zcash_primitives::sapling::{NoteValue, Rseed};
+    use crate::primitives::{Note, NoteValue, PaymentAddress, Rseed};
 
     pub fn arb_payment_address() -> impl Strategy<Value = PaymentAddress> {
         arb_extended_spending_key().prop_map(|sk| sk.default_address().1)
@@ -167,13 +164,13 @@ pub mod testing {
         pub fn arb_note(value: NoteValue)(
             asset_type in crate::asset_type::testing::arb_asset_type(),
             addr in arb_payment_address(),
-            rseed in prop::array::uniform32(prop::num::u8::ANY).prop_map(Rseed::AfterZip212)
+            rseed in prop::array::uniform32(prop::num::u8::ANY)
         ) -> Note {
             Note {
                 value: value.into(),
                 g_d: addr.g_d().unwrap(), // this unwrap is safe because arb_payment_address always generates an address with a valid g_d
                 pk_d: *addr.pk_d(),
-                rseed,
+                rseed: Rseed(rseed),
                 asset_type
             }
         }

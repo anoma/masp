@@ -1,4 +1,4 @@
-//! The Sapling circuits.
+//! The Convert circuit.
 
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
 
@@ -13,7 +13,7 @@ use bellman::gadgets::Assignment;
 
 pub const TREE_DEPTH: usize = zcash_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
 
-/// This is an instance of the `Spend` circuit.
+/// This is an instance of the `Convert` circuit.
 pub struct Convert {
     /// Minting value commitment
     pub value_commitment: Option<ValueCommitment>,

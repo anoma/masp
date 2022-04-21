@@ -608,11 +608,10 @@ fn test_input_circuit_with_bls12_381() {
     use masp_primitives::{
         asset_type::AssetType,
         pedersen_hash,
-        primitives::{Diversifier, Note, ProofGenerationKey},
+        primitives::{Diversifier, Note, ProofGenerationKey, Rseed},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -658,7 +657,7 @@ fn test_input_circuit_with_bls12_381() {
         }
 
         let g_d = payment_address.diversifier().g_d().unwrap();
-        let commitment_randomness = jubjub::Fr::random(&mut rng);
+
         let auth_path =
             vec![Some((bls12_381::Scalar::random(&mut rng), rng.next_u32() % 2 != 0)); tree_depth];
         let ar = jubjub::Fr::random(&mut rng);
@@ -667,12 +666,13 @@ fn test_input_circuit_with_bls12_381() {
             let rk = jubjub::ExtendedPoint::from(viewing_key.rk(ar)).to_affine();
             let expected_value_commitment =
                 jubjub::ExtendedPoint::from(value_commitment.commitment()).to_affine();
+
             let note = Note {
                 asset_type,
                 value: value_commitment.value,
                 g_d,
                 pk_d: *payment_address.pk_d(),
-                rseed: Rseed::BeforeZip212(commitment_randomness),
+                rseed: Rseed::random_internal(&mut rng),
             };
 
             let mut position = 0u64;
@@ -722,7 +722,7 @@ fn test_input_circuit_with_bls12_381() {
                 value_commitment: Some(value_commitment.clone()),
                 proof_generation_key: Some(proof_generation_key.clone()),
                 payment_address: Some(payment_address.clone()),
-                commitment_randomness: Some(commitment_randomness),
+                commitment_randomness: Some(note.rcm()),
                 ar: Some(ar),
                 auth_path: auth_path.clone(),
                 anchor: Some(cur),
@@ -777,11 +777,10 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
     use masp_primitives::{
         asset_type::AssetType,
         pedersen_hash,
-        primitives::{Diversifier, Note, ProofGenerationKey},
+        primitives::{Diversifier, Note, ProofGenerationKey, Rseed},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x59, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -849,7 +848,6 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
         }
 
         let g_d = payment_address.diversifier().g_d().unwrap();
-        let commitment_randomness = jubjub::Fr::random(&mut rng);
         let auth_path =
             vec![Some((bls12_381::Scalar::random(&mut rng), rng.next_u32() % 2 != 0)); tree_depth];
         let ar = jubjub::Fr::random(&mut rng);
@@ -866,12 +864,13 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
                 expected_value_commitment.get_v(),
                 bls12_381::Scalar::from_str_vartime(expected_commitment_vs[i as usize]).unwrap()
             );
+
             let note = Note {
                 asset_type,
                 value: value_commitment.value,
                 g_d,
                 pk_d: *payment_address.pk_d(),
-                rseed: Rseed::BeforeZip212(commitment_randomness),
+                rseed: Rseed::random_internal(&mut rng),
             };
 
             let mut position = 0u64;
@@ -921,7 +920,7 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
                 value_commitment: Some(value_commitment.clone()),
                 proof_generation_key: Some(proof_generation_key.clone()),
                 payment_address: Some(payment_address.clone()),
-                commitment_randomness: Some(commitment_randomness),
+                commitment_randomness: Some(note.rcm()),
                 ar: Some(ar),
                 auth_path: auth_path.clone(),
                 anchor: Some(cur),
@@ -964,11 +963,10 @@ fn test_output_circuit_with_bls12_381() {
     use group::Group;
     use masp_primitives::{
         asset_type::AssetType,
-        primitives::{Diversifier, ProofGenerationKey},
+        primitives::{Diversifier, ProofGenerationKey, Rseed},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -1010,17 +1008,22 @@ fn test_output_circuit_with_bls12_381() {
                 break;
             }
         }
+        let note = payment_address
+            .create_note(
+                asset_type,
+                value_commitment.value,
+                Rseed::random_internal(&mut rng),
+            )
+            .expect("should be valid");
 
-        let commitment_randomness = jubjub::Fr::random(&mut rng);
-        let esk = jubjub::Fr::random(&mut rng);
-
+        let esk = note.derive_esk();
         {
             let mut cs = TestConstraintSystem::new();
 
             let instance = Output {
                 value_commitment: Some(value_commitment.clone()),
                 payment_address: Some(payment_address.clone()),
-                commitment_randomness: Some(commitment_randomness),
+                commitment_randomness: Some(note.rcm()),
                 esk: Some(esk),
                 asset_identifier: asset_type.identifier_bits(),
             };
@@ -1038,14 +1041,7 @@ fn test_output_circuit_with_bls12_381() {
                 "93e445d7858e98c7138558df341f020aedfe75893535025587d64731e244276a"
             );
 
-            let expected_cmu = payment_address
-                .create_note(
-                    asset_type,
-                    value_commitment.value,
-                    Rseed::BeforeZip212(commitment_randomness),
-                )
-                .expect("should be valid")
-                .cmu();
+            let expected_cmu = note.cmu();
 
             let expected_value_commitment =
                 jubjub::ExtendedPoint::from(value_commitment.commitment()).to_affine();
