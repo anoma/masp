@@ -1,8 +1,11 @@
 //! Structs for core MASP primitives.
 
-use crate::keys::prf_expand;
-use crate::pedersen_hash::{pedersen_hash, Personalization};
-use crate::{asset_type::AssetType, constants};
+use crate::{
+    asset_type::AssetType,
+    constants,
+    keys::prf_expand,
+    pedersen_hash::{pedersen_hash, Personalization},
+};
 use blake2s_simd::Params as Blake2sParams;
 use byteorder::{LittleEndian, WriteBytesExt};
 use ff::PrimeField;

@@ -2,6 +2,7 @@
 
 use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey};
 
+use crate::convert::AllowedConversion;
 use crate::{
     redjubjub::{PublicKey, Signature},
     sapling::Node,
@@ -51,6 +52,19 @@ pub trait TxProver {
         value: u64,
     ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint);
 
+    /// Create the value commitment, and proof for a MASP ConvertDescription,
+    /// while accumulating its value commitment randomness inside
+    /// the context for later use.
+    ///
+    fn convert_proof(
+        &self,
+        ctx: &mut Self::SaplingProvingContext,
+        allowed_conversion: AllowedConversion,
+        value: u64,
+        anchor: bls12_381::Scalar,
+        merkle_path: MerklePath<Node>,
+    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), ()>;
+
     /// Create the `bindingSig` for a Sapling transaction. All calls to
     /// [`TxProver::spend_proof`] and [`TxProver::output_proof`] must be completed before
     /// calling this function.
@@ -83,6 +97,8 @@ pub mod mock {
     use super::TxProver;
 
     pub struct MockTxProver;
+
+    use crate::convert::AllowedConversion;
 
     #[cfg(test)]
     impl TxProver for MockTxProver {
@@ -132,6 +148,24 @@ pub mod mock {
                 .into();
 
             ([0u8; GROTH_PROOF_SIZE], cv)
+        }
+
+        fn convert_proof(
+            &self,
+            _ctx: &mut Self::SaplingProvingContext,
+            allowed_conversion: AllowedConversion,
+            value: u64,
+            _anchor: bls12_381::Scalar,
+            _merkle_path: MerklePath<Node>,
+        ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), ()> {
+            let mut rng = OsRng;
+
+            let cv = allowed_conversion
+                .value_commitment(value, jubjub::Fr::random(&mut rng))
+                .commitment()
+                .into();
+
+            Ok(([0u8; GROTH_PROOF_SIZE], cv))
         }
 
         fn binding_sig(

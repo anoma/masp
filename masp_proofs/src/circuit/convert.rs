@@ -13,7 +13,7 @@ use bellman::gadgets::Assignment;
 
 pub const TREE_DEPTH: usize = zcash_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
 
-/// This is an instance of the `Spend` circuit.
+/// This is an instance of the `Convert` circuit.
 pub struct Convert {
     /// Minting value commitment
     pub value_commitment: Option<ValueCommitment>,
@@ -56,11 +56,6 @@ impl Circuit<bls12_381::Scalar> for Convert {
             &asset_generator_bits,
         )?;
 
-        // This will store (least significant bit first)
-        // the position of the note in the tree, for use
-        // in nullifier computation.
-        let mut position_bits = vec![];
-
         // This is an injective encoding, as cur is a
         // point in the prime order subgroup.
         let mut cur = cm.get_u().clone();
@@ -75,9 +70,6 @@ impl Circuit<bls12_381::Scalar> for Convert {
                 cs.namespace(|| "position bit"),
                 e.map(|e| e.1),
             )?);
-
-            // Push this boolean for nullifier computation later
-            position_bits.push(cur_is_right.clone());
 
             // Witness the authentication path element adjacent
             // at this depth.

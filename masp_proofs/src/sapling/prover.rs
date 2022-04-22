@@ -8,6 +8,7 @@ use group::{Curve, GroupEncoding};
 use masp_primitives::{
     asset_type::AssetType,
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
+    convert::AllowedConversion,
     primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey},
     redjubjub::{PrivateKey, PublicKey, Signature},
     sapling::Node,
@@ -17,6 +18,7 @@ use std::ops::{AddAssign, Neg};
 use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
 use super::masp_compute_value_balance;
+use crate::circuit::convert::Convert;
 use crate::circuit::sapling::{Output, Spend};
 
 /// A context object for creating the Sapling components of a Zcash transaction.
@@ -207,6 +209,74 @@ impl SaplingProvingContext {
         self.cv_sum -= value_commitment_point; // Outputs subtract from the total.
 
         (proof, value_commitment_point)
+    }
+
+    /// Create the value commitment and proof for a ConvertDescription,
+    /// while accumulating its value commitment randomness inside the context
+    /// for later use.
+    pub fn convert_proof(
+        &mut self,
+        allowed_conversion: AllowedConversion,
+        value: u64,
+        anchor: bls12_381::Scalar,
+        merkle_path: MerklePath<Node>,
+        proving_key: &Parameters<Bls12>,
+        verifying_key: &PreparedVerifyingKey<Bls12>,
+    ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint), ()> {
+        // Initialize secure RNG
+        let mut rng = OsRng;
+
+        // We create the randomness of the value commitment
+        let rcv = jubjub::Fr::random(&mut rng);
+
+        // Accumulate the value commitment randomness in the context
+        {
+            let mut tmp = rcv;
+            tmp.add_assign(&self.bsk);
+
+            // Update the context
+            self.bsk = tmp;
+        }
+
+        // Construct the value commitment
+        let value_commitment = allowed_conversion.value_commitment(value, rcv);
+
+        // We now have the full witness for our circuit
+        let instance = Convert {
+            value_commitment: Some(value_commitment.clone()),
+            auth_path: merkle_path
+                .auth_path
+                .iter()
+                .map(|(node, b)| Some(((*node).into(), *b)))
+                .collect(),
+            anchor: Some(anchor),
+        };
+
+        // Create proof
+        let proof =
+            create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
+
+        // Try to verify the proof:
+        // Construct public input for circuit
+        let mut public_input = [bls12_381::Scalar::zero(); 3];
+        {
+            let affine = jubjub::ExtendedPoint::from(value_commitment.commitment()).to_affine();
+            let (u, v) = (affine.get_u(), affine.get_v());
+            public_input[0] = u;
+            public_input[1] = v;
+        }
+        public_input[2] = anchor;
+
+        // Verify the proof
+        verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())?;
+
+        // Compute value commitment
+        let value_commitment: jubjub::ExtendedPoint = value_commitment.commitment().into();
+
+        // Accumulate the value commitment in the context
+        self.cv_sum += value_commitment;
+
+        Ok((proof, value_commitment))
     }
 
     /// Create the bindingSig for a Sapling transaction. All calls to spend_proof()
