@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "masp",
     "masp_proofs",
     "masp_primitives"
 ]
