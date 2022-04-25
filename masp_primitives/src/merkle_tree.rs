@@ -242,7 +242,7 @@ impl<Node: Hashable> BorshDeserialize for CommitmentTree<Node> {
 /// witness.append(cmu);
 /// assert_eq!(tree.root(), witness.root());
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IncrementalWitness<Node: Hashable> {
     tree: CommitmentTree<Node>,
     filled: Vec<Node>,
