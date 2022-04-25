@@ -10,7 +10,8 @@ use masp_primitives::{
     sapling::Node,
 };
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
+use zcash_primitives::sapling::Rseed;
+use masp_primitives::merkle_tree::MerklePath;
 
 use crate::{parse_parameters, sapling::SaplingProvingContext};
 

@@ -58,7 +58,7 @@ use masp_proofs::{
     load_parameters,
     sapling::{SaplingProvingContext, SaplingVerificationContext},
 };
-use zcash_primitives::merkle_tree::MerklePath;
+use masp_primitives::merkle_tree::MerklePath;
 
 #[cfg(test)]
 mod tests;

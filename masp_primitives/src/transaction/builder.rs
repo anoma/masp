@@ -14,7 +14,7 @@ pub use secp256k1;
 #[cfg(feature = "transparent-inputs")]
 pub use ripemd160;
 
-use zcash_primitives::merkle_tree::MerklePath;
+use crate::merkle_tree::MerklePath;
 use crate::{
     consensus,
     keys::OutgoingViewingKey,
@@ -733,7 +733,7 @@ mod tests {
     use rand_core::OsRng;
     use std::marker::PhantomData;
     use crate::transaction::components::amount::zec;
-    use zcash_primitives::merkle_tree::{CommitmentTree, IncrementalWitness};
+    use crate::merkle_tree::{CommitmentTree, IncrementalWitness};
 
     use super::{Builder, Error};
     use zcash_primitives::sapling::Rseed;

@@ -14,6 +14,7 @@ use rand_core::{CryptoRng, RngCore};
 use std::convert::TryInto;
 use std::fmt;
 use std::str;
+use borsh::{BorshSerialize, BorshDeserialize};
 
 use crate::keys::OutgoingViewingKey;
 use crate::asset_type::AssetType;
@@ -54,7 +55,7 @@ where
 }
 
 /// An unencrypted memo received alongside a shielded note in a Zcash transaction.
-#[derive(Clone)]
+#[derive(Clone, BorshSerialize, BorshDeserialize)]
 pub struct Memo([u8; 512]);
 
 impl fmt::Debug for Memo {
