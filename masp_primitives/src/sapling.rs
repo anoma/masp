@@ -12,6 +12,7 @@ use incrementalmerkletree::{self, Altitude};
 use lazy_static::lazy_static;
 use rand_core::{CryptoRng, RngCore};
 use std::io::{self, Read, Write};
+use borsh::{BorshSerialize, BorshDeserialize};
 
 use crate::redjubjub::{PrivateKey, PublicKey, Signature};
 use zcash_primitives::{
@@ -54,7 +55,7 @@ pub fn merkle_hash(depth: usize, lhs: &[u8; 32], rhs: &[u8; 32]) -> [u8; 32] {
 }
 
 /// A node within the Sapling commitment tree.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
 pub struct Node {
     repr: [u8; 32],
 }

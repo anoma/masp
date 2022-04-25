@@ -6,6 +6,7 @@ use std::io::{self, Read, Write};
 
 use incrementalmerkletree::{self, bridgetree};
 use zcash_encoding::{Optional, Vector};
+use borsh::{BorshSerialize, BorshDeserialize};
 use zcash_primitives::{
     merkle_tree::Hashable,
     sapling::{SAPLING_COMMITMENT_TREE_DEPTH, SAPLING_COMMITMENT_TREE_DEPTH_U8},
@@ -195,6 +196,18 @@ impl<Node: Hashable> CommitmentTree<Node> {
         // 3) Hash in roots of the empty subtrees up to the final depth.
         ((self.parents.len() + 1)..depth)
             .fold(mid_root, |root, d| Node::combine(d, &root, &filler.next(d)))
+    }
+}
+
+impl<Node: Hashable> BorshSerialize for CommitmentTree<Node> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl<Node: Hashable> BorshDeserialize for CommitmentTree<Node> {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
     }
 }
 
@@ -407,6 +420,18 @@ impl<Node: Hashable> IncrementalWitness<Node> {
         assert_eq!(auth_path.len(), depth);
 
         Some(MerklePath::from_path(auth_path, self.position() as u64))
+    }
+}
+
+impl<Node: Hashable> BorshSerialize for IncrementalWitness<Node> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl<Node: Hashable> BorshDeserialize for IncrementalWitness<Node> {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
     }
 }
 

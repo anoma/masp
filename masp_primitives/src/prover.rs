@@ -8,7 +8,8 @@ use crate::{
     sapling::Node,
 };
 use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
+use zcash_primitives::sapling::Rseed;
+use crate::merkle_tree::MerklePath;
 
 use crate::asset_type::AssetType;
 
@@ -92,7 +93,8 @@ pub mod mock {
         sapling::Node,
     };
     use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-    use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
+    use zcash_primitives::sapling::Rseed;
+    use crate::merkle_tree::MerklePath;
 
     use super::TxProver;
 

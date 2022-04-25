@@ -15,7 +15,8 @@ use masp_primitives::{
 };
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
-use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
+use zcash_primitives::sapling::Rseed;
+use masp_primitives::merkle_tree::MerklePath;
 
 use super::masp_compute_value_balance;
 use crate::circuit::convert::Convert;

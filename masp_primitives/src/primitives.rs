@@ -15,7 +15,6 @@ use std::convert::TryInto;
 use zcash_primitives::sapling::{group_hash::group_hash, Nullifier, Rseed};
 use borsh::maybestd::io::Error;
 use borsh::maybestd::io::ErrorKind;
-use borsh::maybestd::io::Write;
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
 use std::cmp::Ordering;
@@ -24,6 +23,8 @@ use std::fmt::Formatter;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::str::FromStr;
+use std::io::{self, Read, Write};
+use subtle::CtOption;
 
 #[derive(Clone)]
 pub struct ValueCommitment {
@@ -94,6 +95,73 @@ impl ViewingKey {
     pub fn to_payment_address(&self, diversifier: Diversifier) -> Option<PaymentAddress> {
         self.ivk().to_payment_address(diversifier)
     }
+    
+    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+        let ak = {
+            let mut buf = [0u8; 32];
+            reader.read_exact(&mut buf)?;
+            jubjub::SubgroupPoint::from_bytes(&buf).and_then(|p| CtOption::new(p, !p.is_identity()))
+        };
+        let nk = {
+            let mut buf = [0u8; 32];
+            reader.read_exact(&mut buf)?;
+            jubjub::SubgroupPoint::from_bytes(&buf)
+        };
+        if ak.is_none().into() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "ak not of prime order",
+            ));
+        }
+        if nk.is_none().into() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "nk not in prime-order subgroup",
+            ));
+        }
+        let ak = ak.unwrap();
+        let nk = nk.unwrap();
+
+        Ok(ViewingKey { ak, nk })
+    }
+
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        writer.write_all(&self.ak.to_bytes())?;
+        writer.write_all(&self.nk.to_bytes())?;
+
+        Ok(())
+    }
+
+    pub fn to_bytes(&self) -> [u8; 64] {
+        let mut result = [0u8; 64];
+        self.write(&mut result[..])
+            .expect("should be able to serialize a ViewingKey");
+        result
+    }
+}
+
+impl BorshSerialize for ViewingKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl BorshDeserialize for ViewingKey {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl PartialOrd for ViewingKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.to_bytes().partial_cmp(&other.to_bytes())
+    }
+}
+
+impl Ord for ViewingKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.to_bytes().cmp(&other.to_bytes())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -113,7 +181,7 @@ impl SaplingIvk {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize)]
 pub struct Diversifier(pub [u8; 11]);
 
 impl Diversifier {
