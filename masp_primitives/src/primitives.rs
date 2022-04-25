@@ -4,7 +4,7 @@ use crate::keys::prf_expand;
 use crate::pedersen_hash::{pedersen_hash, Personalization};
 use crate::{asset_type::AssetType, constants};
 use blake2s_simd::Params as Blake2sParams;
-use byteorder::{LittleEndian, WriteBytesExt};
+use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 use ff::PrimeField;
 use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
 use rand_core::{CryptoRng, RngCore};
@@ -453,5 +453,49 @@ impl Note {
                 prf_expand(&rseed, &[0x05]).as_array(),
             )),
         }
+    }
+}
+
+impl BorshSerialize for Note {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.asset_type.serialize(writer)?;
+        writer.write(&self.asset_type.asset_generator().to_bytes())?;
+        writer.write_u64::<LittleEndian>(self.value)?;
+        writer.write(&self.g_d.to_bytes())?;
+        writer.write(&self.pk_d.to_bytes())?;
+        match self.rseed {
+            Rseed::BeforeZip212(rcm) => {
+                writer.write_u8(0)?;
+                writer.write(&rcm.to_bytes())
+            },
+            Rseed::AfterZip212(rseed) => {
+                writer.write_u8(1)?;
+                writer.write(&rseed)
+            }
+        }?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for Note {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        let asset_type = AssetType::deserialize(buf)?;
+        let value = buf.read_u64::<LittleEndian>()?;
+        let g_d = Option::from(jubjub::SubgroupPoint::from_bytes(&<[u8; 32]>::deserialize(buf)?))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "g_d not in field"))?;
+        let pk_d = Option::from(jubjub::SubgroupPoint::from_bytes(&<[u8; 32]>::deserialize(buf)?))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "pk_d not in field"))?;
+        let rseed_type = buf.read_u8()?;
+        let rseed_bytes = <[u8; 32]>::deserialize(buf)?;
+        let rseed = match rseed_type {
+            0 => {
+                let data = Option::from(jubjub::Fr::from_bytes(&rseed_bytes))
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "rseed not in field"))?;
+                Rseed::BeforeZip212(data)
+            },
+            1 => Rseed::AfterZip212(rseed_bytes),
+            _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid rseed type")),
+        };
+        Ok(Note { asset_type, value, g_d, pk_d, rseed })
     }
 }
