@@ -458,18 +458,25 @@ impl Note {
 
 impl BorshSerialize for Note {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        // Write asset type
         self.asset_type.serialize(writer)?;
-        writer.write(&self.asset_type.asset_generator().to_bytes())?;
+        // Write note value
         writer.write_u64::<LittleEndian>(self.value)?;
+        // Write diversified base
         writer.write(&self.g_d.to_bytes())?;
+        // Write diversified transmission key
         writer.write(&self.pk_d.to_bytes())?;
         match self.rseed {
             Rseed::BeforeZip212(rcm) => {
-                writer.write_u8(0)?;
-                writer.write(&rcm.to_bytes())
+                // Write note plaintext lead byte
+                writer.write_u8(1)?;
+                // Write rseed
+                writer.write(&rcm.to_repr())
             },
             Rseed::AfterZip212(rseed) => {
-                writer.write_u8(1)?;
+                // Write note plaintext lead byte
+                writer.write_u8(2)?;
+                // Write rseed
                 writer.write(&rseed)
             }
         }?;
@@ -479,23 +486,30 @@ impl BorshSerialize for Note {
 
 impl BorshDeserialize for Note {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        // Read asset type
         let asset_type = AssetType::deserialize(buf)?;
+        // Read note value
         let value = buf.read_u64::<LittleEndian>()?;
-        let g_d = Option::from(jubjub::SubgroupPoint::from_bytes(&<[u8; 32]>::deserialize(buf)?))
+        // Read diversified base
+        let g_d_bytes = <[u8; 32]>::deserialize(buf)?;
+        let g_d = Option::from(jubjub::SubgroupPoint::from_bytes(&g_d_bytes))
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "g_d not in field"))?;
-        let pk_d = Option::from(jubjub::SubgroupPoint::from_bytes(&<[u8; 32]>::deserialize(buf)?))
+        // Read diversified transmission key
+        let pk_d_bytes = <[u8; 32]>::deserialize(buf)?;
+        let pk_d = Option::from(jubjub::SubgroupPoint::from_bytes(&pk_d_bytes))
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "pk_d not in field"))?;
+        // Read note plaintext lead byte
         let rseed_type = buf.read_u8()?;
+        // Read rseed
         let rseed_bytes = <[u8; 32]>::deserialize(buf)?;
-        let rseed = match rseed_type {
-            0 => {
-                let data = Option::from(jubjub::Fr::from_bytes(&rseed_bytes))
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "rseed not in field"))?;
-                Rseed::BeforeZip212(data)
-            },
-            1 => Rseed::AfterZip212(rseed_bytes),
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid rseed type")),
+        let rseed = if rseed_type == 0x01 {
+            let data = Option::from(jubjub::Fr::from_bytes(&rseed_bytes))
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "rseed not in field"))?;
+            Rseed::BeforeZip212(data)
+        } else {
+            Rseed::AfterZip212(rseed_bytes)
         };
+        // Finally construct note object
         Ok(Note { asset_type, value, g_d, pk_d, rseed })
     }
 }
