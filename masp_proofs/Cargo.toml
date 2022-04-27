@@ -53,6 +53,11 @@ name = "sapling"
 harness = false
 required-features = ["local-prover"]
 
+[[bench]]
+name = "convert"
+harness = false
+required-features = ["local-prover"]
+
 [[example]]
 name = "get-params-path"
 required-features = ["directories"]
