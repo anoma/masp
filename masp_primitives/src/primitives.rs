@@ -226,21 +226,21 @@ impl BorshSerialize for Note {
         // Write note value
         writer.write_u64::<LittleEndian>(self.value)?;
         // Write diversified base
-        writer.write(&self.g_d.to_bytes())?;
+        writer.write_all(&self.g_d.to_bytes())?;
         // Write diversified transmission key
-        writer.write(&self.pk_d.to_bytes())?;
+        writer.write_all(&self.pk_d.to_bytes())?;
         match self.rseed {
             Rseed::BeforeZip212(rcm) => {
                 // Write note plaintext lead byte
                 writer.write_u8(1)?;
                 // Write rseed
-                writer.write(&rcm.to_repr())
+                writer.write_all(&rcm.to_repr())
             }
             Rseed::AfterZip212(rseed) => {
                 // Write note plaintext lead byte
                 writer.write_u8(2)?;
                 // Write rseed
-                writer.write(&rseed)
+                writer.write_all(&rseed)
             }
         }?;
         Ok(())

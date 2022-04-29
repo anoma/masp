@@ -282,12 +282,11 @@ pub const ZIP212_GRACE_PERIOD: u32 = 32256;
 /// starting at Overwinter activation, and ending the block before Sapling activation.
 ///
 /// The main use of the branch ID is in signature generation: transactions commit to a
-/// specific branch ID by including it as part of [`signature_hash`]. This ensures
+/// specific branch ID by including it as part of signature_hash. This ensures
 /// two-way replay protection for transactions across network upgrades.
 ///
 /// See [ZIP 200](https://zips.z.cash/zip-0200) for more details.
 ///
-/// [`signature_hash`]: crate::transaction::sighash::signature_hash
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BranchId {
     /// The consensus rules at the launch of Zcash.
