@@ -142,7 +142,8 @@ fn test_convert_circuit_with_bls12_381() {
 
     let tree_depth = 32;
 
-    for i in 0..400u32 {
+    for _ in 0..10u32 {
+        let i = rng.next_u32();
         let spend_asset = AssetType::new(format!("asset {}", i).as_bytes()).unwrap();
         let output_asset = AssetType::new(format!("asset {}", i + 1).as_bytes()).unwrap();
         let mint_asset = AssetType::new(b"reward").unwrap();
