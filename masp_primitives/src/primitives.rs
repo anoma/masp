@@ -8,7 +8,8 @@ use crate::{
     pedersen_hash::{pedersen_hash, Personalization},
 };
 use blake2s_simd::Params as Blake2sParams;
-use byteorder::{LittleEndian, WriteBytesExt};
+use borsh::{BorshDeserialize, BorshSerialize};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ff::PrimeField;
 use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
 use rand_core::{CryptoRng, RngCore};
@@ -17,6 +18,7 @@ use std::{
     convert::{TryFrom, TryInto},
 };
 use subtle::{Choice, ConstantTimeEq};
+
 #[derive(Clone)]
 pub struct ValueCommitment {
     pub asset_generator: jubjub::ExtendedPoint,
@@ -217,7 +219,73 @@ pub struct Note {
     /// rseed
     pub rseed: Rseed,
 }
+impl BorshSerialize for Note {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        // Write asset type
+        self.asset_type.serialize(writer)?;
+        // Write note value
+        writer.write_u64::<LittleEndian>(self.value)?;
+        // Write diversified base
+        writer.write(&self.g_d.to_bytes())?;
+        // Write diversified transmission key
+        writer.write(&self.pk_d.to_bytes())?;
+        match self.rseed {
+            Rseed::BeforeZip212(rcm) => {
+                // Write note plaintext lead byte
+                writer.write_u8(1)?;
+                // Write rseed
+                writer.write(&rcm.to_repr())
+            }
+            Rseed::AfterZip212(rseed) => {
+                // Write note plaintext lead byte
+                writer.write_u8(2)?;
+                // Write rseed
+                writer.write(&rseed)
+            }
+        }?;
+        Ok(())
+    }
+}
 
+impl BorshDeserialize for Note {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        // Read asset type
+        let asset_type = AssetType::deserialize(buf)?;
+        // Read note value
+        let value = buf.read_u64::<LittleEndian>()?;
+        // Read diversified base
+        let g_d_bytes = <[u8; 32]>::deserialize(buf)?;
+        let g_d = Option::from(jubjub::SubgroupPoint::from_bytes(&g_d_bytes)).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "g_d not in field")
+        })?;
+        // Read diversified transmission key
+        let pk_d_bytes = <[u8; 32]>::deserialize(buf)?;
+        let pk_d =
+            Option::from(jubjub::SubgroupPoint::from_bytes(&pk_d_bytes)).ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "pk_d not in field")
+            })?;
+        // Read note plaintext lead byte
+        let rseed_type = buf.read_u8()?;
+        // Read rseed
+        let rseed_bytes = <[u8; 32]>::deserialize(buf)?;
+        let rseed = if rseed_type == 0x01 {
+            let data = Option::from(jubjub::Fr::from_bytes(&rseed_bytes)).ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "rseed not in field")
+            })?;
+            Rseed::BeforeZip212(data)
+        } else {
+            Rseed::AfterZip212(rseed_bytes)
+        };
+        // Finally construct note object
+        Ok(Note {
+            asset_type,
+            value,
+            g_d,
+            pk_d,
+            rseed,
+        })
+    }
+}
 /// Enum for note randomness before and after [ZIP 212](https://zips.z.cash/zip-0212).
 ///
 /// Before ZIP 212, the note commitment trapdoor `rcm` must be a scalar value.

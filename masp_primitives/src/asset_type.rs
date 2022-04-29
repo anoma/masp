@@ -6,10 +6,11 @@ use crate::{
     primitives::ValueCommitment,
 };
 use blake2s_simd::Params as Blake2sParams;
+use borsh::{BorshDeserialize, BorshSerialize};
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
     nonce: Option<u8>,
@@ -141,17 +142,6 @@ impl AssetType {
 
     pub fn get_nonce(&self) -> Option<u8> {
         self.nonce
-    }
-}
-
-impl Copy for AssetType {}
-
-impl Clone for AssetType {
-    fn clone(&self) -> Self {
-        AssetType {
-            identifier: self.identifier,
-            nonce: self.nonce,
-        }
     }
 }
 
