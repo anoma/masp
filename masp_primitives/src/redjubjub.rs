@@ -10,15 +10,8 @@ use rand_core::RngCore;
 use std::io::{self, Read, Write};
 use std::ops::{AddAssign, MulAssign, Neg};
 
-use blake2b_simd::Params;
+use crate::util::hash_to_scalar;
 
-pub fn hash_to_scalar(persona: &[u8], a: &[u8], b: &[u8]) -> jubjub::Fr {
-    let mut hasher = Params::new().hash_length(64).personal(persona).to_state();
-    hasher.update(a);
-    hasher.update(b);
-    let ret = hasher.finalize();
-    jubjub::Fr::from_bytes_wide(ret.as_array())
-}
 fn read_scalar<R: Read>(mut reader: R) -> io::Result<jubjub::Fr> {
     let mut s_repr = [0u8; 32];
     reader.read_exact(s_repr.as_mut())?;

@@ -10,6 +10,7 @@
 #![allow(clippy::result_unit_err)]
 
 pub mod asset_type;
+pub mod consensus;
 pub mod constants;
 pub mod convert;
 pub mod group_hash;
@@ -20,6 +21,7 @@ pub mod primitives;
 pub mod prover;
 pub mod redjubjub;
 pub mod sapling;
+pub mod util;
 pub mod zip32;
 
 #[cfg(test)]
