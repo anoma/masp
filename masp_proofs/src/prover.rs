@@ -5,13 +5,12 @@ use bls12_381::Bls12;
 use masp_primitives::{
     asset_type::AssetType,
     convert::AllowedConversion,
-    primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
-    prover::TxProver,
+    merkle_tree::MerklePath,
+    primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
+    prover::{TxProver, GROTH_PROOF_SIZE},
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };
-use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
 use crate::{parse_parameters, sapling::SaplingProvingContext};
 
@@ -42,9 +41,9 @@ impl LocalTxProver {
     /// use masp_proofs::prover::LocalTxProver;
     ///
     /// let tx_prover = LocalTxProver::new(
-    ///     Path::new("/path/to/sapling-spend.params"),
-    ///     Path::new("/path/to/sapling-output.params"),
-    ///     Path::new("/path/to/convert.params"),
+    ///     Path::new("/path/to/masp-spend.params"),
+    ///     Path::new("/path/to/masp-output.params"),
+    ///     Path::new("/path/to/masp-convert.params"),
     /// );
     /// ```
     ///

@@ -11,21 +11,18 @@ use masp_primitives::{
 };
 
 use super::pedersen_hash;
-use crate::constants::{
-    NOTE_COMMITMENT_RANDOMNESS_GENERATOR, NULLIFIER_POSITION_GENERATOR,
-    PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
+use crate::{
+    circuit::ecc,
+    constants::{
+        NOTE_COMMITMENT_RANDOMNESS_GENERATOR, NULLIFIER_POSITION_GENERATOR,
+        PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR,
+        VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
+    },
 };
-use zcash_proofs::circuit::ecc;
-
-use bellman::gadgets::blake2s;
-use bellman::gadgets::boolean;
-use bellman::gadgets::multipack;
-use bellman::gadgets::num;
-use bellman::gadgets::Assignment;
-
+use bellman::gadgets::{blake2s, boolean, multipack, num, Assignment};
 use itertools::multizip;
 
-pub const TREE_DEPTH: usize = zcash_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
+pub const TREE_DEPTH: usize = masp_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
 
 /// This is an instance of the `Spend` circuit.
 pub struct Spend {
@@ -608,11 +605,10 @@ fn test_input_circuit_with_bls12_381() {
     use masp_primitives::{
         asset_type::AssetType,
         pedersen_hash,
-        primitives::{Diversifier, Note, ProofGenerationKey},
+        primitives::{Diversifier, Note, ProofGenerationKey, Rseed},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -777,11 +773,10 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
     use masp_primitives::{
         asset_type::AssetType,
         pedersen_hash,
-        primitives::{Diversifier, Note, ProofGenerationKey},
+        primitives::{Diversifier, Note, ProofGenerationKey, Rseed},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x59, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -964,11 +959,10 @@ fn test_output_circuit_with_bls12_381() {
     use group::Group;
     use masp_primitives::{
         asset_type::AssetType,
-        primitives::{Diversifier, ProofGenerationKey},
+        primitives::{Diversifier, ProofGenerationKey, Rseed},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,

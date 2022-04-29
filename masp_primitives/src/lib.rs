@@ -12,6 +12,7 @@
 pub mod asset_type;
 pub mod constants;
 pub mod convert;
+pub mod group_hash;
 pub mod keys;
 pub mod merkle_tree;
 pub mod pedersen_hash;

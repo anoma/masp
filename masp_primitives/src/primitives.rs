@@ -3,6 +3,7 @@
 use crate::{
     asset_type::AssetType,
     constants,
+    group_hash::group_hash,
     keys::prf_expand,
     pedersen_hash::{pedersen_hash, Personalization},
 };
@@ -11,9 +12,11 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use ff::PrimeField;
 use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
 use rand_core::{CryptoRng, RngCore};
-use std::convert::TryInto;
-use zcash_primitives::sapling::{group_hash::group_hash, Nullifier, Rseed};
-
+use std::{
+    array::TryFromSliceError,
+    convert::{TryFrom, TryInto},
+};
+use subtle::{Choice, ConstantTimeEq};
 #[derive(Clone)]
 pub struct ValueCommitment {
     pub asset_generator: jubjub::ExtendedPoint,
@@ -213,6 +216,59 @@ pub struct Note {
     pub pk_d: jubjub::SubgroupPoint,
     /// rseed
     pub rseed: Rseed,
+}
+
+/// Enum for note randomness before and after [ZIP 212](https://zips.z.cash/zip-0212).
+///
+/// Before ZIP 212, the note commitment trapdoor `rcm` must be a scalar value.
+/// After ZIP 212, the note randomness `rseed` is a 32-byte sequence, used to derive
+/// both the note commitment trapdoor `rcm` and the ephemeral private key `esk`.
+#[derive(Copy, Clone, Debug)]
+pub enum Rseed {
+    BeforeZip212(jubjub::Fr),
+    AfterZip212([u8; 32]),
+}
+
+/// Typesafe wrapper for nullifier values.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Nullifier(pub [u8; 32]);
+
+impl Nullifier {
+    pub fn from_slice(bytes: &[u8]) -> Result<Nullifier, TryFromSliceError> {
+        bytes.try_into().map(Nullifier)
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.to_vec()
+    }
+}
+impl AsRef<[u8]> for Nullifier {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl ConstantTimeEq for Nullifier {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.0.ct_eq(&other.0)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NoteValue(u64);
+
+impl TryFrom<u64> for NoteValue {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Ok(NoteValue(value)) // TODO: is a check necessary
+    }
+}
+
+impl From<NoteValue> for u64 {
+    fn from(value: NoteValue) -> u64 {
+        value.0
+    }
 }
 
 impl PartialEq for Note {

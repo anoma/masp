@@ -7,6 +7,7 @@ use crate::{
 };
 use blake2s_simd::Params as Blake2sParams;
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
 pub struct AssetType {
@@ -157,5 +158,22 @@ impl Clone for AssetType {
 impl PartialEq for AssetType {
     fn eq(&self, other: &Self) -> bool {
         self.get_identifier() == other.get_identifier()
+    }
+}
+
+impl Display for AssetType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", hex::encode(self.get_identifier()))
+    }
+}
+
+#[cfg(any(test, feature = "test-dependencies"))]
+pub mod testing {
+    use proptest::prelude::*;
+
+    prop_compose! {
+        pub fn arb_asset_type()(name in proptest::collection::vec(prop::num::u8::ANY, 0..64)) -> super::AssetType {
+            super::AssetType::new(&name).unwrap()
+        }
     }
 }
