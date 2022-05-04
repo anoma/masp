@@ -3,7 +3,7 @@
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 // Catch documentation errors caused by code changes.
-#![deny(broken_intra_doc_links)]
+#![deny(rustdoc::broken_intra_doc_links)]
 #![deny(unsafe_code)]
 // TODO: #![deny(missing_docs)]
 
@@ -339,18 +339,19 @@ pub trait ShieldedOutput<D: Domain, const CIPHERTEXT_SIZE: usize> {
 /// ```
 /// extern crate ff;
 /// extern crate rand_core;
-/// extern crate zcash_primitives;
+/// extern crate masp_primitives;
 ///
 /// use ff::Field;
 /// use rand_core::OsRng;
-/// use zcash_primitives::{
+/// use masp_primitives::{
+///     asset_type::AssetType,
 ///     keys::{OutgoingViewingKey, prf_expand},
 ///     consensus::{TEST_NETWORK, TestNetwork, NetworkUpgrade, Parameters},
-///     memo::MemoBytes,
-///     sapling::{
-///         note_encryption::sapling_note_encryption,
-///         util::generate_random_rseed,
-///         Diversifier, PaymentAddress, Rseed, ValueCommitment
+///     transaction::memo::MemoBytes,
+///     note_encryption::sapling_note_encryption,
+///     util::generate_random_rseed,
+///     primitives::{
+///         Diversifier, PaymentAddress, ValueCommitment
 ///     },
 /// };
 ///
@@ -363,13 +364,12 @@ pub trait ShieldedOutput<D: Domain, const CIPHERTEXT_SIZE: usize> {
 ///
 /// let value = 1000;
 /// let rcv = jubjub::Fr::random(&mut rng);
-/// let cv = ValueCommitment {
-///     value,
-///     randomness: rcv.clone(),
-/// };
+/// let asset_type = AssetType::new(b"note_encryption").unwrap();
+/// let cv = asset_type.value_commitment(1, jubjub::Fr::random(&mut rng));
+///
 /// let height = TEST_NETWORK.activation_height(NetworkUpgrade::Canopy).unwrap();
 /// let rseed = generate_random_rseed(&TEST_NETWORK, height, &mut rng);
-/// let note = to.create_note(value, rseed).unwrap();
+/// let note = to.create_note(asset_type, value, rseed).unwrap();
 /// let cmu = note.cmu();
 ///
 /// let mut enc = sapling_note_encryption::<_, TestNetwork>(ovk, note, to, MemoBytes::empty(), &mut rng);

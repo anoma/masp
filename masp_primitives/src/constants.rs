@@ -24,7 +24,7 @@ pub const PRF_NF_PERSONALIZATION: &[u8; 8] = b"MASP__nf";
 pub const PEDERSEN_HASH_GENERATORS_PERSONALIZATION: &[u8; 8] = b"MASP__PH";
 
 /// BLAKE2s Personalization for the group hash for key diversification
-pub const KEY_DIVERSIFICATION_PERSONALIZATION: &[u8; 8] = b"MASP__gd";
+pub const KEY_DIVERSIFICATION_PERSONALIZATION: &[u8; 8] = b"MASP_gd_";
 
 /// BLAKE2s Personalization for the spending key base point
 pub const SPENDING_KEY_GENERATOR_PERSONALIZATION: &[u8; 8] = b"MASP__G_";
