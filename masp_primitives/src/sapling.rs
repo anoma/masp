@@ -144,12 +144,28 @@ pub(crate) fn spend_sig_internal<R: RngCore>(
 
 #[cfg(any(test, feature = "test-dependencies"))]
 pub mod testing {
-    use proptest::prelude::*;
-
     use crate::zip32::testing::arb_extended_spending_key;
+    use proptest::prelude::*;
+    use std::cmp::min;
+    use std::convert::TryFrom;
 
     use super::Node;
     use crate::primitives::{Note, NoteValue, PaymentAddress, Rseed};
+
+    prop_compose! {
+        pub fn arb_note_value()(value in 0u64..=u64::MAX as u64) -> NoteValue {
+            NoteValue::try_from(value).unwrap()
+        }
+    }
+
+    prop_compose! {
+        /// The
+        pub fn arb_positive_note_value(bound: u64)(
+            value in 1u64..=(min(bound, u64::MAX as u64))
+        ) -> NoteValue {
+            NoteValue::try_from(value).unwrap()
+        }
+    }
 
     pub fn arb_payment_address() -> impl Strategy<Value = PaymentAddress> {
         arb_extended_spending_key().prop_map(|sk| sk.default_address().1)

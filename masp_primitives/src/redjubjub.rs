@@ -3,6 +3,7 @@
 //!
 //! [RedJubjub]: https://zips.z.cash/protocol/protocol.pdf#concretereddsa
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use ff::{Field, PrimeField};
 use group::GroupEncoding;
 use jubjub::{AffinePoint, ExtendedPoint, SubgroupPoint};
@@ -28,7 +29,7 @@ fn h_star(a: &[u8], b: &[u8]) -> jubjub::Fr {
     hash_to_scalar(b"MASP__RedJubjubH", a, b)
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, PartialEq, Copy, Clone, Debug)]
 pub struct Signature {
     rbar: [u8; 32],
     sbar: [u8; 32],
@@ -36,8 +37,22 @@ pub struct Signature {
 
 pub struct PrivateKey(pub jubjub::Fr);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublicKey(pub ExtendedPoint);
+
+impl BorshDeserialize for PublicKey {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Ok(Self(crate::transaction::util::deserialize_extended_point(
+            buf,
+        )?))
+    }
+}
+
+impl BorshSerialize for PublicKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        BorshSerialize::serialize(&self.0.to_bytes(), writer)
+    }
+}
 
 impl Signature {
     pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {

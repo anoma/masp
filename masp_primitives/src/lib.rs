@@ -16,11 +16,13 @@ pub mod convert;
 pub mod group_hash;
 pub mod keys;
 pub mod merkle_tree;
+pub mod note_encryption;
 pub mod pedersen_hash;
 pub mod primitives;
 pub mod prover;
 pub mod redjubjub;
 pub mod sapling;
+pub mod transaction;
 pub mod util;
 pub mod zip32;
 

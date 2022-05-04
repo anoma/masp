@@ -121,7 +121,7 @@ impl Sub for BlockHeight {
     }
 }
 
-/// Zcash consensus parameters.
+/// MASP consensus parameters.
 pub trait Parameters: Clone {
     /// Returns the activation height for a particular network upgrade,
     /// if an activation height has been set.
@@ -143,12 +143,7 @@ pub const MAIN_NETWORK: MainNetwork = MainNetwork;
 impl Parameters for MainNetwork {
     fn activation_height(&self, nu: NetworkUpgrade) -> Option<BlockHeight> {
         match nu {
-            NetworkUpgrade::Overwinter => Some(BlockHeight(347_500)),
-            NetworkUpgrade::Sapling => Some(BlockHeight(419_200)),
-            NetworkUpgrade::Blossom => Some(BlockHeight(653_600)),
-            NetworkUpgrade::Heartwood => Some(BlockHeight(903_000)),
-            NetworkUpgrade::Canopy => Some(BlockHeight(1_046_400)),
-            NetworkUpgrade::Nu5 => None,
+            NetworkUpgrade::Canopy => Some(BlockHeight(419_200)),
             #[cfg(feature = "zfuture")]
             NetworkUpgrade::ZFuture => None,
         }
@@ -164,12 +159,7 @@ pub const TEST_NETWORK: TestNetwork = TestNetwork;
 impl Parameters for TestNetwork {
     fn activation_height(&self, nu: NetworkUpgrade) -> Option<BlockHeight> {
         match nu {
-            NetworkUpgrade::Overwinter => Some(BlockHeight(207_500)),
-            NetworkUpgrade::Sapling => Some(BlockHeight(280_000)),
-            NetworkUpgrade::Blossom => Some(BlockHeight(584_000)),
-            NetworkUpgrade::Heartwood => Some(BlockHeight(903_800)),
-            NetworkUpgrade::Canopy => Some(BlockHeight(1_028_500)),
-            NetworkUpgrade::Nu5 => Some(BlockHeight(1_842_420)),
+            NetworkUpgrade::Canopy => Some(BlockHeight(280_000)),
             #[cfg(feature = "zfuture")]
             NetworkUpgrade::ZFuture => None,
         }
@@ -197,30 +187,10 @@ impl Parameters for Network {
 /// See [ZIP 200](https://zips.z.cash/zip-0200) for more details.
 #[derive(Clone, Copy, Debug)]
 pub enum NetworkUpgrade {
-    /// The [Overwinter] network upgrade.
-    ///
-    /// [Overwinter]: https://z.cash/upgrade/overwinter/
-    Overwinter,
-    /// The [Sapling] network upgrade.
-    ///
-    /// [Sapling]: https://z.cash/upgrade/sapling/
-    Sapling,
-    /// The [Blossom] network upgrade.
-    ///
-    /// [Blossom]: https://z.cash/upgrade/blossom/
-    Blossom,
-    /// The [Heartwood] network upgrade.
-    ///
-    /// [Heartwood]: https://z.cash/upgrade/heartwood/
-    Heartwood,
     /// The [Canopy] network upgrade.
     ///
     /// [Canopy]: https://z.cash/upgrade/canopy/
     Canopy,
-    /// The [Nu5] network upgrade.
-    ///
-    /// [Nu5]: https://z.cash/upgrade/nu5/
-    Nu5,
     /// The ZFUTURE network upgrade.
     ///
     /// This upgrade is expected never to activate on mainnet;
@@ -233,12 +203,7 @@ pub enum NetworkUpgrade {
 impl fmt::Display for NetworkUpgrade {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NetworkUpgrade::Overwinter => write!(f, "Overwinter"),
-            NetworkUpgrade::Sapling => write!(f, "Sapling"),
-            NetworkUpgrade::Blossom => write!(f, "Blossom"),
-            NetworkUpgrade::Heartwood => write!(f, "Heartwood"),
             NetworkUpgrade::Canopy => write!(f, "Canopy"),
-            NetworkUpgrade::Nu5 => write!(f, "Nu5"),
             #[cfg(feature = "zfuture")]
             NetworkUpgrade::ZFuture => write!(f, "ZFUTURE"),
         }
@@ -248,12 +213,7 @@ impl fmt::Display for NetworkUpgrade {
 impl NetworkUpgrade {
     fn branch_id(self) -> BranchId {
         match self {
-            NetworkUpgrade::Overwinter => BranchId::Overwinter,
-            NetworkUpgrade::Sapling => BranchId::Sapling,
-            NetworkUpgrade::Blossom => BranchId::Blossom,
-            NetworkUpgrade::Heartwood => BranchId::Heartwood,
             NetworkUpgrade::Canopy => BranchId::Canopy,
-            NetworkUpgrade::Nu5 => BranchId::Nu5,
             #[cfg(feature = "zfuture")]
             NetworkUpgrade::ZFuture => BranchId::ZFuture,
         }
@@ -264,14 +224,7 @@ impl NetworkUpgrade {
 ///
 /// This order corresponds to the activation heights, but because Rust enums are
 /// full-fledged algebraic data types, we need to define it manually.
-const UPGRADES_IN_ORDER: &[NetworkUpgrade] = &[
-    NetworkUpgrade::Overwinter,
-    NetworkUpgrade::Sapling,
-    NetworkUpgrade::Blossom,
-    NetworkUpgrade::Heartwood,
-    NetworkUpgrade::Canopy,
-    NetworkUpgrade::Nu5,
-];
+const UPGRADES_IN_ORDER: &[NetworkUpgrade] = &[NetworkUpgrade::Canopy];
 
 pub const ZIP212_GRACE_PERIOD: u32 = 32256;
 
@@ -289,20 +242,8 @@ pub const ZIP212_GRACE_PERIOD: u32 = 32256;
 ///
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BranchId {
-    /// The consensus rules at the launch of Zcash.
-    Sprout,
-    /// The consensus rules deployed by [`NetworkUpgrade::Overwinter`].
-    Overwinter,
-    /// The consensus rules deployed by [`NetworkUpgrade::Sapling`].
-    Sapling,
-    /// The consensus rules deployed by [`NetworkUpgrade::Blossom`].
-    Blossom,
-    /// The consensus rules deployed by [`NetworkUpgrade::Heartwood`].
-    Heartwood,
     /// The consensus rules deployed by [`NetworkUpgrade::Canopy`].
     Canopy,
-    /// The consensus rules deployed by [`NetworkUpgrade::Nu5`].
-    Nu5,
     /// Candidates for future consensus rules; this branch will never
     /// activate on mainnet.
     #[cfg(feature = "zfuture")]
@@ -314,13 +255,7 @@ impl TryFrom<u32> for BranchId {
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(BranchId::Sprout),
-            0x5ba8_1b19 => Ok(BranchId::Overwinter),
-            0x76b8_09bb => Ok(BranchId::Sapling),
-            0x2bb4_0e60 => Ok(BranchId::Blossom),
-            0xf5b9_230b => Ok(BranchId::Heartwood),
             0xe9ff_75a6 => Ok(BranchId::Canopy),
-            0xc2d6_d0b4 => Ok(BranchId::Nu5),
             #[cfg(feature = "zfuture")]
             0xffff_ffff => Ok(BranchId::ZFuture),
             _ => Err("Unknown consensus branch ID"),
@@ -331,13 +266,7 @@ impl TryFrom<u32> for BranchId {
 impl From<BranchId> for u32 {
     fn from(consensus_branch_id: BranchId) -> u32 {
         match consensus_branch_id {
-            BranchId::Sprout => 0,
-            BranchId::Overwinter => 0x5ba8_1b19,
-            BranchId::Sapling => 0x76b8_09bb,
-            BranchId::Blossom => 0x2bb4_0e60,
-            BranchId::Heartwood => 0xf5b9_230b,
             BranchId::Canopy => 0xe9ff_75a6,
-            BranchId::Nu5 => 0xc2d6_d0b4,
             #[cfg(feature = "zfuture")]
             BranchId::ZFuture => 0xffff_ffff,
         }
@@ -356,8 +285,8 @@ impl BranchId {
             }
         }
 
-        // Sprout rules apply before any network upgrade
-        BranchId::Sprout
+        // Sapling rules apply before any network upgrade
+        BranchId::Canopy
     }
 
     /// Returns the range of heights for the consensus epoch associated with this branch id.
@@ -385,40 +314,20 @@ impl BranchId {
         params: &P,
     ) -> Option<(BlockHeight, Option<BlockHeight>)> {
         match self {
-            BranchId::Sprout => params
-                .activation_height(NetworkUpgrade::Overwinter)
-                .map(|upper| (BlockHeight(0), Some(upper))),
-            BranchId::Overwinter => params
-                .activation_height(NetworkUpgrade::Overwinter)
-                .map(|lower| (lower, params.activation_height(NetworkUpgrade::Sapling))),
-            BranchId::Sapling => params
-                .activation_height(NetworkUpgrade::Sapling)
-                .map(|lower| (lower, params.activation_height(NetworkUpgrade::Blossom))),
-            BranchId::Blossom => params
-                .activation_height(NetworkUpgrade::Blossom)
-                .map(|lower| (lower, params.activation_height(NetworkUpgrade::Heartwood))),
-            BranchId::Heartwood => params
-                .activation_height(NetworkUpgrade::Heartwood)
-                .map(|lower| (lower, params.activation_height(NetworkUpgrade::Canopy))),
             BranchId::Canopy => params
                 .activation_height(NetworkUpgrade::Canopy)
-                .map(|lower| (lower, params.activation_height(NetworkUpgrade::Nu5))),
-            BranchId::Nu5 => params.activation_height(NetworkUpgrade::Nu5).map(|lower| {
-                #[cfg(feature = "zfuture")]
-                let upper = params.activation_height(NetworkUpgrade::ZFuture);
-                #[cfg(not(feature = "zfuture"))]
-                let upper = None;
-                (lower, upper)
-            }),
+                .map(|lower| {
+                    #[cfg(feature = "zfuture")]
+                    let upper = params.activation_height(NetworkUpgrade::ZFuture);
+                    #[cfg(not(feature = "zfuture"))]
+                    let upper = None;
+                    (lower, upper)
+                }),
             #[cfg(feature = "zfuture")]
             BranchId::ZFuture => params
                 .activation_height(NetworkUpgrade::ZFuture)
                 .map(|lower| (lower, None)),
         }
-    }
-
-    pub fn sprout_uses_groth_proofs(&self) -> bool {
-        !matches!(self, BranchId::Sprout | BranchId::Overwinter)
     }
 }
 
@@ -431,13 +340,7 @@ pub mod testing {
 
     pub fn arb_branch_id() -> impl Strategy<Value = BranchId> {
         select(vec![
-            BranchId::Sprout,
-            BranchId::Overwinter,
-            BranchId::Sapling,
-            BranchId::Blossom,
-            BranchId::Heartwood,
             BranchId::Canopy,
-            BranchId::Nu5,
             #[cfg(feature = "zfuture")]
             BranchId::ZFuture,
         ])
@@ -488,41 +391,21 @@ mod tests {
 
     #[test]
     fn nu_is_active() {
-        assert!(!MAIN_NETWORK.is_nu_active(NetworkUpgrade::Overwinter, BlockHeight(0)));
-        assert!(!MAIN_NETWORK.is_nu_active(NetworkUpgrade::Overwinter, BlockHeight(347_499)));
-        assert!(MAIN_NETWORK.is_nu_active(NetworkUpgrade::Overwinter, BlockHeight(347_500)));
+        //assert!(!MAIN_NETWORK.is_nu_active(NetworkUpgrade::Canopy, BlockHeight(0)));
+        //assert!(!MAIN_NETWORK.is_nu_active(NetworkUpgrade::Overwinter, BlockHeight(347_499)));
+        assert!(MAIN_NETWORK.is_nu_active(NetworkUpgrade::Canopy, BlockHeight(347_500)));
     }
 
     #[test]
     fn branch_id_from_u32() {
-        assert_eq!(BranchId::try_from(0), Ok(BranchId::Sprout));
+        assert_eq!(BranchId::try_from(0), Ok(BranchId::Canopy));
         assert!(BranchId::try_from(1).is_err());
     }
 
     #[test]
     fn branch_id_for_height() {
         assert_eq!(
-            BranchId::for_height(&MAIN_NETWORK, BlockHeight(0)),
-            BranchId::Sprout,
-        );
-        assert_eq!(
-            BranchId::for_height(&MAIN_NETWORK, BlockHeight(419_199)),
-            BranchId::Overwinter,
-        );
-        assert_eq!(
             BranchId::for_height(&MAIN_NETWORK, BlockHeight(419_200)),
-            BranchId::Sapling,
-        );
-        assert_eq!(
-            BranchId::for_height(&MAIN_NETWORK, BlockHeight(903_000)),
-            BranchId::Heartwood,
-        );
-        assert_eq!(
-            BranchId::for_height(&MAIN_NETWORK, BlockHeight(1_046_400)),
-            BranchId::Canopy,
-        );
-        assert_eq!(
-            BranchId::for_height(&MAIN_NETWORK, BlockHeight(5_000_000)),
             BranchId::Canopy,
         );
     }

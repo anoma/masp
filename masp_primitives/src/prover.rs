@@ -75,8 +75,7 @@ pub trait TxProver {
         sighash: &[u8; 32],
     ) -> Result<Signature, ()>;
 }
-
-#[cfg(test)]
+#[cfg(any(test, feature = "test-dependencies"))]
 pub mod mock {
     use ff::Field;
     use rand_core::OsRng;
@@ -99,7 +98,6 @@ pub mod mock {
 
     use crate::convert::AllowedConversion;
 
-    #[cfg(test)]
     impl TxProver for MockTxProver {
         type SaplingProvingContext = ();
 

@@ -40,6 +40,8 @@ rand = "0.8"
 rand_core = "0.6"
 subtle = "2.2.3"
 zcash_encoding = { version = "0.0", git = "https://github.com/zcash/librustzcash", rev = "43c18d0" }
+masp_note_encryption = { path = "../masp_note_encryption", features = ["pre-zip-212"] }
+memuse = "0.2"
 
 [dev-dependencies]
 criterion = "0.3"

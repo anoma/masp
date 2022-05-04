@@ -8,7 +8,10 @@ use crate::{
 use blake2s_simd::Params as Blake2sParams;
 use borsh::{BorshDeserialize, BorshSerialize};
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
+use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
+use std::hash::Hash;
+use std::hash::Hasher;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq)]
 pub struct AssetType {
@@ -154,6 +157,24 @@ impl PartialEq for AssetType {
 impl Display for AssetType {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{}", hex::encode(self.get_identifier()))
+    }
+}
+
+impl Hash for AssetType {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.get_identifier().hash(state)
+    }
+}
+
+impl PartialOrd for AssetType {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.get_identifier().partial_cmp(other.get_identifier())
+    }
+}
+
+impl Ord for AssetType {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.get_identifier().cmp(other.get_identifier())
     }
 }
 
