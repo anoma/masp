@@ -74,6 +74,7 @@ struct SaplingOutput {
 }
 
 impl SaplingOutput {
+    #[allow(clippy::too_many_arguments)]
     fn new_internal<P: consensus::Parameters, R: RngCore + CryptoRng>(
         params: &P,
         rng: &mut R,

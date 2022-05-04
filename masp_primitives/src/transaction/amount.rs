@@ -10,14 +10,13 @@ pub const DEFAULT_FEE: Amount = Amount(1000);
 /// A type-safe representation of some quantity of Zcash.
 ///
 /// An Amount can only be constructed from an integer that is within the valid monetary
-/// range of `{-MAX_MONEY..MAX_MONEY}` (where `MAX_MONEY` = 21,000,000 × 10⁸ zatoshis).
+/// range of `{-MAX_MONEY..MAX_MONEY}` (where `MAX_MONEY` = i64::MAX).
 /// However, this range is not preserved as an invariant internally; it is possible to
 /// add two valid Amounts together to obtain an invalid Amount. It is the user's
 /// responsibility to handle the result of serializing potentially-invalid Amounts. In
-/// particular, a [`Transaction`] containing serialized invalid Amounts will be rejected
+/// particular, a `Transaction` containing serialized invalid Amounts will be rejected
 /// by the network consensus rules.
 ///
-/// [`Transaction`]: crate::transaction::Transaction
 #[derive(
     Clone, Copy, Default, Debug, PartialEq, PartialOrd, Eq, Ord, BorshSerialize, BorshDeserialize,
 )]
@@ -45,6 +44,7 @@ impl Amount {
     ///
     /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
     pub fn from_i64(amount: i64) -> Result<Self, ()> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if -MAX_MONEY <= amount && amount <= MAX_MONEY {
             Ok(Amount(amount))
         } else {

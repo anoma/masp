@@ -71,9 +71,11 @@ impl TxVersion {
 
     pub fn header(&self) -> u32 {
         // After Sprout, the overwintered bit is always set.
-        let overwintered = match self {
-            _ => 1 << 31,
-        };
+        // let overwintered = match self {
+        //     _ => 1 << 31,
+        // };
+        // TBD: We need remove the versions.
+        let overwintered = 1 << 31;
 
         overwintered
             | match self {
@@ -93,9 +95,11 @@ impl TxVersion {
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_u32::<LittleEndian>(self.header())?;
-        match self {
-            _ => writer.write_u32::<LittleEndian>(self.version_group_id()),
-        }
+        // match self {
+        //     _ => writer.write_u32::<LittleEndian>(self.version_group_id()),
+        // }
+        // TBD: We need remove the versions.
+        writer.write_u32::<LittleEndian>(self.version_group_id())
     }
 
     pub fn has_sapling(&self) -> bool {
