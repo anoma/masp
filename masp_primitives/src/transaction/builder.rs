@@ -18,10 +18,9 @@ use crate::{
     prover::TxProver,
     redjubjub::{PrivateKey, Signature},
     sapling::{spend_sig_internal, Node},
-    transaction::Authorization,
     transaction::{
-        amount::Amount, memo::MemoBytes, Authorized, Bundle, GrothProofBytes, OutputDescription,
-        SpendDescription,
+        amount::Amount, memo::MemoBytes, Authorization, Authorized, Bundle, GrothProofBytes,
+        OutputDescription, SpendDescription,
     },
     util::generate_random_rseed,
     zip32::ExtendedSpendingKey,

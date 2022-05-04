@@ -10,8 +10,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
-use std::hash::Hash;
-use std::hash::Hasher;
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq)]
 pub struct AssetType {

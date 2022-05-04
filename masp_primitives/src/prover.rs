@@ -1,12 +1,10 @@
 //! Abstractions over the proving system and parameters.
 
-use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey};
-
-use crate::convert::AllowedConversion;
 use crate::{
     asset_type::AssetType,
+    convert::AllowedConversion,
     merkle_tree::MerklePath,
-    primitives::Rseed,
+    primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };

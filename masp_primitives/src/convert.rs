@@ -1,6 +1,8 @@
-use crate::asset_type::AssetType;
-use crate::pedersen_hash::{pedersen_hash, Personalization};
-use crate::primitives::ValueCommitment;
+use crate::{
+    asset_type::AssetType,
+    pedersen_hash::{pedersen_hash, Personalization},
+    primitives::ValueCommitment,
+};
 use group::{Curve, GroupEncoding};
 
 #[derive(Clone, Debug, PartialEq)]

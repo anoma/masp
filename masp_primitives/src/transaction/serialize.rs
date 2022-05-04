@@ -3,8 +3,10 @@ use group::GroupEncoding;
 use std::io::Write;
 
 use super::{OutputDescription, SpendDescription};
-use crate::transaction::util::*;
-use crate::{primitives::Nullifier, transaction::Authorization};
+use crate::{
+    primitives::Nullifier,
+    transaction::{util::*, Authorization},
+};
 
 impl<A: Authorization + PartialEq + BorshSerialize> BorshSerialize for SpendDescription<A>
 where

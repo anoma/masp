@@ -1,5 +1,7 @@
-use borsh::maybestd::io::{Error, ErrorKind};
-use borsh::BorshDeserialize;
+use borsh::{
+    maybestd::io::{Error, ErrorKind},
+    BorshDeserialize,
+};
 use group::GroupEncoding;
 use std::convert::TryInto;
 
