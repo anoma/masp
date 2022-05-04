@@ -698,16 +698,16 @@ mod tests {
         let j_2 = DiversifierIndex([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         let j_3 = DiversifierIndex([3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         // Computed using this Rust implementation
-        let d_0 = [220, 231, 126, 188, 236, 10, 38, 175, 214, 153, 140];
+        let d_1 = [99, 115, 138, 165, 247, 190, 34, 225, 172, 220, 11];
         let d_3 = [60, 253, 170, 8, 171, 147, 220, 31, 3, 144, 34];
 
         // j = 0
-        let d_j = dk.diversifier(j_0).unwrap();
-        assert_eq!(d_j.0, d_0);
-        assert_eq!(dk.diversifier_index(&Diversifier(d_0)), j_0);
+        assert_eq!(dk.diversifier(j_0), None);
 
         // j = 1
-        assert_eq!(dk.diversifier(j_1), None);
+        let d_j = dk.diversifier(j_1).unwrap();
+        assert_eq!(d_j.0, d_1);
+        assert_eq!(dk.diversifier_index(&Diversifier(d_1)), j_1);
 
         // j = 2
         assert_eq!(dk.diversifier(j_2), None);
@@ -726,18 +726,18 @@ mod tests {
         let j_2 = DiversifierIndex([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         let j_3 = DiversifierIndex([3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         // Computed using this Rust implementation
-        let d_0 = [220, 231, 126, 188, 236, 10, 38, 175, 214, 153, 140];
+        let d_1 = [99, 115, 138, 165, 247, 190, 34, 225, 172, 220, 11];
         let d_3 = [60, 253, 170, 8, 171, 147, 220, 31, 3, 144, 34];
 
         // j = 0
         let (j, d_j) = dk.find_diversifier(j_0).unwrap();
-        assert_eq!(j, j_0);
-        assert_eq!(d_j.0, d_0);
+        assert_eq!(j, j_1);
+        assert_eq!(d_j.0, d_1);
 
         // j = 1
         let (j, d_j) = dk.find_diversifier(j_1).unwrap();
-        assert_eq!(j, j_3);
-        assert_eq!(d_j.0, d_3);
+        assert_eq!(j, j_1);
+        assert_eq!(d_j.0, d_1);
 
         // j = 2
         let (j, d_j) = dk.find_diversifier(j_2).unwrap();
@@ -752,7 +752,7 @@ mod tests {
 
     #[test]
     fn address() {
-        let seed = [0; 32];
+        let seed = [1; 32];
         let xsk_m = ExtendedSpendingKey::master(&seed);
         let xfvk_m = ExtendedFullViewingKey::from(&xsk_m);
         let j_0 = DiversifierIndex::new();
@@ -760,22 +760,22 @@ mod tests {
         assert_eq!(
             addr_m.diversifier().0,
             // Computed using this Rust implementation
-            [1, 176, 125, 234, 196, 5, 225, 212, 95, 175, 239]
+            [43, 247, 71, 13, 212, 65, 175, 80, 207, 46, 112]
         );
 
-        let j_1 = DiversifierIndex([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-        assert_eq!(xfvk_m.address(j_1), None);
+        let j_2 = DiversifierIndex([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(xfvk_m.address(j_2), None);
     }
     #[test]
     fn default_address() {
         let seed = [0; 32];
         let xsk_m = ExtendedSpendingKey::master(&seed);
         let (j_m, addr_m) = xsk_m.default_address();
-        assert_eq!(j_m.0, [0; 11]);
+        assert_eq!(j_m.0, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         assert_eq!(
             addr_m.diversifier().0,
             // Computed using ExtendedSpendingKey.master(bytes([0]*32)).diversifier(0) in sapling_zip32.py using MASP personalizations
-            [1, 176, 125, 234, 196, 5, 225, 212, 95, 175, 239]
+            [70, 124, 99, 195, 137, 89, 254, 192, 37, 162, 220]
         );
     }
 
@@ -902,14 +902,12 @@ mod tests {
                     0x73, 0xbe, 0xc7, 0x43, 0xd3, 0xa6, 0xbd, 0x75, 0xaf, 0x08, 0xfe, 0xaa, 0x2d,
                     0x6d, 0x65, 0x02, 0x31, 0xdc, 0xb3,
                 ],
-                d0: Some([
-                    0x99, 0x3f, 0x45, 0x5b, 0x74, 0x15, 0x9e, 0x49, 0xf9, 0xcf, 0x33,
-                ]),
+                d0: None,
                 d1: None,
-                d2: None,
-                dmax: Some([
-                    0x50, 0xac, 0x45, 0xb9, 0x79, 0xa1, 0x7d, 0x83, 0xa7, 0x49, 0xea,
+                d2: Some([
+                    0x7b, 0x54, 0x83, 0xba, 0xf0, 0xca, 0x80, 0x96, 0xb0, 0xe2, 0xc0,
                 ]),
+                dmax: None,
                 internal_nsk: Some([
                     0x01, 0x0c, 0xcb, 0x77, 0xed, 0x04, 0x77, 0xdc, 0xf8, 0x0a, 0xef, 0x52, 0x1b,
                     0xd5, 0x80, 0x06, 0xb2, 0x30, 0xd2, 0x5d, 0x7d, 0x77, 0x92, 0xbb, 0xf2, 0x56,
@@ -1052,9 +1050,7 @@ mod tests {
                     0x42, 0xce, 0x67, 0xa3, 0x2d, 0x00, 0xe3, 0xb8, 0xfb, 0x05, 0x13,
                 ]),
                 d2: None,
-                dmax: Some([
-                    0xbc, 0x15, 0x9c, 0x91, 0xe7, 0xab, 0x50, 0xb2, 0x52, 0x91, 0x03,
-                ]),
+                dmax: None,
                 internal_nsk: Some([
                     0xb3, 0xb6, 0xcc, 0xd1, 0xf0, 0xb7, 0x7e, 0x0a, 0xe3, 0xdf, 0x52, 0xc6, 0xe0,
                     0x5f, 0x84, 0x6f, 0x4a, 0x06, 0xd2, 0xc8, 0xb3, 0xea, 0x5b, 0x58, 0x9a, 0x33,
@@ -1192,11 +1188,13 @@ mod tests {
                     0x71, 0x32, 0x11, 0x60, 0x52, 0xef, 0xf7, 0x65, 0x96, 0x67, 0xd9, 0xf7, 0xfd,
                     0xad, 0xd0, 0x1f, 0x10, 0x08, 0xa1,
                 ],
-                d0: Some([
-                    0x18, 0x36, 0xc0, 0x6f, 0x69, 0x94, 0x47, 0x49, 0xaa, 0x48, 0x0b,
+                d0: None,
+                d1: Some([
+                    0x68, 0x09, 0x7b, 0x5c, 0x8a, 0x1d, 0x59, 0x7b, 0xb6, 0xda, 0xab,
                 ]),
-                d1: None,
-                d2: None,
+                d2: Some([
+                    0x27, 0x1b, 0xb3, 0x1b, 0xfb, 0x9c, 0xc7, 0x7a, 0xac, 0xf1, 0x2b,
+                ]),
                 dmax: Some([
                     0x63, 0xea, 0x9f, 0xbb, 0x99, 0x95, 0xc9, 0x39, 0x7a, 0xc2, 0x23,
                 ]),
@@ -1315,11 +1313,13 @@ mod tests {
                     0x71, 0x32, 0x11, 0x60, 0x52, 0xef, 0xf7, 0x65, 0x96, 0x67, 0xd9, 0xf7, 0xfd,
                     0xad, 0xd0, 0x1f, 0x10, 0x08, 0xa1,
                 ],
-                d0: Some([
-                    0x18, 0x36, 0xc0, 0x6f, 0x69, 0x94, 0x47, 0x49, 0xaa, 0x48, 0x0b,
+                d0: None,
+                d1: Some([
+                    0x68, 0x09, 0x7b, 0x5c, 0x8a, 0x1d, 0x59, 0x7b, 0xb6, 0xda, 0xab,
                 ]),
-                d1: None,
-                d2: None,
+                d2: Some([
+                    0x27, 0x1b, 0xb3, 0x1b, 0xfb, 0x9c, 0xc7, 0x7a, 0xac, 0xf1, 0x2b,
+                ]),
                 dmax: Some([
                     0x63, 0xea, 0x9f, 0xbb, 0x99, 0x95, 0xc9, 0x39, 0x7a, 0xc2, 0x23,
                 ]),
@@ -1420,14 +1420,14 @@ mod tests {
                     0x4f, 0xb7, 0x76, 0xc5, 0xe0, 0x68, 0xde, 0xe2, 0x4b, 0x1a, 0xce, 0x7a, 0x42,
                     0x48, 0x6f, 0x35, 0x8e, 0x94, 0x36,
                 ],
-                d0: Some([
-                    0x1b, 0x9b, 0x96, 0x29, 0xb3, 0x83, 0x1c, 0x12, 0xad, 0x1d, 0x06,
+                d0: None,
+                d1: None,
+                d2: Some([
+                    0xae, 0x08, 0x39, 0xb2, 0xb6, 0x81, 0x1a, 0xe9, 0x4c, 0xdd, 0x59,
                 ]),
-                d1: Some([
-                    0x7a, 0xa8, 0x22, 0x53, 0x7d, 0x01, 0x5c, 0x19, 0xd8, 0x37, 0x46,
+                dmax: Some([
+                    0x7a, 0x30, 0xc1, 0xc5, 0x3a, 0x3c, 0x16, 0x59, 0x9a, 0xa9, 0x87,
                 ]),
-                d2: None,
-                dmax: None,
                 internal_nsk: None,
                 internal_ovk: [
                     0x41, 0x77, 0x92, 0x32, 0x32, 0x46, 0xd3, 0x0c, 0xff, 0x01, 0x92, 0xb3, 0x8c,

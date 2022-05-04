@@ -562,7 +562,7 @@ mod tests {
 
         let rseed = generate_random_rseed(&TEST_NETWORK, height, &mut rng);
 
-        let note = pa.create_note(asset_type, value.into(), rseed).unwrap();
+        let note = pa.create_note(asset_type, value, rseed).unwrap();
         let cmu = note.cmu();
 
         let ovk = OutgoingViewingKey([0; 32]);

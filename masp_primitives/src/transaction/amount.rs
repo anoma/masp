@@ -10,14 +10,13 @@ pub const DEFAULT_FEE: Amount = Amount(1000);
 /// A type-safe representation of some quantity of Zcash.
 ///
 /// An Amount can only be constructed from an integer that is within the valid monetary
-/// range of `{-MAX_MONEY..MAX_MONEY}` (where `MAX_MONEY` = 21,000,000 × 10⁸ zatoshis).
+/// range of `{-MAX_MONEY..MAX_MONEY}` (where `MAX_MONEY` = i64::MAX).
 /// However, this range is not preserved as an invariant internally; it is possible to
 /// add two valid Amounts together to obtain an invalid Amount. It is the user's
 /// responsibility to handle the result of serializing potentially-invalid Amounts. In
-/// particular, a [`Transaction`] containing serialized invalid Amounts will be rejected
+/// particular, a `Transaction` containing serialized invalid Amounts will be rejected
 /// by the network consensus rules.
 ///
-/// [`Transaction`]: crate::transaction::Transaction
 #[derive(
     Clone, Copy, Default, Debug, PartialEq, PartialOrd, Eq, Ord, BorshSerialize, BorshDeserialize,
 )]
@@ -45,6 +44,7 @@ impl Amount {
     ///
     /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
     pub fn from_i64(amount: i64) -> Result<Self, ()> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if -MAX_MONEY <= amount && amount <= MAX_MONEY {
             Ok(Amount(amount))
         } else {
@@ -258,7 +258,7 @@ mod tests {
         assert!(Amount::from_nonnegative_i64_le_bytes(*neg_one).is_err());
         assert_eq!(Amount::from_i64_le_bytes(*neg_one).unwrap(), Amount(-1));
 
-        let max_money = b"\x00\x40\x07\x5a\xf0\x75\x07\x00";
+        let max_money = b"\xff\xff\xff\xff\xff\xff\xff\x7f";
         assert_eq!(
             Amount::from_u64_le_bytes(*max_money).unwrap(),
             Amount(MAX_MONEY)
@@ -272,12 +272,13 @@ mod tests {
             Amount(MAX_MONEY)
         );
 
-        let max_money_p1 = b"\x01\x40\x07\x5a\xf0\x75\x07\x00";
+        // max_money_p1 = MAX_MONEY + 1
+        let max_money_p1 = b"\x00\x00\x00\x00\x00\x00\x00\x80";
         assert!(Amount::from_u64_le_bytes(*max_money_p1).is_err());
         assert!(Amount::from_nonnegative_i64_le_bytes(*max_money_p1).is_err());
         assert!(Amount::from_i64_le_bytes(*max_money_p1).is_err());
 
-        let neg_max_money = b"\x00\xc0\xf8\xa5\x0f\x8a\xf8\xff";
+        let neg_max_money = b"\x01\x00\x00\x00\x00\x00\x00\x80";
         assert!(Amount::from_u64_le_bytes(*neg_max_money).is_err());
         assert!(Amount::from_nonnegative_i64_le_bytes(*neg_max_money).is_err());
         assert_eq!(
@@ -285,7 +286,7 @@ mod tests {
             Amount(-MAX_MONEY)
         );
 
-        let neg_max_money_m1 = b"\xff\xbf\xf8\xa5\x0f\x8a\xf8\xff";
+        let neg_max_money_m1 = b"\x00\x00\x00\x00\x00\x00\x00\x80";
         assert!(Amount::from_u64_le_bytes(*neg_max_money_m1).is_err());
         assert!(Amount::from_nonnegative_i64_le_bytes(*neg_max_money_m1).is_err());
         assert!(Amount::from_i64_le_bytes(*neg_max_money_m1).is_err());
