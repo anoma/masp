@@ -73,7 +73,7 @@ pub struct Output {
 
 /// Exposes a Pedersen commitment to the value as an
 /// input to the circuit
-fn expose_value_commitment<CS>(
+pub fn expose_value_commitment<CS>(
     mut cs: CS,
     value_commitment: Option<ValueCommitment>,
 ) -> Result<(Vec<boolean::Boolean>, Vec<boolean::Boolean>), SynthesisError>
@@ -621,7 +621,7 @@ fn test_input_circuit_with_bls12_381() {
 
     let tree_depth = 32;
 
-    for i in 0..400u32 {
+    for i in 0..30u32 {
         let asset_type = if i < 10 {
             AssetType::new(b"default")
         } else {
@@ -631,7 +631,7 @@ fn test_input_circuit_with_bls12_381() {
         let mut value_commitment =
             asset_type.value_commitment(rng.next_u64(), jubjub::Fr::random(&mut rng));
 
-        if i >= 200 {
+        if i >= 20 {
             value_commitment.asset_generator = -value_commitment.asset_generator;
         }
 
@@ -730,7 +730,7 @@ fn test_input_circuit_with_bls12_381() {
 
             instance.synthesize(&mut cs).unwrap();
 
-            if i < 200 {
+            if i < 20 {
                 assert!(cs.is_satisfied());
             } else {
                 assert!(!cs.is_satisfied());
@@ -740,7 +740,7 @@ fn test_input_circuit_with_bls12_381() {
                 cs.hash(),
                 "34e4a634c80e4e4c6250e63b7855532e60b36d1371d4d7b1163218b69f09eb3d"
             );
-            if i < 200 {
+            if i < 20 {
                 assert_eq!(cs.get("randomization of note commitment/u3/num"), cmu);
             } else {
                 assert_ne!(cs.get("randomization of note commitment/u3/num"), cmu);
@@ -759,7 +759,7 @@ fn test_input_circuit_with_bls12_381() {
                 expected_value_commitment.get_v()
             );
             assert_eq!(cs.get_input(5, "anchor/input variable"), cur);
-            if i < 200 {
+            if i < 20 {
                 assert_eq!(cs.get_input(6, "pack nullifier/input 0"), expected_nf[0]);
                 assert_eq!(cs.get_input(7, "pack nullifier/input 1"), expected_nf[1]);
             } else {
@@ -975,7 +975,7 @@ fn test_output_circuit_with_bls12_381() {
         0xe5,
     ]);
 
-    for i in 0..400 {
+    for i in 0..30 {
         let asset_type = if i < 10 {
             AssetType::new(b"default")
         } else {
@@ -985,7 +985,7 @@ fn test_output_circuit_with_bls12_381() {
         let mut value_commitment =
             asset_type.value_commitment(rng.next_u64(), jubjub::Fr::random(&mut rng));
 
-        if i >= 200 {
+        if i >= 20 {
             value_commitment.asset_generator = -value_commitment.asset_generator;
         }
 
@@ -1027,7 +1027,7 @@ fn test_output_circuit_with_bls12_381() {
 
             instance.synthesize(&mut cs).unwrap();
 
-            if i < 200 {
+            if i < 20 {
                 assert!(cs.is_satisfied());
             } else {
                 assert!(!cs.is_satisfied());
@@ -1072,7 +1072,7 @@ fn test_output_circuit_with_bls12_381() {
                 cs.get_input(4, "epk/v/input variable"),
                 expected_epk.get_v()
             );
-            if i < 200 {
+            if i < 20 {
                 assert_eq!(cs.get_input(5, "commitment/input variable"), expected_cmu);
             }
         }

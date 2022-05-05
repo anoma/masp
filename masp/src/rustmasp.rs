@@ -65,9 +65,11 @@ mod tests;
 
 static mut SAPLING_SPEND_VK: Option<PreparedVerifyingKey<Bls12>> = None;
 static mut SAPLING_OUTPUT_VK: Option<PreparedVerifyingKey<Bls12>> = None;
+static mut CONVERT_VK: Option<PreparedVerifyingKey<Bls12>> = None;
 
 static mut SAPLING_SPEND_PARAMS: Option<Parameters<Bls12>> = None;
 static mut SAPLING_OUTPUT_PARAMS: Option<Parameters<Bls12>> = None;
+static mut CONVERT_PARAMS: Option<Parameters<Bls12>> = None;
 
 /// Converts CtOption<t> into Option<T>
 fn de_ct<T>(ct: CtOption<T>) -> Option<T> {
@@ -96,6 +98,8 @@ pub extern "C" fn libmasp_init_zksnark_params(
     spend_path_len: usize,
     output_path: *const u8,
     output_path_len: usize,
+    convert_path: *const u8,
+    convert_path_len: usize,
 ) {
     let spend_path = Path::new(OsStr::from_bytes(unsafe {
         slice::from_raw_parts(spend_path, spend_path_len)
@@ -103,8 +107,11 @@ pub extern "C" fn libmasp_init_zksnark_params(
     let output_path = Path::new(OsStr::from_bytes(unsafe {
         slice::from_raw_parts(output_path, output_path_len)
     }));
+    let convert_path = Path::new(OsStr::from_bytes(unsafe {
+        slice::from_raw_parts(convert_path, convert_path_len)
+    }));
 
-    init_zksnark_params(spend_path, output_path)
+    init_zksnark_params(spend_path, output_path, convert_path)
 }
 
 /// Loads the zk-SNARK parameters into memory and saves paths as necessary.
@@ -116,27 +123,33 @@ pub extern "C" fn libmasp_init_zksnark_params(
     spend_path_len: usize,
     output_path: *const u16,
     output_path_len: usize,
+    convert_path: *const u16,
+    convert_path_len: usize,
 ) {
     let spend_path =
         OsString::from_wide(unsafe { slice::from_raw_parts(spend_path, spend_path_len) });
     let output_path =
         OsString::from_wide(unsafe { slice::from_raw_parts(output_path, output_path_len) });
+    let convert_path =
+        OsString::from_wide(unsafe { slice::from_raw_parts(convert_path, convert_path_len) });
 
-    init_zksnark_params(Path::new(&spend_path), Path::new(&output_path))
+    init_zksnark_params(Path::new(&spend_path), Path::new(&output_path), Path::new(&convert_path))
 }
 
-fn init_zksnark_params(spend_path: &Path, output_path: &Path) {
+fn init_zksnark_params(spend_path: &Path, output_path: &Path, convert_path: &Path) {
     // Load params
-    let p = load_parameters(spend_path, output_path);
+    let p = load_parameters(spend_path, output_path, convert_path);
 
     // Caller is responsible for calling this function once, so
     // these global mutations are safe.
     unsafe {
         SAPLING_SPEND_PARAMS = Some(p.spend_params);
         SAPLING_OUTPUT_PARAMS = Some(p.output_params);
+        CONVERT_PARAMS = Some(p.convert_params);
 
         SAPLING_SPEND_VK = Some(p.spend_vk);
         SAPLING_OUTPUT_VK = Some(p.output_vk);
+        CONVERT_VK = Some(p.convert_vk);
     }
 }
 
