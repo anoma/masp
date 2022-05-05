@@ -18,6 +18,7 @@ use std::ops::{AddAssign, Neg};
 use zcash_primitives::sapling::Rseed;
 use masp_primitives::merkle_tree::MerklePath;
 
+use crate::circuit::convert::Convert;
 use super::masp_compute_value_balance;
 use crate::circuit::convert::Convert;
 use crate::circuit::sapling::{Output, Spend};

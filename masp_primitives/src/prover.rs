@@ -1,7 +1,6 @@
 //! Abstractions over the proving system and parameters.
 
 use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey};
-
 use crate::convert::AllowedConversion;
 use crate::{
     redjubjub::{PublicKey, Signature},
