@@ -365,7 +365,9 @@ pub mod testing {
 mod tests {
     use std::convert::TryFrom;
 
-    use super::{BlockHeight, BranchId, Parameters, MAIN_NETWORK, UPGRADES_IN_ORDER};
+    use super::{
+        BlockHeight, BranchId, NetworkUpgrade, Parameters, MAIN_NETWORK, UPGRADES_IN_ORDER,
+    };
 
     #[test]
     fn nu_ordering() {
@@ -385,6 +387,13 @@ mod tests {
                 ),
             }
         }
+    }
+
+    #[test]
+    fn nu_is_active() {
+        assert!(!MAIN_NETWORK.is_nu_active(NetworkUpgrade::Canopy, BlockHeight(0)));
+        assert!(!MAIN_NETWORK.is_nu_active(NetworkUpgrade::Canopy, BlockHeight(419_199)));
+        assert!(MAIN_NETWORK.is_nu_active(NetworkUpgrade::Canopy, BlockHeight(419_200)));
     }
 
     #[test]

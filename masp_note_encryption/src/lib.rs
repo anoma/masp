@@ -357,7 +357,7 @@ pub trait ShieldedOutput<D: Domain, const CIPHERTEXT_SIZE: usize> {
 ///
 /// let mut rng = OsRng;
 ///
-/// let diversifier = Diversifier([0; 11]);
+/// let diversifier = Diversifier([10u8; 11]);
 /// let pk_d = diversifier.g_d().unwrap();
 /// let to = PaymentAddress::from_parts(diversifier, pk_d).unwrap();
 /// let ovk = Some(OutgoingViewingKey([0; 32]));

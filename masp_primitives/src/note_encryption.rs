@@ -548,7 +548,7 @@ mod tests {
         OutgoingCipherKey,
         OutputDescription<GrothProofBytes>,
     ) {
-        let diversifier = Diversifier([0; 11]);
+        let diversifier = Diversifier([10u8; 11]);
         let pk_d = diversifier.g_d().unwrap() * ivk.0;
         let pa = PaymentAddress::from_parts_unchecked(diversifier, pk_d);
 
