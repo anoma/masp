@@ -497,7 +497,7 @@ mod tests {
 
     use crate::{
         keys::OutgoingViewingKey,
-        primitives::{Diversifier, PaymentAddress, SaplingIvk},
+        primitives::{Diversifier, Note, PaymentAddress, SaplingIvk},
         prover::GROTH_PROOF_SIZE,
         transaction::{CompactOutputDescription, OutputDescription},
     };
@@ -517,7 +517,7 @@ mod tests {
     ) {
         let ivk = SaplingIvk(jubjub::Fr::random(&mut rng));
 
-        let (ovk, ock, output) = random_enc_ciphertext_with(height, &ivk, rng);
+        let (ovk, ock, output, _, _, _) = random_enc_ciphertext_with(height, &ivk, rng);
 
         assert!(try_sapling_note_decryption(&TEST_NETWORK, height, &ivk, &output).is_some());
         assert!(try_sapling_compact_note_decryption(
@@ -547,6 +547,9 @@ mod tests {
         OutgoingViewingKey,
         OutgoingCipherKey,
         OutputDescription<GrothProofBytes>,
+        Note,
+        PaymentAddress,
+        MemoBytes,
     ) {
         let diversifier = Diversifier([10u8; 11]);
         let pk_d = diversifier.g_d().unwrap() * ivk.0;
@@ -566,11 +569,12 @@ mod tests {
         let cmu = note.cmu();
 
         let ovk = OutgoingViewingKey([0; 32]);
+        let memo = MemoBytes::empty();
         let ne = sapling_note_encryption::<_, TestNetwork>(
             Some(ovk),
-            note,
-            pa,
-            MemoBytes::empty(),
+            note.clone(),
+            pa.clone(),
+            memo.clone(),
             &mut rng,
         );
         let epk = *ne.epk();
@@ -585,7 +589,7 @@ mod tests {
             zkproof: [0u8; GROTH_PROOF_SIZE],
         };
 
-        (ovk, ock, output)
+        (ovk, ock, output, note, pa, memo)
     }
 
     fn reencrypt_enc_ciphertext(
@@ -1208,7 +1212,7 @@ mod tests {
 
         for &height in heights.iter() {
             let ivk = SaplingIvk(jubjub::Fr::zero());
-            let (ovk, ock, output) = random_enc_ciphertext_with(height, &ivk, &mut rng);
+            let (ovk, ock, output, _, _, _) = random_enc_ciphertext_with(height, &ivk, &mut rng);
 
             assert_eq!(
                 try_sapling_output_recovery(&TEST_NETWORK, height, &ovk, &output,),
@@ -1220,157 +1224,56 @@ mod tests {
             );
         }
     }
-    /*
+
     #[test]
-    fn test_vectors() {
-        let test_vectors = crate::test_vectors::note_encryption::make_test_vectors();
+    fn test_note_encryption() {
+        // Encryption
+        let mut rng = OsRng;
+        let height = TEST_NETWORK.activation_height(Canopy).unwrap();
+        let ivk = SaplingIvk(jubjub::Fr::random(rng));
+        let (ovk, ock, output, note, to, memo) = random_enc_ciphertext_with(height, &ivk, &mut rng);
 
-        macro_rules! read_bls12_381_scalar {
-            ($field:expr) => {{
-                bls12_381::Scalar::from_repr($field[..].try_into().unwrap()).unwrap()
-            }};
+        // Decryption
+        match try_sapling_note_decryption(&TEST_NETWORK, height, &ivk, &output) {
+            Some((decrypted_note, decrypted_to, decrypted_memo)) => {
+                assert_eq!(decrypted_note, note);
+                assert_eq!(decrypted_to, to);
+                assert_eq!(decrypted_memo, memo);
+            }
+            None => panic!("Note decryption failed"),
         }
 
-        macro_rules! read_jubjub_scalar {
-            ($field:expr) => {{
-                jubjub::Fr::from_repr($field[..].try_into().unwrap()).unwrap()
-            }};
+        match try_sapling_compact_note_decryption(
+            &TEST_NETWORK,
+            height,
+            &ivk,
+            &CompactOutputDescription::from(output.clone()),
+        ) {
+            Some((decrypted_note, decrypted_to)) => {
+                assert_eq!(decrypted_note, note);
+                assert_eq!(decrypted_to, to);
+            }
+            None => panic!("Compact note decryption failed"),
         }
 
-        macro_rules! read_point {
-            ($field:expr) => {
-                jubjub::ExtendedPoint::from_bytes(&$field).unwrap()
-            };
+        match try_sapling_output_recovery(&TEST_NETWORK, height, &ovk, &output) {
+            Some((decrypted_note, decrypted_to, decrypted_memo)) => {
+                assert_eq!(decrypted_note, note);
+                assert_eq!(decrypted_to, to);
+                assert_eq!(decrypted_memo, memo);
+            }
+            None => panic!("Output recovery failed"),
         }
 
-        let height = TEST_NETWORK.activation_height(Sapling).unwrap();
-
-        for tv in test_vectors {
-            //
-            // Load the test vector components
-            //
-
-            let ivk = SaplingIvk(read_jubjub_scalar!(tv.ivk));
-            let pk_d = read_point!(tv.default_pk_d).into_subgroup().unwrap();
-            let rcm = read_jubjub_scalar!(tv.rcm);
-            let cv = read_point!(tv.cv);
-            let cmu = read_bls12_381_scalar!(tv.cmu);
-            let esk = read_jubjub_scalar!(tv.esk);
-            let ephemeral_key = EphemeralKeyBytes(tv.epk);
-
-            //
-            // Test the individual components
-            //
-
-            let shared_secret = sapling_ka_agree(&esk, &pk_d.into());
-            assert_eq!(shared_secret.to_bytes(), tv.shared_secret);
-
-            let k_enc = kdf_sapling(shared_secret, &ephemeral_key);
-            assert_eq!(k_enc.as_bytes(), tv.k_enc);
-
-            let ovk = OutgoingViewingKey(tv.ovk);
-            let ock = prf_ock(&ovk, &cv, &cmu.to_repr(), &ephemeral_key);
-            assert_eq!(ock.as_ref(), tv.ock);
-
-            let to = PaymentAddress::from_parts(Diversifier(tv.default_d), pk_d).unwrap();
-            let note = to.create_note(tv.v, Rseed::BeforeZip212(rcm)).unwrap();
-            assert_eq!(note.cmu(), cmu);
-
-            let output = OutputDescription {
-                cv,
-                cmu,
-                ephemeral_key,
-                enc_ciphertext: tv.c_enc,
-                out_ciphertext: tv.c_out,
-                zkproof: [0u8; GROTH_PROOF_SIZE],
-            };
-
-            //
-            // Test decryption
-            // (Tested first because it only requires immutable references.)
-            //
-
-            match try_sapling_note_decryption(&TEST_NETWORK, height, &ivk, &output) {
-                Some((decrypted_note, decrypted_to, decrypted_memo)) => {
-                    assert_eq!(decrypted_note, note);
-                    assert_eq!(decrypted_to, to);
-                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
-                }
-                None => panic!("Note decryption failed"),
+        match try_sapling_output_recovery_with_ock(&TEST_NETWORK, height, &ock, &output) {
+            Some((decrypted_note, decrypted_to, decrypted_memo)) => {
+                assert_eq!(decrypted_note, note);
+                assert_eq!(decrypted_to, to);
+                assert_eq!(decrypted_memo, memo);
             }
-
-            match try_sapling_compact_note_decryption(
-                &TEST_NETWORK,
-                height,
-                &ivk,
-                &CompactOutputDescription::from(output.clone()),
-            ) {
-                Some((decrypted_note, decrypted_to)) => {
-                    assert_eq!(decrypted_note, note);
-                    assert_eq!(decrypted_to, to);
-                }
-                None => panic!("Compact note decryption failed"),
-            }
-
-            match try_sapling_output_recovery(&TEST_NETWORK, height, &ovk, &output) {
-                Some((decrypted_note, decrypted_to, decrypted_memo)) => {
-                    assert_eq!(decrypted_note, note);
-                    assert_eq!(decrypted_to, to);
-                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
-                }
-                None => panic!("Output recovery failed"),
-            }
-
-            match &batch::try_note_decryption(
-                &[ivk.clone()],
-                &[(
-                    SaplingDomain::for_height(TEST_NETWORK, height),
-                    output.clone(),
-                )],
-            )[..]
-            {
-                [Some((decrypted_note, decrypted_to, decrypted_memo))] => {
-                    assert_eq!(decrypted_note, &note);
-                    assert_eq!(decrypted_to, &to);
-                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
-                }
-                _ => panic!("Note decryption failed"),
-            }
-
-            match &batch::try_compact_note_decryption(
-                &[ivk.clone()],
-                &[(
-                    SaplingDomain::for_height(TEST_NETWORK, height),
-                    CompactOutputDescription::from(output.clone()),
-                )],
-            )[..]
-            {
-                [Some((decrypted_note, decrypted_to))] => {
-                    assert_eq!(decrypted_note, &note);
-                    assert_eq!(decrypted_to, &to);
-                }
-                _ => panic!("Note decryption failed"),
-            }
-
-            //
-            // Test encryption
-            //
-
-            let ne = NoteEncryption::<SaplingDomain<TestNetwork>>::new_with_esk(
-                esk,
-                Some(ovk),
-                note,
-                to,
-                MemoBytes::from_bytes(&tv.memo).unwrap(),
-            );
-
-            assert_eq!(ne.encrypt_note_plaintext().as_ref(), &tv.c_enc[..]);
-            assert_eq!(
-                &ne.encrypt_outgoing_plaintext(&cv, &cmu, &mut OsRng)[..],
-                &tv.c_out[..]
-            );
+            None => panic!("Output recovery with ock failed"),
         }
-    }*/
+    }
 
     #[test]
     fn batching() {
