@@ -2,6 +2,10 @@ use crate::asset_type::AssetType;
 use crate::pedersen_hash::{pedersen_hash, Personalization};
 use crate::primitives::ValueCommitment;
 use group::{Curve, GroupEncoding};
+<<<<<<< HEAD
+=======
+use crate::transaction::components::Amount;
+>>>>>>> 7ad7c6c (Augmented transaction objects to include convert notes.)
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AllowedConversion {
@@ -9,6 +13,19 @@ pub struct AllowedConversion {
     pub assets: Vec<(AssetType, i64)>,
 }
 
+<<<<<<< HEAD
+=======
+impl Into<Amount> for AllowedConversion {
+    fn into(self) -> Amount {
+        let mut res = Amount::zero();
+        for (asset_type, value) in self.assets {
+            res += Amount::from(asset_type, value).unwrap();
+        }
+        res
+    }
+}
+
+>>>>>>> 7ad7c6c (Augmented transaction objects to include convert notes.)
 impl AllowedConversion {
     pub fn uncommitted() -> bls12_381::Scalar {
         // The smallest u-coordinate that is not on the curve
