@@ -296,6 +296,100 @@ impl SpendDescription {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ConvertDescription {
+    #[serde(serialize_with = "sserialize_extended_point")]
+    #[serde(deserialize_with = "sdeserialize_extended_point")]
+    pub cv: jubjub::ExtendedPoint,
+    #[serde(serialize_with = "sserialize_scalar")]
+    #[serde(deserialize_with = "sdeserialize_scalar")]
+    pub anchor: bls12_381::Scalar,
+    #[serde(serialize_with = "sserialize_array::<_, u8, u8, GROTH_PROOF_SIZE>")]
+    #[serde(deserialize_with = "sdeserialize_array::<_, u8, u8, GROTH_PROOF_SIZE>")]
+    pub zkproof: [u8; GROTH_PROOF_SIZE],
+}
+
+impl PartialOrd for ConvertDescription {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        (self.cv.to_bytes(), self.anchor.to_bytes(), self.zkproof).partial_cmp(&(other.cv.to_bytes(), other.anchor.to_bytes(), other.zkproof))
+    }
+}
+
+impl Hash for ConvertDescription {
+    fn hash<H>(&self, state: &mut H) where H: Hasher {
+        self.cv.to_bytes().hash(state);
+        self.anchor.to_bytes().hash(state);
+        self.zkproof.hash(state);
+    }
+}
+
+impl std::fmt::Debug for ConvertDescription {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "ConvertDescription(cv = {:?}, anchor = {:?})",
+            self.cv, self.anchor
+        )
+    }
+}
+
+impl BorshDeserialize for ConvertDescription {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for ConvertDescription {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl ConvertDescription {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        // Consensus rules (§4.4):
+        // - Canonical encoding is enforced here.
+        // - "Not small order" is enforced in SaplingVerificationContext::check_convert()
+        //   (located in zcash_proofs::sapling::verifier).
+        let cv = {
+            let mut bytes = [0u8; 32];
+            reader.read_exact(&mut bytes)?;
+            let cv = jubjub::ExtendedPoint::from_bytes(&bytes);
+            if cv.is_none().into() {
+                return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid cv"));
+            }
+            cv.unwrap()
+        };
+
+        // Consensus rule (§7.3): Canonical encoding is enforced here
+        let anchor = {
+            let mut f = [0u8; 32];
+            reader.read_exact(&mut f)?;
+            Option::from(bls12_381::Scalar::from_repr(f))
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "anchor not in field"))?
+        };
+
+        // Consensus rules (§4.4):
+        // - Canonical encoding is enforced by the API of SaplingVerificationContext::check_convert()
+        //   due to the need to parse this into a bellman::groth16::Proof.
+        // - Proof validity is enforced in SaplingVerificationContext::check_convert()
+        let mut zkproof = [0u8; GROTH_PROOF_SIZE];
+        reader.read_exact(&mut zkproof)?;
+
+        Ok(ConvertDescription {
+            cv,
+            anchor,
+            zkproof,
+        })
+    }
+
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        writer.write_all(&self.cv.to_bytes())?;
+        writer.write_all(self.anchor.to_repr().as_ref())?;
+        writer.write_all(&self.zkproof)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct OutputDescription {
     #[serde(serialize_with = "sserialize_extended_point")]
     #[serde(deserialize_with = "sdeserialize_extended_point")]

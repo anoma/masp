@@ -23,7 +23,7 @@ mod tests;
 
 pub use self::sighash::{signature_hash, signature_hash_data, SIGHASH_ALL};
 
-use self::components::{Amount, JSDescription, OutputDescription, SpendDescription, TxIn, TxOut};
+use self::components::{Amount, JSDescription, ConvertDescription, OutputDescription, SpendDescription, TxIn, TxOut};
 
 const OVERWINTER_VERSION_GROUP_ID: u32 = 0x03C48270;
 const OVERWINTER_TX_VERSION: u32 = 3;
@@ -99,6 +99,7 @@ pub struct TransactionData {
     pub expiry_height: u32,
     pub value_balance: Amount,
     pub shielded_spends: Vec<SpendDescription>,
+    pub shielded_converts: Vec<ConvertDescription>,
     pub shielded_outputs: Vec<OutputDescription>,
     pub joinsplits: Vec<JSDescription>,
     pub joinsplit_pubkey: Option<[u8; 32]>,
@@ -155,6 +156,7 @@ impl TransactionData {
             expiry_height: 0,
             value_balance: Amount::zero(),
             shielded_spends: vec![],
+            shielded_converts: vec![],
             shielded_outputs: vec![],
             joinsplits: vec![],
             joinsplit_pubkey: None,
@@ -227,13 +229,14 @@ impl Transaction {
             0
         };
 
-        let (value_balance, shielded_spends, shielded_outputs) = if is_sapling_v4 {
+        let (value_balance, shielded_spends, shielded_converts, shielded_outputs) = if is_sapling_v4 {
             let vb = Amount::read(reader)?;
             let ss = Vector::read(reader, SpendDescription::read)?;
+            let sc = Vector::read(reader, ConvertDescription::read)?;
             let so = Vector::read(reader, OutputDescription::read)?;
-            (vb, ss, so)
+            (vb, ss, sc, so)
         } else {
-            (Amount::zero(), vec![], vec![])
+            (Amount::zero(), vec![], vec![], vec![])
         };
 
         let (joinsplits, joinsplit_pubkey, joinsplit_sig) = if version >= 2 {
@@ -271,6 +274,7 @@ impl Transaction {
             expiry_height,
             value_balance,
             shielded_spends,
+            shielded_converts,
             shielded_outputs,
             joinsplits,
             joinsplit_pubkey,
@@ -308,6 +312,7 @@ impl Transaction {
         if is_sapling_v4 {
             self.value_balance.write(writer)?;
             Vector::write(writer, &self.shielded_spends, |w, e| e.write(w))?;
+            Vector::write(writer, &self.shielded_converts, |w, e| e.write(w))?;
             Vector::write(writer, &self.shielded_outputs, |w, e| e.write(w))?;
         }
 

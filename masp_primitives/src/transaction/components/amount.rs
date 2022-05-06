@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use std::iter::Sum;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Sub, SubAssign, Mul};
 use std::collections::BTreeMap;
 use crate::transaction::AssetType;
 use std::iter::FromIterator;
@@ -187,6 +187,23 @@ impl Index<&AssetType> for Amount {
 impl From<Amount> for Vec<(AssetType, i64)> {
     fn from(amount: Amount) -> Vec<(AssetType, i64)> {
         Vec::from_iter(amount.0.into_iter())
+    }
+}
+
+impl Mul<i64> for Amount {
+    type Output = Amount;
+
+    fn mul(self, rhs: i64) -> Amount {
+        let mut ret = self.clone();
+        for (atype, amount) in self.components() {
+            let ent = amount * rhs;
+            if -MAX_MONEY <= ent && ent <= MAX_MONEY {
+                ret.0.insert(*atype, ent);
+            } else {
+                panic!("multiplication should remain in range");
+            }
+        }
+        ret
     }
 }
 

@@ -7,6 +7,7 @@ use rand::{rngs::OsRng, seq::SliceRandom, CryptoRng, RngCore};
 use std::error;
 use std::fmt;
 use std::marker::PhantomData;
+use std::convert::TryInto;
 use crate::transaction::AssetType;
 use crate::transaction::components::amount::zec;
 #[cfg(feature = "transparent-inputs")]
@@ -16,6 +17,7 @@ pub use ripemd160;
 
 use crate::merkle_tree::MerklePath;
 use crate::{
+    convert::AllowedConversion,
     consensus,
     keys::OutgoingViewingKey,
     legacy::TransparentAddress,
@@ -24,7 +26,7 @@ use crate::{
     redjubjub::PrivateKey,
     sapling::{spend_sig, Node},
     transaction::{
-        components::{amount::default_fee, Amount, OutputDescription, SpendDescription, TxOut},
+        components::{amount::default_fee, Amount, OutputDescription, SpendDescription, ConvertDescription, TxOut},
         signature_hash_data, Transaction, TransactionData, SIGHASH_ALL,
     },
     util::generate_random_rseed,
@@ -51,6 +53,7 @@ pub enum Error {
     InvalidAmount,
     NoChangeAddress,
     SpendProof,
+    ConvertProof,
 }
 
 impl fmt::Display for Error {
@@ -67,6 +70,7 @@ impl fmt::Display for Error {
             Error::InvalidAmount => write!(f, "Invalid amount"),
             Error::NoChangeAddress => write!(f, "No change address specified or discoverable"),
             Error::SpendProof => write!(f, "Failed to create Sapling spend proof"),
+            Error::ConvertProof => write!(f, "Failed to create convert proof"),
         }
     }
 }
@@ -78,6 +82,12 @@ struct SpendDescriptionInfo {
     diversifier: Diversifier,
     note: Note,
     alpha: jubjub::Fr,
+    merkle_path: MerklePath<Node>,
+}
+
+struct ConvertDescriptionInfo {
+    allowed: AllowedConversion,
+    value: u64,
     merkle_path: MerklePath<Node>,
 }
 
@@ -268,6 +278,7 @@ impl TransparentInputs {
 #[derive(Debug, PartialEq)]
 pub struct TransactionMetadata {
     spend_indices: Vec<usize>,
+    convert_indices: Vec<usize>,
     output_indices: Vec<usize>,
 }
 
@@ -275,6 +286,7 @@ impl TransactionMetadata {
     fn new() -> Self {
         TransactionMetadata {
             spend_indices: vec![],
+            convert_indices: vec![],
             output_indices: vec![],
         }
     }
@@ -288,6 +300,17 @@ impl TransactionMetadata {
     /// [`SpendDescription`] in the transaction.
     pub fn spend_index(&self, n: usize) -> Option<usize> {
         self.spend_indices.get(n).copied()
+    }
+
+    /// Returns the index within the transaction of the [`ConvertDescription`] corresponding
+    /// to the `n`-th call to [`Builder::add_convert`].
+    ///
+    /// Note positions are randomized when building transactions for indistinguishability.
+    /// This means that the transaction consumer cannot assume that e.g. the first convert
+    /// they added (via the first call to [`Builder::add_convert`]) is the first
+    /// [`ConvertDescription`] in the transaction.
+    pub fn convert_index(&self, n: usize) -> Option<usize> {
+        self.convert_indices.get(n).copied()
     }
 
     /// Returns the index within the transaction of the [`OutputDescription`] corresponding
@@ -310,6 +333,8 @@ pub struct Builder<P: consensus::Parameters, R: RngCore + CryptoRng> {
     fee: Amount,
     anchor: Option<bls12_381::Scalar>,
     spends: Vec<SpendDescriptionInfo>,
+    convert_anchor: Option<bls12_381::Scalar>,
+    converts: Vec<ConvertDescriptionInfo>,
     outputs: Vec<SaplingOutput>,
     transparent_inputs: TransparentInputs,
     change_address: Option<(OutgoingViewingKey, PaymentAddress)>,
@@ -352,6 +377,8 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
             fee: default_fee(),
             anchor: None,
             spends: vec![],
+            convert_anchor: None,
+            converts: vec![],
             outputs: vec![],
             transparent_inputs: TransparentInputs::default(),
             change_address: None,
@@ -400,6 +427,39 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
             diversifier,
             note,
             alpha,
+            merkle_path,
+        });
+
+        Ok(())
+    }
+
+    /// Adds a convert note to be applied in this transaction.
+    ///
+    /// Returns an error if the given Merkle path does not have the same anchor as the
+    /// paths for previous convert notes.
+    pub fn add_convert(
+        &mut self,
+        allowed: AllowedConversion,
+        value: u64,
+        merkle_path: MerklePath<Node>,
+    ) -> Result<(), Error> {
+        // Consistency check: all anchors must equal the first one
+        let cmu = Node::new(allowed.cmu().into());
+        if let Some(anchor) = self.convert_anchor {
+            let path_root: bls12_381::Scalar = merkle_path.root(cmu).into();
+            if path_root != anchor {
+                return Err(Error::AnchorMismatch);
+            }
+        } else {
+            self.convert_anchor = Some(merkle_path.root(cmu).into())
+        }
+        
+        let allowed_amt: Amount = allowed.clone().into();
+        self.mtx.value_balance += allowed_amt * value.try_into().unwrap();
+
+        self.converts.push(ConvertDescriptionInfo {
+            allowed,
+            value,
             merkle_path,
         });
 
@@ -529,6 +589,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
         // Record initial positions of spends and outputs
         //
         let mut spends: Vec<_> = self.spends.into_iter().enumerate().collect();
+        let mut converts: Vec<_> = self.converts.into_iter().enumerate().collect();
         let mut outputs: Vec<_> = self
             .outputs
             .into_iter()
@@ -552,8 +613,10 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
 
         // Randomize order of inputs and outputs
         spends.shuffle(&mut self.rng);
+        converts.shuffle(&mut self.rng);
         outputs.shuffle(&mut self.rng);
         tx_metadata.spend_indices.resize(spends.len(), 0);
+        tx_metadata.convert_indices.resize(converts.len(), 0);
         tx_metadata.output_indices.resize(orig_outputs_len, 0);
 
         // Record if we'll need a binding signature
@@ -597,6 +660,32 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
 
                 // Record the post-randomized spend location
                 tx_metadata.spend_indices[*pos] = i;
+            }
+        }
+
+        // Create ConvertDescriptions
+        if !converts.is_empty() {
+            let anchor = self.convert_anchor.expect("convert anchor was set if converts were added");
+
+            for (i, (pos, convert)) in converts.iter().enumerate() {
+                let (zkproof, cv) = prover
+                    .convert_proof(
+                        &mut ctx,
+                        convert.allowed.clone(),
+                        convert.value,
+                        anchor,
+                        convert.merkle_path.clone(),
+                    )
+                    .map_err(|()| Error::ConvertProof)?;
+
+                self.mtx.shielded_converts.push(ConvertDescription {
+                    cv,
+                    anchor,
+                    zkproof,
+                });
+
+                // Record the post-randomized spend location
+                tx_metadata.convert_indices[*pos] = i;
             }
         }
 
@@ -766,6 +855,8 @@ mod tests {
             fee: Amount::zero(),
             anchor: None,
             spends: vec![],
+            convert_anchor: None,
+            converts: vec![],
             outputs: vec![],
             transparent_inputs: TransparentInputs::default(),
             change_address: None,
