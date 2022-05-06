@@ -1,5 +1,4 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use core::fmt::Debug;
 use ff::PrimeField;
 use group::GroupEncoding;
@@ -13,7 +12,7 @@ use masp_note_encryption::{
 
 use crate::{
     asset_type::AssetType,
-    consensus::{self, BranchId},
+    consensus,
     note_encryption::SaplingDomain,
     primitives::Nullifier,
     prover::GROTH_PROOF_SIZE,
@@ -28,101 +27,7 @@ pub mod serialize;
 pub mod util;
 
 pub type GrothProofBytes = [u8; GROTH_PROOF_SIZE];
-const SAPLING_VERSION_GROUP_ID: u32 = 0x892F2085;
-const SAPLING_TX_VERSION: u32 = 4;
 
-/// The set of defined transaction format versions.
-///
-/// This is serialized in the first four or eight bytes of the transaction format, and
-/// represents valid combinations of the `(overwintered, version, version_group_id)`
-/// transaction fields. Note that this is not dependent on epoch, only on transaction encoding.
-/// For example, if a particular epoch defines a new transaction version but also allows the
-/// previous version, then only the new version would be added to this enum.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TxVersion {
-    Sapling,
-    #[cfg(feature = "zfuture")]
-    ZFuture,
-}
-
-impl TxVersion {
-    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
-        let header = reader.read_u32::<LittleEndian>()?;
-        let overwintered = (header >> 31) == 1;
-        let version = header & 0x7FFFFFFF;
-
-        if overwintered {
-            match (version, reader.read_u32::<LittleEndian>()?) {
-                (SAPLING_TX_VERSION, SAPLING_VERSION_GROUP_ID) => Ok(TxVersion::Sapling),
-                #[cfg(feature = "zfuture")]
-                (ZFUTURE_TX_VERSION, ZFUTURE_VERSION_GROUP_ID) => Ok(TxVersion::ZFuture),
-                _ => Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Unknown transaction format",
-                )),
-            }
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Unknown transaction format",
-            ))
-        }
-    }
-
-    pub fn header(&self) -> u32 {
-        // After Sprout, the overwintered bit is always set.
-        // let overwintered = match self {
-        //     _ => 1 << 31,
-        // };
-        // TBD: We need remove the versions.
-        let overwintered = 1 << 31;
-
-        overwintered
-            | match self {
-                TxVersion::Sapling => SAPLING_TX_VERSION,
-                #[cfg(feature = "zfuture")]
-                TxVersion::ZFuture => ZFUTURE_TX_VERSION,
-            }
-    }
-
-    pub fn version_group_id(&self) -> u32 {
-        match self {
-            TxVersion::Sapling => SAPLING_VERSION_GROUP_ID,
-            #[cfg(feature = "zfuture")]
-            TxVersion::ZFuture => ZFUTURE_VERSION_GROUP_ID,
-        }
-    }
-
-    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        writer.write_u32::<LittleEndian>(self.header())?;
-        // match self {
-        //     _ => writer.write_u32::<LittleEndian>(self.version_group_id()),
-        // }
-        // TBD: We need remove the versions.
-        writer.write_u32::<LittleEndian>(self.version_group_id())
-    }
-
-    pub fn has_sapling(&self) -> bool {
-        match self {
-            TxVersion::Sapling => true,
-            #[cfg(feature = "zfuture")]
-            TxVersion::ZFuture => true,
-        }
-    }
-
-    #[cfg(feature = "zfuture")]
-    pub fn has_tze(&self) -> bool {
-        matches!(self, TxVersion::ZFuture)
-    }
-
-    pub fn suggested_for_branch(consensus_branch_id: BranchId) -> Self {
-        match consensus_branch_id {
-            BranchId::Canopy => TxVersion::Sapling,
-            #[cfg(feature = "zfuture")]
-            BranchId::ZFuture => TxVersion::ZFuture,
-        }
-    }
-}
 pub trait Authorization: Debug {
     type Proof: Clone + Debug + PartialEq;
     type AuthSig: Clone + Debug + PartialEq;
@@ -571,7 +476,7 @@ pub mod testing {
         constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
         primitives::Nullifier,
         redjubjub::{PrivateKey, PublicKey},
-        transaction::{amount::testing::arb_amount, TxVersion, GROTH_PROOF_SIZE},
+        transaction::{amount::testing::arb_amount, GROTH_PROOF_SIZE},
     };
 
     use super::{Authorized, Bundle, GrothProofBytes, OutputDescription, SpendDescription};
@@ -666,16 +571,6 @@ pub mod testing {
                     }
                 )
             }
-        }
-    }
-
-    pub fn arb_bundle_for_version(
-        v: TxVersion,
-    ) -> impl Strategy<Value = Option<Bundle<Authorized>>> {
-        if v.has_sapling() {
-            Strategy::boxed(arb_bundle())
-        } else {
-            Strategy::boxed(Just(None))
         }
     }
 }
