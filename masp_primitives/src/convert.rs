@@ -2,19 +2,15 @@ use crate::asset_type::AssetType;
 use crate::pedersen_hash::{pedersen_hash, Personalization};
 use crate::primitives::ValueCommitment;
 use group::{Curve, GroupEncoding};
-<<<<<<< HEAD
-=======
 use crate::transaction::components::Amount;
->>>>>>> 7ad7c6c (Augmented transaction objects to include convert notes.)
+use borsh::{BorshSerialize, BorshDeserialize};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
 pub struct AllowedConversion {
     /// The asset type that the note represents
     pub assets: Vec<(AssetType, i64)>,
 }
 
-<<<<<<< HEAD
-=======
 impl Into<Amount> for AllowedConversion {
     fn into(self) -> Amount {
         let mut res = Amount::zero();
@@ -25,7 +21,6 @@ impl Into<Amount> for AllowedConversion {
     }
 }
 
->>>>>>> 7ad7c6c (Augmented transaction objects to include convert notes.)
 impl AllowedConversion {
     pub fn uncommitted() -> bls12_381::Scalar {
         // The smallest u-coordinate that is not on the curve
