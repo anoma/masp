@@ -3,8 +3,9 @@ use crate::pedersen_hash::{pedersen_hash, Personalization};
 use crate::primitives::ValueCommitment;
 use group::{Curve, GroupEncoding};
 use crate::transaction::components::Amount;
+use borsh::{BorshSerialize, BorshDeserialize};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
 pub struct AllowedConversion {
     /// The asset type that the note represents
     pub assets: Vec<(AssetType, i64)>,
