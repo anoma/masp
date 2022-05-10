@@ -450,3 +450,26 @@ impl Note {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        primitives::Note,
+        sapling::testing::{arb_note, arb_positive_note_value},
+        transaction::amount::MAX_MONEY,
+    };
+    use borsh::{BorshDeserialize, BorshSerialize};
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(10))]
+        #[test]
+        fn note_serialization(note in arb_positive_note_value(MAX_MONEY as u64).prop_flat_map(arb_note)) {
+            // BorshSerialize
+            let borsh = note.try_to_vec().unwrap();
+            // BorshDeserialize
+            let de_note: Note = BorshDeserialize::deserialize(&mut borsh.as_ref()).unwrap();
+            prop_assert_eq!(note, de_note);
+        }
+    }
+}

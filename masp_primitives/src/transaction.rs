@@ -51,7 +51,7 @@ pub trait MapAuth<A: Authorization, B: Authorization> {
     fn map_authorization(&self, a: A) -> B;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize, PartialEq)]
 pub struct Bundle<A: Authorization + PartialEq + BorshSerialize + BorshDeserialize> {
     pub shielded_spends: Vec<SpendDescription<A>>,
     pub shielded_outputs: Vec<OutputDescription<A::Proof>>,
@@ -256,7 +256,7 @@ impl SpendDescriptionV5 {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct OutputDescription<Proof> {
     pub cv: jubjub::ExtendedPoint,
     pub cmu: bls12_381::Scalar,
@@ -492,7 +492,7 @@ pub mod testing {
     prop_compose! {
         /// produce a spend description with invalid data (useful only for serialization
         /// roundtrip testing).
-        fn arb_spend_description()(
+        pub fn arb_spend_description()(
             cv in arb_extended_point(),
             anchor in vec(any::<u8>(), 64)
                 .prop_map(|v| <[u8;64]>::try_from(v.as_slice()).unwrap())

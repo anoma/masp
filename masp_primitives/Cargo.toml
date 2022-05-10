@@ -23,7 +23,7 @@ bip0039 = { version = "0.9", features = ["std", "all-languages"] }
 blake2b_simd = "1"
 blake2s_simd = "1"
 bls12_381 = "0.6"
-borsh = "0.9"
+borsh = {version = "0.9", features = ["const-generics"]}
 byteorder = "1"
 crypto_api_chachapoly = "0.4"
 chacha20 = { version = "0.8", default-features = false }
