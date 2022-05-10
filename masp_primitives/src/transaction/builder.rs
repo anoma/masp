@@ -143,7 +143,7 @@ impl SaplingOutput {
             ephemeral_key: epk.to_bytes().into(),
             enc_ciphertext,
             out_ciphertext,
-            zkproof,
+            zkproof: zkproof.into(),
         }
     }
 }
@@ -392,7 +392,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                         anchor,
                         nullifier,
                         rk,
-                        zkproof,
+                        zkproof: zkproof.into(),
                         spend_auth_sig: spend,
                     })
                 })
@@ -475,7 +475,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                         ephemeral_key: epk.to_bytes().into(),
                         enc_ciphertext,
                         out_ciphertext,
-                        zkproof,
+                        zkproof: zkproof.into(),
                     }
                 };
 

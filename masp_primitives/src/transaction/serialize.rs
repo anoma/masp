@@ -77,3 +77,49 @@ impl<Proof: BorshSerialize> BorshSerialize for OutputDescription<Proof> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::transaction::{
+        testing::{arb_bundle, arb_output_description, arb_spend_description},
+        Authorized, GrothProofBytes, OutputDescription, SpendDescription,
+    };
+    use borsh::{BorshDeserialize, BorshSerialize};
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(10))]
+        #[test]
+        fn spend_description_serialization(spend in arb_spend_description()) {
+            // BorshSerialize
+            let borsh = spend.try_to_vec().unwrap();
+            // BorshDeserialize
+            let de_code: SpendDescription<Authorized> = BorshDeserialize::deserialize(&mut borsh.as_ref()).unwrap();
+            prop_assert_eq!(spend, de_code);
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(10))]
+        #[test]
+        fn output_description_serialization(output in arb_output_description()) {
+            // BorshSerialize
+            let borsh = output.try_to_vec().unwrap();
+            // BorshDeserialize
+            let de_code: OutputDescription<GrothProofBytes> = BorshDeserialize::deserialize(&mut borsh.as_ref()).unwrap();
+            prop_assert_eq!(output, de_code);
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(10))]
+        #[test]
+        fn bundle_description_serialization(bundle in arb_bundle()) {
+            // BorshSerialize
+            let borsh = bundle.try_to_vec().unwrap();
+            // BorshDeserialize
+            let de_code = BorshDeserialize::deserialize(&mut borsh.as_ref()).unwrap();
+            prop_assert_eq!(bundle, de_code);
+        }
+    }
+}

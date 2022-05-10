@@ -26,7 +26,40 @@ pub mod memo;
 pub mod serialize;
 pub mod util;
 
-pub type GrothProofBytes = [u8; GROTH_PROOF_SIZE];
+// pub type GrothProofBytes = [u8; GROTH_PROOF_SIZE];
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub struct GrothProofBytes(pub [u8; GROTH_PROOF_SIZE]);
+
+impl Default for GrothProofBytes {
+    fn default() -> Self {
+        GrothProofBytes([0u8; GROTH_PROOF_SIZE])
+    }
+}
+
+impl AsRef<[u8]> for GrothProofBytes {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl From<[u8; GROTH_PROOF_SIZE]> for GrothProofBytes {
+    fn from(value: [u8; GROTH_PROOF_SIZE]) -> GrothProofBytes {
+        GrothProofBytes(value)
+    }
+}
+
+impl BorshSerialize for GrothProofBytes {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        writer.write_all(&self.as_ref())?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for GrothProofBytes {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        read_zkproof(buf)
+    }
+}
 
 pub trait Authorization: Debug {
     type Proof: Clone + Debug + PartialEq;
@@ -51,7 +84,7 @@ pub trait MapAuth<A: Authorization, B: Authorization> {
     fn map_authorization(&self, a: A) -> B;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize, PartialEq)]
 pub struct Bundle<A: Authorization + PartialEq + BorshSerialize + BorshDeserialize> {
     pub shielded_spends: Vec<SpendDescription<A>>,
     pub shielded_outputs: Vec<OutputDescription<A::Proof>>,
@@ -159,7 +192,7 @@ pub fn read_base<R: Read>(mut reader: R, field: &str) -> io::Result<bls12_381::S
 pub fn read_zkproof<R: Read>(mut reader: R) -> io::Result<GrothProofBytes> {
     let mut zkproof = [0u8; GROTH_PROOF_SIZE];
     reader.read_exact(&mut zkproof)?;
-    Ok(zkproof)
+    Ok(zkproof.into())
 }
 
 impl SpendDescription<Authorized> {
@@ -212,7 +245,7 @@ impl SpendDescription<Authorized> {
         writer.write_all(self.anchor.to_repr().as_ref())?;
         writer.write_all(&self.nullifier.0)?;
         self.rk.write(&mut writer)?;
-        writer.write_all(&self.zkproof)?;
+        writer.write_all(self.zkproof.as_ref())?;
         self.spend_auth_sig.write(&mut writer)
     }
 
@@ -256,7 +289,7 @@ impl SpendDescriptionV5 {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct OutputDescription<Proof> {
     pub cv: jubjub::ExtendedPoint,
     pub cmu: bls12_381::Scalar,
@@ -370,7 +403,7 @@ impl OutputDescription<GrothProofBytes> {
         writer.write_all(self.ephemeral_key.as_ref())?;
         writer.write_all(&self.enc_ciphertext)?;
         writer.write_all(&self.out_ciphertext)?;
-        writer.write_all(&self.zkproof)
+        writer.write_all(&self.zkproof.as_ref())
     }
 
     pub fn write_v5_without_proof<W: Write>(&self, mut writer: W) -> io::Result<()> {
@@ -492,7 +525,7 @@ pub mod testing {
     prop_compose! {
         /// produce a spend description with invalid data (useful only for serialization
         /// roundtrip testing).
-        fn arb_spend_description()(
+        pub fn arb_spend_description()(
             cv in arb_extended_point(),
             anchor in vec(any::<u8>(), 64)
                 .prop_map(|v| <[u8;64]>::try_from(v.as_slice()).unwrap())
@@ -512,7 +545,7 @@ pub mod testing {
                 anchor,
                 nullifier,
                 rk,
-                zkproof,
+                zkproof: zkproof.into(),
                 spend_auth_sig: sk1.sign(&fake_sighash_bytes, &mut rng, SPENDING_KEY_GENERATOR),
             }
         }
@@ -532,7 +565,7 @@ pub mod testing {
             out_ciphertext in vec(any::<u8>(), 80)
                 .prop_map(|v| <[u8;80]>::try_from(v.as_slice()).unwrap()),
             zkproof in vec(any::<u8>(), GROTH_PROOF_SIZE)
-                .prop_map(|v| <[u8;GROTH_PROOF_SIZE]>::try_from(v.as_slice()).unwrap()),
+                .prop_map(|v| <[u8;GROTH_PROOF_SIZE]>::try_from(v.as_slice()).unwrap().into()),
         ) -> OutputDescription<GrothProofBytes> {
             OutputDescription {
                 cv,

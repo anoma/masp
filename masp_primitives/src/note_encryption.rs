@@ -586,7 +586,7 @@ mod tests {
             ephemeral_key: epk.to_bytes().into(),
             enc_ciphertext: ne.encrypt_note_plaintext(),
             out_ciphertext: ne.encrypt_outgoing_plaintext(&cv, &cmu, &mut rng),
-            zkproof: [0u8; GROTH_PROOF_SIZE],
+            zkproof: [0u8; GROTH_PROOF_SIZE].into(),
         };
 
         (ovk, ock, output, note, pa, memo)
