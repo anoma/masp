@@ -143,7 +143,7 @@ pub const MAIN_NETWORK: MainNetwork = MainNetwork;
 impl Parameters for MainNetwork {
     fn activation_height(&self, nu: NetworkUpgrade) -> Option<BlockHeight> {
         match nu {
-            NetworkUpgrade::Canopy => Some(BlockHeight(419_200)),
+            NetworkUpgrade::Canopy => Some(H0),
             #[cfg(feature = "zfuture")]
             NetworkUpgrade::ZFuture => None,
         }
@@ -159,7 +159,7 @@ pub const TEST_NETWORK: TestNetwork = TestNetwork;
 impl Parameters for TestNetwork {
     fn activation_height(&self, nu: NetworkUpgrade) -> Option<BlockHeight> {
         match nu {
-            NetworkUpgrade::Canopy => Some(BlockHeight(280_000)),
+            NetworkUpgrade::Canopy => Some(H0),
             #[cfg(feature = "zfuture")]
             NetworkUpgrade::ZFuture => None,
         }
@@ -226,7 +226,7 @@ impl NetworkUpgrade {
 /// full-fledged algebraic data types, we need to define it manually.
 const UPGRADES_IN_ORDER: &[NetworkUpgrade] = &[NetworkUpgrade::Canopy];
 
-pub const ZIP212_GRACE_PERIOD: u32 = 32256;
+pub const ZIP212_GRACE_PERIOD: u32 = 0;
 
 /// A globally-unique identifier for a set of consensus rules within the Zcash chain.
 ///
@@ -391,9 +391,7 @@ mod tests {
 
     #[test]
     fn nu_is_active() {
-        assert!(!MAIN_NETWORK.is_nu_active(NetworkUpgrade::Canopy, BlockHeight(0)));
-        assert!(!MAIN_NETWORK.is_nu_active(NetworkUpgrade::Canopy, BlockHeight(419_199)));
-        assert!(MAIN_NETWORK.is_nu_active(NetworkUpgrade::Canopy, BlockHeight(419_200)));
+        assert!(MAIN_NETWORK.is_nu_active(NetworkUpgrade::Canopy, BlockHeight(0)));
     }
 
     #[test]
@@ -405,7 +403,7 @@ mod tests {
     #[test]
     fn branch_id_for_height() {
         assert_eq!(
-            BranchId::for_height(&MAIN_NETWORK, BlockHeight(419_200)),
+            BranchId::for_height(&MAIN_NETWORK, BlockHeight(0)),
             BranchId::Canopy,
         );
     }

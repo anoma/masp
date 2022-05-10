@@ -752,11 +752,11 @@ mod tests {
         let mut rng = OsRng;
         let canopy_activation_height = TEST_NETWORK.activation_height(Canopy).unwrap();
         let heights = [
-            canopy_activation_height - 1,
+            // canopy_activation_height - 1,
             canopy_activation_height,
             canopy_activation_height + ZIP212_GRACE_PERIOD,
         ];
-        let leadbytes = [0x02, 0x03, 0x01];
+        let leadbytes = [0x01, 0x01];
 
         for (&height, &leadbyte) in heights.iter().zip(leadbytes.iter()) {
             let (ovk, _, ivk, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -893,11 +893,11 @@ mod tests {
         let mut rng = OsRng;
         let canopy_activation_height = TEST_NETWORK.activation_height(Canopy).unwrap();
         let heights = [
-            canopy_activation_height - 1,
+            // canopy_activation_height - 1,
             canopy_activation_height,
             canopy_activation_height + ZIP212_GRACE_PERIOD,
         ];
-        let leadbytes = [0x02, 0x03, 0x01];
+        let leadbytes = [0x01, 0x01];
 
         for (&height, &leadbyte) in heights.iter().zip(leadbytes.iter()) {
             let (ovk, _, ivk, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -1120,11 +1120,11 @@ mod tests {
         let mut rng = OsRng;
         let canopy_activation_height = TEST_NETWORK.activation_height(Canopy).unwrap();
         let heights = [
-            canopy_activation_height - 1,
+            // canopy_activation_height - 1,
             canopy_activation_height,
             canopy_activation_height + ZIP212_GRACE_PERIOD,
         ];
-        let leadbytes = [0x02, 0x03, 0x01];
+        let leadbytes = [0x01, 0x01];
 
         for (&height, &leadbyte) in heights.iter().zip(leadbytes.iter()) {
             let (ovk, ock, _, mut output) = random_enc_ciphertext(height, &mut rng);
