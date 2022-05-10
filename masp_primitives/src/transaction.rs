@@ -50,7 +50,7 @@ impl From<[u8; GROTH_PROOF_SIZE]> for GrothProofBytes {
 
 impl BorshSerialize for GrothProofBytes {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        writer.write_all(&self.as_ref())?;
+        writer.write_all(self.as_ref())?;
         Ok(())
     }
 }
@@ -403,7 +403,7 @@ impl OutputDescription<GrothProofBytes> {
         writer.write_all(self.ephemeral_key.as_ref())?;
         writer.write_all(&self.enc_ciphertext)?;
         writer.write_all(&self.out_ciphertext)?;
-        writer.write_all(&self.zkproof.as_ref())
+        writer.write_all(self.zkproof.as_ref())
     }
 
     pub fn write_v5_without_proof<W: Write>(&self, mut writer: W) -> io::Result<()> {
