@@ -457,60 +457,15 @@ impl<Node: Hashable> MerklePath<Node> {
     }
 
     fn from_slice_with_depth(mut witness: &[u8], depth: usize) -> Result<Self, ()> {
-        // Skip the first byte, which should be "depth" to signify the length of
-        // the following vector of Pedersen hashes.
-        if witness[0] != depth as u8 {
+        let path = Self::deserialize(&mut witness).map_err(|_| ())?;
+        if path.auth_path.len() != depth {
             return Err(());
         }
-        witness = &witness[1..];
-
-        // Begin to construct the authentication path
-        let iter = witness.chunks_exact(33);
-        witness = iter.remainder();
-
-        // The vector works in reverse
-        let mut auth_path = iter
-            .rev()
-            .map(|bytes| {
-                // Length of inner vector should be the length of a Pedersen hash
-                if bytes[0] == 32 {
-                    // Sibling node should be an element of Fr
-                    Node::read(&bytes[1..])
-                        .map(|sibling| {
-                            // Set the value in the auth path; we put false here
-                            // for now (signifying the position bit) which we'll
-                            // fill in later.
-                            (sibling, false)
-                        })
-                        .map_err(|_| ())
-                } else {
-                    Err(())
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if auth_path.len() != depth {
-            return Err(());
-        }
-
-        // Read the position from the witness
-        let position = witness.read_u64::<LittleEndian>().map_err(|_| ())?;
-
-        // Given the position, let's finish constructing the authentication
-        // path
-        let mut tmp = position;
-        for entry in auth_path.iter_mut() {
-            entry.1 = (tmp & 1) == 1;
-            tmp >>= 1;
-        }
-
         // The witness should be empty now; if it wasn't, the caller would
         // have provided more information than they should have, indicating
         // a bug downstream
         if witness.is_empty() {
-            Ok(MerklePath {
-                auth_path,
-                position,
-            })
+            Ok(path)
         } else {
             Err(())
         }
@@ -533,8 +488,50 @@ impl<Node: Hashable> MerklePath<Node> {
 
 impl<Node: Hashable> BorshDeserialize for MerklePath<Node> {
     fn deserialize(witness: &mut &[u8]) -> Result<Self, std::io::Error> {
-        Self::from_slice(witness)
-            .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidData))
+        let depth = witness[0] as usize;
+        *witness = &witness[1..];
+
+        // Begin to construct the authentication path
+        let iter = witness[..33*depth+8].chunks_exact(33);
+        *witness = iter.remainder();
+
+        // The vector works in reverse
+        let mut auth_path = iter
+            .rev()
+            .map(|bytes| {
+                // Length of inner vector should be the length of a Pedersen hash
+                if bytes[0] == 32 {
+                    // Sibling node should be an element of Fr
+                    Node::read(&bytes[1..])
+                        .map(|sibling| {
+                            // Set the value in the auth path; we put false here
+                            // for now (signifying the position bit) which we'll
+                            // fill in later.
+                            (sibling, false)
+                        })
+                        .map_err(|_| ())
+                } else {
+                    Err(())
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
+
+        // Read the position from the witness
+        let position = witness.read_u64::<LittleEndian>()?;
+
+        // Given the position, let's finish constructing the authentication
+        // path
+        let mut tmp = position;
+        for entry in auth_path.iter_mut() {
+            entry.1 = (tmp & 1) == 1;
+            tmp >>= 1;
+        }
+        
+        Ok(MerklePath {
+            auth_path,
+            position,
+        })
     }
 }
 
