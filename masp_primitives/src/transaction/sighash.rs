@@ -17,6 +17,7 @@ const ZCASH_SEQUENCE_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashSequencHash";
 const ZCASH_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashOutputsHash";
 const ZCASH_JOINSPLITS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashJSplitsHash";
 const ZCASH_SHIELDED_SPENDS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashSSpendsHash";
+const ZCASH_SHIELDED_CONVERTS_HASH_PERSONALIZATION: &[u8; 17] = b"ZcashSConvertHash";
 const ZCASH_SHIELDED_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashSOutputHash";
 
 pub const SIGHASH_ALL: u32 = 1;
@@ -141,6 +142,19 @@ fn shielded_spends_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
+fn shielded_converts_hash(tx: &TransactionData) -> Blake2bHash {
+    let mut data = Vec::with_capacity(tx.shielded_converts.len() * 256);
+    for s_convert in &tx.shielded_converts {
+        data.extend_from_slice(&s_convert.cv.to_bytes());
+        data.extend_from_slice(s_convert.anchor.to_repr().as_ref());
+        data.extend_from_slice(&s_convert.zkproof);
+    }
+    Blake2bParams::new()
+        .hash_length(32)
+        .personal(ZCASH_SHIELDED_CONVERTS_HASH_PERSONALIZATION)
+        .hash(&data)
+}
+
 fn shielded_outputs_hash(tx: &TransactionData) -> Blake2bHash {
     let mut data = Vec::with_capacity(tx.shielded_outputs.len() * 948);
     for s_out in &tx.shielded_outputs {
@@ -200,6 +214,7 @@ pub fn signature_hash_data(
             update_hash!(h, !tx.joinsplits.is_empty(), joinsplits_hash(tx));
             if sigversion == SigHashVersion::Sapling {
                 update_hash!(h, !tx.shielded_spends.is_empty(), shielded_spends_hash(tx));
+                update_hash!(h, !tx.shielded_converts.is_empty(), shielded_converts_hash(tx));
                 update_hash!(
                     h,
                     !tx.shielded_outputs.is_empty(),
