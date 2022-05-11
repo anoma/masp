@@ -1,6 +1,6 @@
 //! Implementation of a Merkle tree of commitments used to prove the existence of notes.
 
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 
@@ -531,10 +531,40 @@ impl<Node: Hashable> MerklePath<Node> {
     }
 }
 
+impl<Node: Hashable> BorshDeserialize for MerklePath<Node> {
+    fn deserialize(witness: &mut &[u8]) -> Result<Self, std::io::Error> {
+        Self::from_slice(witness)
+            .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidData))
+    }
+}
+
+impl<Node: Hashable> BorshSerialize for MerklePath<Node> {
+    fn serialize<W: Write>(&self, witness: &mut W) -> Result<(), std::io::Error> {
+        //let mut witness = Vec::new();
+        let mut position = 0u64;
+        // Write path length
+        witness.write_u8(self.auth_path.len() as u8)?;
+        for (i, (node, b)) in self.auth_path.iter().enumerate().rev() {
+            // Write node into temporary object to measure data length
+            let mut node_bytes = Vec::new();
+            node.write(&mut node_bytes)?;
+            // Write node length
+            witness.write_u8(node_bytes.len() as u8)?;
+            // Write node data
+            witness.write(&mut node_bytes)?;
+            position |= (*b as u64) << i;
+        }
+        // Write bit vector indicating positions
+        witness.write_u64::<LittleEndian>(position)?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{CommitmentTree, Hashable, IncrementalWitness, MerklePath, PathFiller};
     use crate::sapling::Node;
+    use borsh::BorshSerialize;
 
     use std::convert::TryInto;
     use std::io::{self, Read, Write};
@@ -1089,6 +1119,9 @@ mod tests {
                     )
                     .unwrap();
                     assert_eq!(path, expected);
+                    let mut reser_vec = Vec::new();
+                    path.serialize(&mut reser_vec).expect("should be able to serialize path");
+                    assert_eq!(reser_vec, hex::decode(paths[paths_i]).unwrap());
                     assert_eq!(path.root(*leaf), witness.root());
                     paths_i += 1;
                 } else {
