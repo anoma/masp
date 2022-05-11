@@ -11,7 +11,7 @@ fn tx_read_write() {
     let tx = Transaction::read(&mut rdr).unwrap();
     assert_eq!(
         format!("{}", tx.txid()),
-        "fe1184ad4e69bc02ce502c82088f20e8a755db7291aa9023a518d99657d951ec"
+        "1a8f89899834a3e7127cd9842707218368e0056b9d488a3248a4b072ac75cb75"
     );
 
     let mut encoded = Vec::with_capacity(data.len());
