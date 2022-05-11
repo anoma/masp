@@ -11,14 +11,14 @@ use super::{
 };
 use crate::{consensus, legacy::Script};
 
-const ZCASH_SIGHASH_PERSONALIZATION_PREFIX: &[u8; 12] = b"ZcashSigHash";
-const ZCASH_PREVOUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashPrevoutHash";
-const ZCASH_SEQUENCE_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashSequencHash";
-const ZCASH_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashOutputsHash";
-const ZCASH_JOINSPLITS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashJSplitsHash";
-const ZCASH_SHIELDED_SPENDS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashSSpendsHash";
-const ZCASH_SHIELDED_CONVERTS_HASH_PERSONALIZATION: &[u8; 17] = b"ZcashSConvertHash";
-const ZCASH_SHIELDED_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZcashSOutputHash";
+const MASP_SIGHASH_PERSONALIZATION_PREFIX: &[u8; 12] = b"Masp_SigHash";
+const MASP_PREVOUTS_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_PrevoutHash";
+const MASP_SEQUENCE_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_SequencHash";
+const MASP_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_OutputsHash";
+const MASP_JOINSPLITS_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_JSplitsHash";
+const MASP_SHIELDED_SPENDS_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_SSpendsHash";
+const MASP_SHIELDED_CONVERTS_HASH_PERSONALIZATION: &[u8; 16] = b"MaspSConvertHash";
+const MASP_SHIELDED_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_SOutputHash";
 
 pub const SIGHASH_ALL: u32 = 1;
 const SIGHASH_NONE: u32 = 2;
@@ -71,7 +71,7 @@ fn prevout_hash(tx: &TransactionData) -> Blake2bHash {
     }
     Blake2bParams::new()
         .hash_length(32)
-        .personal(ZCASH_PREVOUTS_HASH_PERSONALIZATION)
+        .personal(MASP_PREVOUTS_HASH_PERSONALIZATION)
         .hash(&data)
 }
 
@@ -84,7 +84,7 @@ fn sequence_hash(tx: &TransactionData) -> Blake2bHash {
     }
     Blake2bParams::new()
         .hash_length(32)
-        .personal(ZCASH_SEQUENCE_HASH_PERSONALIZATION)
+        .personal(MASP_SEQUENCE_HASH_PERSONALIZATION)
         .hash(&data)
 }
 
@@ -95,7 +95,7 @@ fn outputs_hash(tx: &TransactionData) -> Blake2bHash {
     }
     Blake2bParams::new()
         .hash_length(32)
-        .personal(ZCASH_OUTPUTS_HASH_PERSONALIZATION)
+        .personal(MASP_OUTPUTS_HASH_PERSONALIZATION)
         .hash(&data)
 }
 
@@ -104,7 +104,7 @@ fn single_output_hash(tx_out: &TxOut) -> Blake2bHash {
     tx_out.write(&mut data).unwrap();
     Blake2bParams::new()
         .hash_length(32)
-        .personal(ZCASH_OUTPUTS_HASH_PERSONALIZATION)
+        .personal(MASP_OUTPUTS_HASH_PERSONALIZATION)
         .hash(&data)
 }
 
@@ -123,7 +123,7 @@ fn joinsplits_hash(tx: &TransactionData) -> Blake2bHash {
     data.extend_from_slice(&tx.joinsplit_pubkey.unwrap());
     Blake2bParams::new()
         .hash_length(32)
-        .personal(ZCASH_JOINSPLITS_HASH_PERSONALIZATION)
+        .personal(MASP_JOINSPLITS_HASH_PERSONALIZATION)
         .hash(&data)
 }
 
@@ -138,7 +138,7 @@ fn shielded_spends_hash(tx: &TransactionData) -> Blake2bHash {
     }
     Blake2bParams::new()
         .hash_length(32)
-        .personal(ZCASH_SHIELDED_SPENDS_HASH_PERSONALIZATION)
+        .personal(MASP_SHIELDED_SPENDS_HASH_PERSONALIZATION)
         .hash(&data)
 }
 
@@ -151,7 +151,7 @@ fn shielded_converts_hash(tx: &TransactionData) -> Blake2bHash {
     }
     Blake2bParams::new()
         .hash_length(32)
-        .personal(ZCASH_SHIELDED_CONVERTS_HASH_PERSONALIZATION)
+        .personal(MASP_SHIELDED_CONVERTS_HASH_PERSONALIZATION)
         .hash(&data)
 }
 
@@ -162,7 +162,7 @@ fn shielded_outputs_hash(tx: &TransactionData) -> Blake2bHash {
     }
     Blake2bParams::new()
         .hash_length(32)
-        .personal(ZCASH_SHIELDED_OUTPUTS_HASH_PERSONALIZATION)
+        .personal(MASP_SHIELDED_OUTPUTS_HASH_PERSONALIZATION)
         .hash(&data)
 }
 
@@ -176,7 +176,7 @@ pub fn signature_hash_data(
     match sigversion {
         SigHashVersion::Overwinter | SigHashVersion::Sapling => {
             let mut personal = [0; 16];
-            (&mut personal[..12]).copy_from_slice(ZCASH_SIGHASH_PERSONALIZATION_PREFIX);
+            (&mut personal[..12]).copy_from_slice(MASP_SIGHASH_PERSONALIZATION_PREFIX);
             (&mut personal[12..])
                 .write_u32::<LittleEndian>(consensus_branch_id.into())
                 .unwrap();
