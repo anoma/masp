@@ -3,10 +3,12 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
+use std::collections::HashMap;
 
 use incrementalmerkletree::{self, bridgetree};
 use zcash_encoding::{Optional, Vector};
 use borsh::{BorshSerialize, BorshDeserialize};
+use std::ops::Shl;
 use zcash_primitives::{
     merkle_tree::Hashable,
     sapling::{SAPLING_COMMITMENT_TREE_DEPTH, SAPLING_COMMITMENT_TREE_DEPTH_U8},
@@ -26,6 +28,82 @@ impl<Node: Hashable> PathFiller<Node> {
         self.queue
             .pop_front()
             .unwrap_or_else(|| Node::empty_root(depth))
+    }
+}
+
+/// An immutable commitment tree
+pub struct FrozenCommitmentTree<Node>(HashMap<(usize, usize), Node>);
+
+impl<Node: Hashable> FrozenCommitmentTree<Node> {
+    /// Construct a commitment tree with the given leaf nodes
+    pub fn new(leafs: &Vec<Node>) -> Self {
+        let mut tree = HashMap::new();
+        // Trigger the construction of all tree nodes through the root
+        Self::build(
+            &mut tree,
+            leafs,
+            0,
+            (1 << SAPLING_COMMITMENT_TREE_DEPTH_U8)-1,
+            SAPLING_COMMITMENT_TREE_DEPTH
+        );
+        Self(tree)
+    }
+    /// Construct the commitment tree. Parent nodes are described by an inclusive
+    /// range of the nodes they cover.
+    fn build(
+        tree: &mut HashMap<(usize, usize), Node>,
+        leafs: &Vec<Node>,
+        from: usize,
+        to: usize,
+        height: usize,
+    ) -> Node {
+        // Compute the requested node
+        let new_node = if from >= leafs.len() {
+            Node::empty_root(height)
+        } else if to == from {
+            leafs[from]
+        } else {
+            // Midpoint computation done in this way to avoid overflows
+            let mid = from + ((to - from) >> 1);
+            // Build the left and right childs
+            let left = Self::build(tree, leafs, from, mid, height-1);
+            let right = Self::build(tree, leafs, mid+1, to, height-1);
+            // Then combine into single node
+            Node::combine(height-1, &left, &right)
+        };
+        // Then memorize computation for future lookups
+        tree.insert((from, to), new_node);
+        new_node
+    }
+    /// Get the root node of the commitment tree
+    pub fn root(&self) -> Node {
+        // The node whose range covers all nodes is the root
+        self.0[&(0, (1 << SAPLING_COMMITMENT_TREE_DEPTH_U8)-1)]
+    }
+    /// Construct a merkle path to the given position in commitment tree
+    pub fn path(&self, pos: usize) -> MerklePath<Node> {
+        let mut path = MerklePath { auth_path: vec![], position: pos as u64 };
+        let mut from = pos;
+        let mut to = pos;
+        
+        for height in 0..SAPLING_COMMITMENT_TREE_DEPTH_U8 {
+            // Derive the parent node range
+            let mask = usize::MAX.shl(height + 1);
+            let parent_from = from & mask;
+            let parent_to = parent_from + (to-from) * 2 + 1;
+            if from == parent_from {
+                // The current node is a left child
+                let sibling = self.0[&(to+1, parent_to)];
+                path.auth_path.push((sibling, false));
+            } else {
+                // The current node is a right child
+                let sibling = self.0[&(parent_from, from-1)];
+                path.auth_path.push((sibling, true));
+            }
+            from = parent_from;
+            to = parent_to;
+        }
+        path
     }
 }
 
@@ -559,7 +637,7 @@ impl<Node: Hashable> BorshSerialize for MerklePath<Node> {
 
 #[cfg(test)]
 mod tests {
-    use super::{CommitmentTree, Hashable, IncrementalWitness, MerklePath, PathFiller};
+    use super::{CommitmentTree, Hashable, IncrementalWitness, MerklePath, PathFiller, FrozenCommitmentTree};
     use crate::sapling::Node;
     use borsh::BorshSerialize;
 
@@ -695,6 +773,48 @@ mod tests {
                 .write(&mut tmp[..])
                 .expect("length is 32 bytes");
             assert_eq!(hex::encode(tmp), expected);
+        }
+    }
+
+    #[test]
+    fn test_frozen_tree() {
+        let commitments = [
+            "b02310f2e087e55bfd07ef5e242e3b87ee5d00c9ab52f61e6bd42542f93a6f55",
+            "225747f3b5d5dab4e5a424f81f85c904ff43286e0f3fd07ef0b8c6a627b11458",
+            "7c3ea01a6e3a3d90cf59cd789e467044b5cd78eb2c84cc6816f960746d0e036c",
+            "50421d6c2c94571dfaaa135a4ff15bf916681ebd62c0e43e69e3b90684d0a030",
+            "aaec63863aaa0b2e3b8009429bdddd455e59be6f40ccab887a32eb98723efc12",
+            "f76748d40d5ee5f9a608512e7954dd515f86e8f6d009141c89163de1cf351a02",
+            "bc8a5ec71647415c380203b681f7717366f3501661512225b6dc3e121efc0b2e",
+            "da1adda2ccde9381e11151686c121e7f52d19a990439161c7eb5a9f94be5a511",
+            "3a27fed5dbbc475d3880360e38638c882fd9b273b618fc433106896083f77446",
+            "c7ca8f7df8fd997931d33985d935ee2d696856cc09cc516d419ea6365f163008",
+            "f0fa37e8063b139d342246142fc48e7c0c50d0a62c97768589e06466742c3702",
+            "e6d4d7685894d01b32f7e081ab188930be6c2b9f76d6847b7f382e3dddd7c608",
+            "8cebb73be883466d18d3b0c06990520e80b936440a2c9fd184d92a1f06c4e826",
+            "22fab8bcdb88154dbf5877ad1e2d7f1b541bc8a5ec1b52266095381339c27c03",
+            "f43e3aac61e5a753062d4d0508c26ceaf5e4c0c58ba3c956e104b5d2cf67c41c",
+            "3a3661bc12b72646c94bc6c92796e81953985ee62d80a9ec3645a9a95740ac15",
+        ];
+        let mut orig = CommitmentTree::empty();
+        let mut cmus = Vec::new();
+        let mut paths:Vec<IncrementalWitness<Node>> = Vec::new();
+        for i in 0..16 {
+            let cmu = hex::decode(commitments[i]).unwrap();
+            let cmu = Node::new(cmu[..].try_into().unwrap());
+            orig.append(cmu).unwrap();
+            cmus.push(cmu);
+            for path in &mut paths {
+                path.append(cmu).unwrap();
+            }
+            paths.push(IncrementalWitness::from_tree(&orig));
+        }
+        let frozen = FrozenCommitmentTree::new(&cmus);
+        assert_eq!(orig.root(), frozen.root());
+        for (i, path) in paths.iter().enumerate() {
+            let path = path.path().unwrap();
+            assert_eq!(path.auth_path, frozen.path(i).auth_path);
+            assert_eq!(path.position, frozen.path(i).position);
         }
     }
 
