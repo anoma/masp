@@ -2219,7 +2219,7 @@ Asset types may also be associated with a \textit{human-readable asset name} and
 
 The asset generator associated with each asset type must be derived in such a way that plausibly no discrete log relationship is known between every two distinct asset types (or between an asset generator and the common randomness base generator).
 
-In this specification, the asset generator associated with a given asset identifier is derived using a \pseudoRandomFunction; specifically, instantiating $\PRFvcgMASP{}$ with $\BlakeTwosGeneric$ similar to how other \pseudoRandomFunctions are instantiated in the original \Sapling specification. Therefore, the asset generator associated with asset identifier $\NoteToken$ should be $\reprJ(\PRFvcgMASP{\NoteToken})$, if it exists, and this derivation is verified in at least one circuit.
+In this specification, the asset generator associated with a given asset identifier is derived using a \pseudoRandomFunction; specifically, instantiating $\PRFvcgMASP{}$ with $\BlakeTwosGeneric$ similar to how other \pseudoRandomFunctions are instantiated in the original \Sapling specification. Therefore, the asset generator associated with asset identifier $\NoteToken$ should be $\abstJ(\PRFvcgMASP{\NoteToken})$, if it exists, and this derivation is verified in at least one circuit.
 
 \maspaddition{The \pseudoRandomFunction $\PRFvcgMASP{}$ should take as input the 32 byte asset identifier, and produce as output a (potential) 32 byte \ctEdwardsCompressedEncoding on the \jubjubCurve. The output must be verified to be a valid \ctEdwardsCurve point, and when instantiated with $\BlakeTwosGeneric$, use a distinct personalization from the other \pseudoRandomFunctions used in the original Sapling specification and this specification.
 }
@@ -2230,7 +2230,7 @@ One may also wonder if a Pedersen hash may be used instead (particularly as it i
 
 \lsubsection{Rejection Sampling of Asset Identifiers Hashing to Curve Point}{rejection}
 
-\maspaddition{The previous section noted that the asset generator associated with asset identifier $\NoteToken$ should be $\reprJ(\PRFvcgMASP{\NoteToken})$. However, $\reprJ(\PRFvcgMASP{\NoteToken})$ may not exist, in which case $\NoteToken$ is an \textit{invalid} asset identifier. To avoid excessive computation in the Output circuit, such invalid $\NoteToken$ identifiers should always be rejected by the Output circuit, and all external implementations should only use valid asset identifiers exclusively.}
+\maspaddition{The previous section noted that the asset generator associated with asset identifier $\NoteToken$ should be $\abstJ(\PRFvcgMASP{\NoteToken})$. However, $\abstJ(\PRFvcgMASP{\NoteToken})$ may not exist, in which case $\NoteToken$ is an \textit{invalid} asset identifier. To avoid excessive computation in the Output circuit, such invalid $\NoteToken$ identifiers should always be rejected by the Output circuit, and all external implementations should only use valid asset identifiers exclusively.}
 
  The asset identifier should be deterministically derived from the asset name. Since there is some probability of deriving an invalid asset identifier, one potential approach is to try potential asset identifiers, rejecting invalid ones, until a valid asset identifier that properly hashes to an asset generator. We can describe such a process as \textit{rejection sampling}.
  
@@ -2527,7 +2527,7 @@ For further details, see \crossref{sproutinband}\sapling{ and \crossref{saplingi
 In order to send \masp{MASP} \shielded value, the sender constructs a \transaction
 containing one or more \outputDescriptions.
 
-Let $\ValueCommitAlg$, $\KASapling$, $\DiversifyHash$, $\reprJ$, $\ParamJ{r}$, and $\ParamJ{h}$ be as defined in the original \Sapling specification.
+Let $\ValueCommitAlg$, $\KASapling$, $\DiversifyHash$, $\abstJ$, $\reprJ$, $\ParamJ{r}$, and $\ParamJ{h}$ be as defined in the original \Sapling specification.
 
 \vspace{1ex}
 Let $\OutViewingKey$ be an \outgoingViewingKey that is intended to be able to decrypt
@@ -2574,7 +2574,7 @@ performs the following steps:
   \item Calculate
         \begin{tabular}{@{\hskip 2em}r@{\;}l}
 %          $\cvNew{}$ &$:= \ValueCommit{\ValueCommitRandNew{}}(\ValueNew{})$ \\[1ex]$
-	$\NoteValueBase$ &$:= \reprJ(\PRFvcgMASP{\NoteToken}) $\\[1ex]
+	$\NoteValueBase$ &$:= \abstJ(\PRFvcgMASP{\NoteToken}) $\\[1ex]
           $\cvNew{}$ &$:= \scalarmult{\ValueNew{}\ParamJ{h}}{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $ \\[1ex]
           $\cmNew{}$ &$:= \NoteCommitMASP{\NoteCommitRandNew{}}(\reprJ\Of{\DiversifiedTransmitBase},
                                                                    \reprJ\Of{\DiversifiedTransmitPublic},
@@ -3209,9 +3209,9 @@ $\EphemeralPublic = \scalarmult{\EphemeralPrivate}{\DiversifiedTransmitBase}$.
 
 \masp{
   Some private inputs such as $\alpha,\EphemeralPrivate,\AuthProvePrivate \in \{0, \ldots, 2^\ScalarLength - 1\}$ 
-  represent the bit-decomposition of an element in the scalar field of an elliptic curve with order $r_\GroupJ$. 
+  represent the bit-decomposition of an element in the scalar field of an elliptic curve with order $\ParamJ{r}$. 
   Unlike the variables $rcm, rcv$, the specification does not mention explicitly that the corresponding field 
-  elements do not need to constrained to the range $\{0, \ldots , r_\GroupJ - 1\}$. This would require more 
+  elements do not need to constrained to the range $\{0, \ldots , \ParamJ{r} - 1\}$. This would require more 
   constraints in the circuit which are unnecessary since they are only used to compute a group scalar 
   multiplication (which requires the bit-decomposition). If a congruent representation is given, the 
   resulting group element would be the same, even if an overflow occurs. Witnessing this value serves 
