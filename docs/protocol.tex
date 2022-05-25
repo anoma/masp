@@ -55,6 +55,9 @@
 % <https://stackoverflow.com/a/49406814/393146>
 \newcommand{\increment}[1]{\the\numexpr #1+1\relax}
 
+\tracinggroups=1
+\tracingnesting=2
+
 
 % The destlabel option creates "destination names" in the PDF, which allows
 % linking to sections in URL fragments when viewing the PDF in a web browser:
@@ -1374,6 +1377,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\UncommittedSapling}{\mathsf{Uncommitted^{Sapling}}}
 \newcommand{\NoteCommitmentSprout}{\optSprout{\mathsf{NoteCommitment}}}
 \newcommand{\NoteCommitmentSapling}{\mathsf{NoteCommitment^{Sapling}}}
+\newcommand{\NoteCommitmentMASP}{\mathsf{NoteCommitment^{MASP}}}
 
 \newcommand{\CommitAlg}{\mathsf{COMM}}
 \newcommand{\Commit}[1]{\CommitAlg_{#1}}
@@ -1389,6 +1393,10 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\NoteCommitSproutOutput}{\NoteCommitSproutAlg\mathsf{.Output}}
 \newcommand{\NoteCommitSaplingAlg}{\mathsf{NoteCommit}^{\mathsf{Sapling}}}
 \newcommand{\NoteCommitSapling}[1]{\NoteCommitSaplingAlg_{#1}}
+
+\newcommand{\NoteCommitMASPAlg}{\mathsf{NoteCommit}^{\mathsf{MASP}}}
+\newcommand{\NoteCommitMASP}[1]{\NoteCommitMASPAlg_{#1}}
+
 \newcommand{\NoteCommitSaplingTrapdoor}{\NoteCommitSaplingAlg\mathsf{.Trapdoor}}
 \newcommand{\NoteCommitSaplingTrapdoorBytes}{\byteseq{32}}
 \newcommand{\NoteCommitSaplingGenTrapdoor}{\NoteCommitSaplingAlg\mathsf{.GenTrapdoor}}
@@ -1484,6 +1492,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\NoteTuple}[1]{\mathbf{n}_{#1}}
 \newcommand{\NoteTypeSprout}{\optSprout{\mathsf{Note}}}
 \newcommand{\NoteTypeSapling}{\mathsf{Note^{Sapling}}}
+\newcommand{\NoteTypeMASP}{\mathsf{Note^{MASP}}}
 \newcommand{\NoteToken}{\mathsf{t}}
 \newcommand{\NoteValueBase}{\mathsf{vb}}
 \newcommand{\NoteTokenLength}{\mathsf{\ell_{\NoteToken}}}
@@ -2381,19 +2390,26 @@ be as defined in the original \Sapling specification. %\crossref{constants}.
 
 %Let $\NoteCommitSproutAlg$ be as defined in \crossref{concretesproutnotecommit}.
 
-\sapling{
-Let $\NoteCommitSaplingAlg$ be as defined  in the original \Sapling specification.
+\masp{
+Let $\NoteCommitMASPAlg$ be as defined as:
+
+\begin{formulae}
+  \item $\NoteCommitMASP{\NoteCommitRand}(\DiversifiedTransmitBaseRepr, \DiversifiedTransmitPublicRepr, \Value, \mathsf{vb\Repr}) :=
+           \WindowedPedersenCommit{\NoteCommitRand}\left(\ones{6} \bconcat \mathsf{vb\Repr} \bconcat \ItoLEBSPOf{64}{\Value} \bconcat
+             \DiversifiedTransmitBaseRepr \bconcat \DiversifiedTransmitPublicRepr \right)$
+\end{formulae}
+
 
 Let $\KASapling$ be as defined  in the original \Sapling specification.
-} %sapling
+} %masp
 
 \masp{Let $\NoteTokenLength = 32$ bytes be the length of the asset identifier}.
 
 \sapling{
 \vspace{1ex}
 \introlist
-A \Sapling \note is a tuple $(\Diversifier, \DiversifiedTransmitPublic,
-\Value, \NoteCommitRand, \NoteToken)$, where:
+A \masp{MASP} \note is a tuple \masp{$(\Diversifier, \DiversifiedTransmitPublic,
+\Value, \NoteCommitRand, \NoteToken)$}, where:
 \begin{itemize}
   \item $\Diversifier \typecolon \DiversifierType$
         is the \diversifier of the recipient's \paymentAddress;
@@ -2406,14 +2422,15 @@ A \Sapling \note is a tuple $(\Diversifier, \DiversifiedTransmitPublic,
    \item \masp{$\NoteToken \typecolon \NoteTokenType$ is a bytestring representing the asset identifier of
    the note}
 \end{itemize}
-
+}%sapling
+\masp{
 \introlist
-Let $\NoteTypeSapling$ be the type of a \Sapling \note, i.e.
+Let $\NoteTypeMASP$ be the type of a MASP \note, i.e.
 \begin{formulae}
-  \item \masp{$\NoteTypeSapling := \DiversifierType \times \KASaplingPublicPrimeOrder \times \range{0}{\MAXMONEY}
+  \item \masp{$\NoteTypeMASP := \DiversifierType \times \KASaplingPublicPrimeOrder \times \range{0}{\MAXMONEY}
            \times \NoteCommitSaplingTrapdoor \times \NoteTokenType$}.
 \end{formulae}
-} %sapling
+} %masp
 
 Creation of new \notes is as described in the original \Sapling specification. When \notes are sent,
 only a commitment  to the above values is disclosed
@@ -2423,37 +2440,38 @@ used by the \zeroKnowledgeProof when the \note is spent, to check that it exists
 on the \blockchain.
 
 
-\sapling{
+\masp{
 \vspace{2ex}
 \introlist
 Let $\DiversifyHash$ be as defined in the original \Sapling specification. %\crossref{concretediversifyhash}.
 
-A \Sapling{} \noteCommitment on a \note  
-\masp{$\NoteTuple{} = (\Diversifier, \DiversifiedTransmitPublic, \Value, \NoteCommitRand, \NoteToken)$} is computed as
+A MASP \noteCommitment on a \note  
+$\NoteTuple{} = (\Diversifier, \DiversifiedTransmitPublic, \Value, \NoteCommitRand, \NoteToken)$} is computed as
 
 \begin{formulae}
   \item $\DiversifiedTransmitBase := \DiversifyHash(\Diversifier)$
         \vspace{-1ex}
-  \item \masp{$\NoteCommitmentSapling(\NoteTuple{}) := \begin{cases}
+  \item \masp{$\NoteCommitmentMASP(\NoteTuple{}) := \begin{cases}
           \bot, &\caseif \DiversifiedTransmitBase = \bot \\
-          \NoteCommitSapling{\NoteCommitRand}(\reprJ\Of{\DiversifiedTransmitBase},
+          \NoteCommitMASP{\NoteCommitRand}(\reprJ\Of{\DiversifiedTransmitBase},
                                               \reprJ\Of{\DiversifiedTransmitPublic},
                                               \Value, \reprJ(\PRFvcgMASP{\NoteToken})), &\caseotherwise.
         \end{cases}$}
 \end{formulae}
 \vspace{-1.5ex}
-where $\NoteCommitSapling{}$ is instantiated as in the original \Sapling specification.%\crossref{concretewindowedcommit}.
 
-Notice that the above definition of a \Sapling \note does not have a
+\sapling{
+Notice that the above definition of a \masp{MASP} \note does not have a
 $\NoteAddressRand$ field. There is in fact a $\NoteAddressRand$ value associated
-with each \Sapling \note, but this can only be computed once its position in the
+with each \masp{MASP} \note, but this can only be computed once its position in the
 \noteCommitmentTree is known.
 We refer to the combination of a \note and its \notePosition $\NotePosition$, as a
-\positionedNote.
+\positionedNote.}
 
+\masp{
 For a \positionedNote, we can compute the value
 $\NoteAddressRand$ as described in the original \Sapling specification. %\crossref{commitmentsandnullifiers}.
-} %sapling
+} %masp
 
 \vspace{2ex}
 A \nullifier (denoted $\nf$) is derived from the $\NoteAddressRand$ value
@@ -2506,10 +2524,10 @@ For further details, see \crossref{sproutinband}\sapling{ and \crossref{saplingi
 
 \masp{This section describes potential outside of circuit implementation details}.
 
-In order to send \Sapling{} \shielded value, the sender constructs a \transaction
+In order to send \masp{MASP} \shielded value, the sender constructs a \transaction
 containing one or more \outputDescriptions.
 
-Let $\ValueCommitAlg$, $\NoteCommitSaplingAlg$, $\KASapling$, $\DiversifyHash$, $\reprJ$, $\ParamJ{r}$, and $\ParamJ{h}$ be as defined in the original \Sapling specification.
+Let $\ValueCommitAlg$, $\KASapling$, $\DiversifyHash$, $\reprJ$, $\ParamJ{r}$, and $\ParamJ{h}$ be as defined in the original \Sapling specification.
 
 \vspace{1ex}
 Let $\OutViewingKey$ be an \outgoingViewingKey that is intended to be able to decrypt
@@ -2558,9 +2576,9 @@ performs the following steps:
 %          $\cvNew{}$ &$:= \ValueCommit{\ValueCommitRandNew{}}(\ValueNew{})$ \\[1ex]$
 	$\NoteValueBase$ &$:= \reprJ(\PRFvcgMASP{\NoteToken}) $\\[1ex]
           $\cvNew{}$ &$:= \scalarmult{\ValueNew{}\ParamJ{h}}{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $ \\[1ex]
-          $\cmNew{}$ &$:= \NoteCommitSapling{\NoteCommitRandNew{}}(\reprJ\Of{\DiversifiedTransmitBase},
+          $\cmNew{}$ &$:= \NoteCommitMASP{\NoteCommitRandNew{}}(\reprJ\Of{\DiversifiedTransmitBase},
                                                                    \reprJ\Of{\DiversifiedTransmitPublic},
-                                                                   \ValueNew{},\NoteValueBase)$
+                                                                   \ValueNew{},\reprJ\Of{\NoteValueBase})$
         \end{tabular}
 }
   \item Let $\NotePlaintext{} = (\Diversifier, \ValueNew{}, \NoteCommitRandBytes, \Memo, \masp{\NoteToken})$, where
@@ -2593,17 +2611,17 @@ scope of this specification. The encoded \transaction is submitted to the networ
 \introsection
 \lsubsubsection{\DummyNotes{} (\SaplingText)}{saplingdummynotes}
 
-In \Sapling there is no need to use \dummy \notes simply in order to fill
+In \masp{MASP} there is no need to use \dummy \notes simply in order to fill
 otherwise unused inputs as in the case of a \joinSplitDescription; nevertheless
 it may be useful for privacy to obscure the number of real \shieldedInputs from
-\Sapling{} \notes{}.
+\masp{MASP} \notes{}.
 
 \vspace{0.5ex}
 Let $\SpendingKeyLength$ , $\ParamJ{r}$, $\reprJ$, $\AuthProveBase$, $\PRFnfSapling{}$, $\NoteCommitSaplingAlg$ be as defined  in the original \Sapling specification.
 
 \introlist
 \vspace{0.5ex}
-A \dummy{} \Sapling input \note is constructed as follows:
+A \dummy{} \masp{MASP} input \note is constructed as follows:
 \vspace{-0.5ex}
 \begin{itemize}
   \item Choose uniformly random $\SpendingKey \leftarrowR \SpendingKeyType$.
@@ -2615,16 +2633,16 @@ A \dummy{} \Sapling input \note is constructed as follows:
   \item Compute $\AuthProvePublic = \scalarmult{\AuthProvePrivate}{\AuthProveBase}$ and
         $\AuthProvePublicRepr = \reprJ\Of{\AuthProvePublic}$\,.
   \item \masp{Compute $\NoteAddressRand{} = \cmOld{}
-                                    = \NoteCommitSapling{\NoteCommitRand}(\reprJ\Of{\DiversifiedTransmitBase},
+                                    = \NoteCommitMASP{\NoteCommitRand}(\reprJ\Of{\DiversifiedTransmitBase},
                                                                           \reprJ\Of{\DiversifiedTransmitPublic},
                                                                           \vOld{},
-                                                                           \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}})$.}
+                                                                           \reprJ\Of{\GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}})$.}
   \item Compute $\nfOld{} = \PRFnfSapling{\AuthProvePublicRepr}(\reprJ(\NoteAddressRand))$.
   \item Construct a \dummy \merklePath $\TreePath{}$ for use in the
         \auxiliaryInput to the \spendStatement (this will not be checked, because $\vOld{} = 0$).
 \end{itemize}
 
-As in \Sprout, a \dummy{} \Sapling output \note is constructed as normal but with
+As in \masp{Sapling}, a \dummy{} \masp{MASP} output \note is constructed as normal but with
 zero value, and sent to a random \paymentAddress.
 } %sapling
 
@@ -3009,9 +3027,9 @@ For details of the form and encoding of proofs, see \crossref{bctv}.
 
 \end{comment}
 \sapling{
-\lsubsubsection{\SpendStatement{} (\SaplingText)}{spendstatement}
+\lsubsubsection{\SpendStatement{} (\masp{MASP})}{spendstatement}
 
-The new Spend circuit has 100637 constraints. The original Sapling Output circuit has 98777 constraints.
+\masp{The new MASP Spend circuit has 100637 constraints. The original \Sapling Spend circuit has 98777 constraints.}
 
 \vspace{-1ex}
 Let $\MerkleHashLengthSapling$, $\PRFOutputLengthNfSapling$, $\ScalarLength$, $\ValueCommitAlg$, $\NoteCommitSaplingAlg$, $\SpendAuthSig$, $\GroupJ$, $\SubgroupJ$, $\reprJ$, $\ParamJ{q}$, $\ParamJ{r}$, $\ParamJ{h}$, \\ 
@@ -3053,9 +3071,9 @@ such that the following conditions hold:
 
 \vspace{0.5ex}
 \snarkcondition{Note commitment integrity}{spendnotecommitmentintegrity}
-$\cmOld{} = \NoteCommitSapling{\NoteCommitRandOld{}}(\reprJ\Of{\DiversifiedTransmitBase},
+$\cmOld{} = \NoteCommitMASP{\NoteCommitRandOld{}}(\reprJ\Of{\DiversifiedTransmitBase},
                                                      \reprJ\Of{\DiversifiedTransmitPublic},
-                                                     \vOld{}\masp{, \NoteValueBase})$.%masp
+                                                     \vOld{}\masp{, \reprJ\Of{\NoteValueBase}})$.%masp
 
 \snarkcondition{Merkle path validity}{spendmerklepathvalidity}
 Either $\vOld{} = 0$; or $(\TreePath{}, \NotePosition)$ is a valid \merklePath of depth $\MerkleDepthSapling$,
@@ -3063,7 +3081,7 @@ as defined in the original \Sapling specification, from $\cmU = \ExtractJ(\cmOld
 
 \snarkcondition{Value commitment integrity}{spendvaluecommitmentintegrity}
 %$\cvOld{} = \ValueCommit{\ValueCommitRandOld{}}(\vOld{})$.
-\masp{$\cvOld{} = \scalarmult{\ValueNew{} \ParamJ{h} }{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $}
+\masp{$\cvOld{} = \scalarmult{\ValueOld{} \ParamJ{h} }{\NoteValueBase} + \scalarmult{\ValueCommitRandOld{}}{ \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $}
 
 \snarkcondition{Small order checks}{spendnonsmall}
 $\DiversifiedTransmitBase$ and $\AuthSignPublic$ \masp{and $\NoteValueBase$}
@@ -3118,11 +3136,11 @@ $\DiversifiedTransmitPublic = \scalarmult{\InViewingKey}{\DiversifiedTransmitBas
 
 \sapling{
 \introsection
-\lsubsubsection{\OutputStatement{} (\SaplingText)}{outputstatement}
+\lsubsubsection{\OutputStatement{} (\masp{MASP})}{outputstatement}
 
-The new Output circuit has 31205 constraints. The original Sapling Output circuit has 7827 constraints. Most of the extra cost comes from computing one Blake2s hash in the circuit.
+\masp{The new MASP Output circuit has 31205 constraints. The original Sapling Output circuit has 7827 constraints. Most of the extra cost comes from computing one Blake2s hash in the circuit.}
 
-Let $\MerkleHashLengthSapling$, $\PRFOutputLengthNfSapling$, $\ScalarLength$, $\ValueCommitAlg$, $\NoteCommitSaplingAlg$, $\GroupJ$, $\reprJ$, and $\ParamJ{h}$ be as defined in the original \Sapling specification.
+Let $\MerkleHashLengthSapling$, $\PRFOutputLengthNfSapling$, $\ScalarLength$, $\ValueCommitAlg$, $\GroupJ$, $\reprJ$, and $\ParamJ{h}$ be as defined in the original \Sapling specification.
 
 \vspace{1ex}
 A valid instance of $\ProofOutput$ assures that given a \primaryInput:
@@ -3151,12 +3169,12 @@ the prover knows an \auxiliaryInput:
 such that the following conditions hold:
 
 \vspace{1ex}
-\snarkcondition{Note commitment integrity}{outputnotecommitmentintegrity}
-$\cmU = \ExtractJ\big(\NoteCommitSapling{\NoteCommitRandNew{}}(\DiversifiedTransmitBaseRepr,
+\snarkcondition{Note commitment integrity}{outputnotecommitmentintegrity}\masp{
+$\cmU = \ExtractJ\big(\NoteCommitMASP{\NoteCommitRandNew{}}(\DiversifiedTransmitBaseRepr,
                                                                \DiversifiedTransmitPublicRepr,
                                                                \vNew{},
-                                                               \masp{\NoteValueBase})\kern-0.12em\big)$,
-where $\DiversifiedTransmitBaseRepr = \reprJ\Of{\DiversifiedTransmitBase}$\,.
+                                                               \NoteValueBase\Repr)\kern-0.12em\big)$,}
+where $\DiversifiedTransmitBaseRepr = \reprJ\Of{\DiversifiedTransmitBase}$ and \masp{$\NoteValueBase\Repr = \reprJ\Of{vb}$}\,.
 
 \snarkcondition{Value commitment integrity}{outputvaluecommitmentintegrity}
 %$\cvNew{} = \ValueCommit{\ValueCommitRandNew{}}(\vNew{})$.
@@ -3164,7 +3182,7 @@ where $\DiversifiedTransmitBaseRepr = \reprJ\Of{\DiversifiedTransmitBase}$\,.
 
 \masp{
 \snarkcondition{Value base integrity}{outputvaluebaseintegrity}
-$\NoteValueBase = \reprJ(\PRFvcgMASP{\NoteToken})$
+$\reprJ\Of{vb} = \PRFvcgMASP{\NoteToken}$. The comparison is done as bits.
 }
 
 \snarkcondition{Small order check}{outputnonsmall}
@@ -3188,6 +3206,20 @@ $\EphemeralPublic = \scalarmult{\EphemeralPrivate}{\DiversifiedTransmitBase}$.
   \item It is \emph{not} checked that $\ValueCommitRandOld{} < \ParamJ{r}$ or that $\NoteCommitRandOld{} < \ParamJ{r}$.
 \end{pnotes}
 } %sapling
+
+\masp{
+  Some private inputs such as $\alpha,\EphemeralPrivate,\AuthProvePrivate \in \{0, \ldots, 2^\ScalarLength - 1\}$ 
+  represent the bit-decomposition of an element in the scalar field of an elliptic curve with order $r_\GroupJ$. 
+  Unlike the variables $rcm, rcv$, the specification does not mention explicitly that the corresponding field 
+  elements do not need to constrained to the range $\{0, \ldots , r_\GroupJ - 1\}$. This would require more 
+  constraints in the circuit which are unnecessary since they are only used to compute a group scalar 
+  multiplication (which requires the bit-decomposition). If a congruent representation is given, the 
+  resulting group element would be the same, even if an overflow occurs. Witnessing this value serves 
+  only as a proof-of-knowledge of the secret. Moreover, since the Groth16 proofs are already randomized 
+  for zero-knowledge, it therefore does not make a difference if the prover uses a (possible) congruent 
+  value of $\alpha, \EphemeralPrivate, \AuthProvePrivate$.
+    }
+
 \begin{comment}
 \sapling{
 \lsubsection{In-band secret distribution (\SaplingText)}{saplinginband}
