@@ -1,24 +1,16 @@
-use crate::asset_type::AssetType;
 use crate::pedersen_hash::{pedersen_hash, Personalization};
 use crate::primitives::ValueCommitment;
 use group::{Curve, GroupEncoding};
 use crate::transaction::components::Amount;
-use borsh::{BorshSerialize, BorshDeserialize};
+use std::iter::Sum;
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 
-#[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AllowedConversion {
     /// The asset type that the note represents
-    pub assets: Vec<(AssetType, i64)>,
-}
-
-impl Into<Amount> for AllowedConversion {
-    fn into(self) -> Amount {
-        let mut res = Amount::zero();
-        for (asset_type, value) in self.assets {
-            res += Amount::from(asset_type, value).unwrap();
-        }
-        res
-    }
+    assets: Amount,
+    /// Memorize generator because it's expensive to recompute
+    generator: jubjub::ExtendedPoint,
 }
 
 impl AllowedConversion {
@@ -34,7 +26,7 @@ impl AllowedConversion {
         let mut asset_generator_bytes = vec![];
 
         // Write the asset generator, cofactor not cleared
-        asset_generator_bytes.extend_from_slice(&self.asset_generator().to_bytes());
+        asset_generator_bytes.extend_from_slice(&self.generator.to_bytes());
 
         assert_eq!(asset_generator_bytes.len(), 32);
 
@@ -56,10 +48,27 @@ impl AllowedConversion {
             .get_u()
     }
 
+    /// Computes the value commitment for a given amount and randomness
+    pub fn value_commitment(&self, value: u64, randomness: jubjub::Fr) -> ValueCommitment {
+        ValueCommitment {
+            asset_generator: self.generator,
+            value,
+            randomness,
+        }
+    }
+}
+
+impl Into<Amount> for AllowedConversion {
+    fn into(self) -> Amount {
+        self.assets
+    }
+}
+
+impl From<Amount> for AllowedConversion {
     /// Produces an asset generator without cofactor cleared
-    pub fn asset_generator(&self) -> jubjub::ExtendedPoint {
+    fn from(assets: Amount) -> Self {
         let mut asset_generator = jubjub::ExtendedPoint::identity();
-        for (asset, value) in self.assets.iter() {
+        for (asset, value) in assets.components() {
             // Compute the absolute value (failing if -i64::MAX is
             // the value)
             let abs = match value.checked_abs() {
@@ -81,15 +90,93 @@ impl AllowedConversion {
             // Add to asset generator
             asset_generator += value_balance;
         }
-        asset_generator
+        AllowedConversion { assets, generator: asset_generator }
     }
+}
 
-    /// Computes the value commitment for a given amount and randomness
-    pub fn value_commitment(&self, value: u64, randomness: jubjub::Fr) -> ValueCommitment {
-        ValueCommitment {
-            asset_generator: self.asset_generator(),
-            value,
-            randomness,
+impl Add for AllowedConversion {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self {
+            assets: self.assets + rhs.assets,
+            generator: self.generator + rhs.generator,
         }
+    }
+}
+
+impl AddAssign for AllowedConversion {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = Self {
+            assets: self.assets.clone() + rhs.assets,
+            generator: self.generator + rhs.generator,
+        }
+    }
+}
+
+impl Sub for AllowedConversion {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        Self {
+            assets: self.assets - rhs.assets,
+            generator: self.generator - rhs.generator,
+        }
+    }
+}
+
+impl SubAssign for AllowedConversion {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = Self {
+            assets: self.assets.clone() - rhs.assets,
+            generator: self.generator - rhs.generator,
+        }
+    }
+}
+
+impl Sum for AllowedConversion {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(
+            AllowedConversion {
+                assets: Amount::zero(),
+                generator: jubjub::ExtendedPoint::identity()
+            },
+            Add::add
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::asset_type::AssetType;
+    use crate::transaction::components::Amount;
+    use crate::convert::AllowedConversion;
+    
+    /// Generate ZEC asset type
+    fn zec() -> AssetType {
+        AssetType::new(b"ZEC").unwrap()
+    }
+    /// Generate BTC asset type
+    fn btc() -> AssetType {
+        AssetType::new(b"BTC").unwrap()
+    }
+    /// Generate XAN asset type
+    fn xan() -> AssetType {
+        AssetType::new(b"XAN").unwrap()
+    }
+    #[test]
+    fn test_homomorphism() {
+        // Left operand
+        let a = Amount::from(zec(), 5).unwrap() +
+            Amount::from(btc(), 6).unwrap() +
+            Amount::from(xan(), 7).unwrap();
+        // Right operand
+        let b = Amount::from(zec(), 2).unwrap() +
+            Amount::from(xan(), 10).unwrap();
+        // Test homomorphism
+        assert_eq!(
+            AllowedConversion::from(a.clone() + b.clone()),
+            AllowedConversion::from(a.clone()) + AllowedConversion::from(b.clone())
+        );
     }
 }
