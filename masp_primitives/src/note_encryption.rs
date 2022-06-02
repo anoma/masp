@@ -1328,7 +1328,13 @@ mod tests {
             assert_eq!(ock.as_ref(), tv.ock);
 
             let to = PaymentAddress::from_parts(Diversifier(tv.default_d), pk_d).unwrap();
-            let note = to.create_note(AssetType::from_identifier(b"testtesttesttesttesttesttesttest").unwrap(), tv.v, crate::primitives::Rseed::BeforeZip212(rcm)).unwrap();
+            let note = to
+                .create_note(
+                    AssetType::from_identifier(b"testtesttesttesttesttesttesttest").unwrap(),
+                    tv.v,
+                    crate::primitives::Rseed::BeforeZip212(rcm),
+                )
+                .unwrap();
             assert_eq!(note.cmu(), cmu);
 
             let output = OutputDescription {
@@ -1411,13 +1417,14 @@ mod tests {
             // Test encryption
             //
 
-            let ne = masp_note_encryption::NoteEncryption::<SaplingDomain<TestNetwork>>::new_with_esk(
-                esk,
-                Some(ovk),
-                note,
-                to,
-                MemoBytes::from_bytes(&tv.memo).unwrap(),
-            );
+            let ne =
+                masp_note_encryption::NoteEncryption::<SaplingDomain<TestNetwork>>::new_with_esk(
+                    esk,
+                    Some(ovk),
+                    note,
+                    to,
+                    MemoBytes::from_bytes(&tv.memo).unwrap(),
+                );
 
             assert_eq!(ne.encrypt_note_plaintext().as_ref(), &tv.c_enc[..]);
             assert_eq!(
