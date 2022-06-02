@@ -479,7 +479,7 @@ mod tests {
     use std::convert::TryInto;
 
     use masp_note_encryption::{
-        EphemeralKeyBytes, OutgoingCipherKey, ENC_CIPHERTEXT_SIZE, NOTE_PLAINTEXT_SIZE,
+        batch, EphemeralKeyBytes, OutgoingCipherKey, ENC_CIPHERTEXT_SIZE, NOTE_PLAINTEXT_SIZE,
         OUT_CIPHERTEXT_SIZE, OUT_PLAINTEXT_SIZE,
     };
 
@@ -1272,6 +1272,158 @@ mod tests {
                 assert_eq!(decrypted_memo, memo);
             }
             None => panic!("Output recovery with ock failed"),
+        }
+    }
+
+    #[test]
+    fn test_vectors() {
+        let test_vectors = crate::test_vectors::note_encryption::make_test_vectors();
+
+        macro_rules! read_bls12_381_scalar {
+            ($field:expr) => {{
+                bls12_381::Scalar::from_repr($field[..].try_into().unwrap()).unwrap()
+            }};
+        }
+
+        macro_rules! read_jubjub_scalar {
+            ($field:expr) => {{
+                jubjub::Fr::from_repr($field[..].try_into().unwrap()).unwrap()
+            }};
+        }
+
+        macro_rules! read_point {
+            ($field:expr) => {
+                jubjub::ExtendedPoint::from_bytes(&$field).unwrap()
+            };
+        }
+
+        let height = TEST_NETWORK.activation_height(Canopy).unwrap();
+
+        for tv in test_vectors {
+            //
+            // Load the test vector components
+            //
+
+            let ivk = SaplingIvk(read_jubjub_scalar!(tv.ivk));
+            use group::cofactor::CofactorGroup;
+            let pk_d = read_point!(tv.default_pk_d).into_subgroup().unwrap();
+            let rcm = read_jubjub_scalar!(tv.rcm);
+            let cv = read_point!(tv.cv);
+            let cmu = read_bls12_381_scalar!(tv.cmu);
+            let esk = read_jubjub_scalar!(tv.esk);
+            let ephemeral_key = EphemeralKeyBytes(tv.epk);
+
+            //
+            // Test the individual components
+            //
+
+            let shared_secret = sapling_ka_agree(&esk, &pk_d.into());
+            assert_eq!(shared_secret.to_bytes(), tv.shared_secret);
+
+            let k_enc = kdf_sapling(shared_secret, &ephemeral_key);
+            assert_eq!(k_enc.as_bytes(), tv.k_enc);
+
+            let ovk = OutgoingViewingKey(tv.ovk);
+            let ock = prf_ock(&ovk, &cv, &cmu.to_repr(), &ephemeral_key);
+            assert_eq!(ock.as_ref(), tv.ock);
+
+            let to = PaymentAddress::from_parts(Diversifier(tv.default_d), pk_d).unwrap();
+            let note = to.create_note(AssetType::from_identifier(b"testtesttesttesttesttesttesttest").unwrap(), tv.v, crate::primitives::Rseed::BeforeZip212(rcm)).unwrap();
+            assert_eq!(note.cmu(), cmu);
+
+            let output = OutputDescription {
+                cv,
+                cmu,
+                ephemeral_key,
+                enc_ciphertext: tv.c_enc,
+                out_ciphertext: tv.c_out,
+                zkproof: [0u8; GROTH_PROOF_SIZE],
+            };
+
+            //
+            // Test decryption
+            // (Tested first because it only requires immutable references.)
+            //
+
+            match try_sapling_note_decryption(&TEST_NETWORK, height, &ivk, &output) {
+                Some((decrypted_note, decrypted_to, decrypted_memo)) => {
+                    assert_eq!(decrypted_note, note);
+                    assert_eq!(decrypted_to, to);
+                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
+                }
+                None => panic!("Note decryption failed"),
+            }
+
+            match try_sapling_compact_note_decryption(
+                &TEST_NETWORK,
+                height,
+                &ivk,
+                &CompactOutputDescription::from(output.clone()),
+            ) {
+                Some((decrypted_note, decrypted_to)) => {
+                    assert_eq!(decrypted_note, note);
+                    assert_eq!(decrypted_to, to);
+                }
+                None => panic!("Compact note decryption failed"),
+            }
+
+            match try_sapling_output_recovery(&TEST_NETWORK, height, &ovk, &output) {
+                Some((decrypted_note, decrypted_to, decrypted_memo)) => {
+                    assert_eq!(decrypted_note, note);
+                    assert_eq!(decrypted_to, to);
+                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
+                }
+                None => panic!("Output recovery failed"),
+            }
+
+            match &batch::try_note_decryption(
+                &[ivk.clone()],
+                &[(
+                    SaplingDomain::for_height(TEST_NETWORK, height),
+                    output.clone(),
+                )],
+            )[..]
+            {
+                [Some((decrypted_note, decrypted_to, decrypted_memo))] => {
+                    assert_eq!(decrypted_note, &note);
+                    assert_eq!(decrypted_to, &to);
+                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
+                }
+                _ => panic!("Note decryption failed"),
+            }
+
+            match &batch::try_compact_note_decryption(
+                &[ivk.clone()],
+                &[(
+                    SaplingDomain::for_height(TEST_NETWORK, height),
+                    CompactOutputDescription::from(output.clone()),
+                )],
+            )[..]
+            {
+                [Some((decrypted_note, decrypted_to))] => {
+                    assert_eq!(decrypted_note, &note);
+                    assert_eq!(decrypted_to, &to);
+                }
+                _ => panic!("Note decryption failed"),
+            }
+
+            //
+            // Test encryption
+            //
+
+            let ne = masp_note_encryption::NoteEncryption::<SaplingDomain<TestNetwork>>::new_with_esk(
+                esk,
+                Some(ovk),
+                note,
+                to,
+                MemoBytes::from_bytes(&tv.memo).unwrap(),
+            );
+
+            assert_eq!(ne.encrypt_note_plaintext().as_ref(), &tv.c_enc[..]);
+            assert_eq!(
+                &ne.encrypt_outgoing_plaintext(&cv, &cmu, &mut OsRng)[..],
+                &tv.c_out[..]
+            );
         }
     }
 
