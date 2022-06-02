@@ -182,6 +182,7 @@ impl DiversifierKey {
     /// diversifier, along with the corresponding diversifier. Returns
     /// `None` if the diversifier space contains no valid diversifiers
     /// at or above the specified diversifier index.
+    #[allow(clippy::question_mark)]
     pub fn find_diversifier(
         &self,
         mut j: DiversifierIndex,
