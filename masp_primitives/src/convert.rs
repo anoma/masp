@@ -4,6 +4,9 @@ use group::{Curve, GroupEncoding};
 use crate::transaction::components::Amount;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
+use borsh::{BorshSerialize, BorshDeserialize};
+use std::io::Write;
+use borsh::maybestd::io::{Error, ErrorKind};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AllowedConversion {
@@ -94,6 +97,27 @@ impl From<Amount> for AllowedConversion {
     }
 }
 
+impl BorshSerialize for AllowedConversion {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.assets.write(writer)?;
+        writer.write(&self.generator.to_bytes())?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for AllowedConversion {
+    /// This deserialization is unsafe because it does not do the expensive
+    /// computation of checking whether the asset generator corresponds to the
+    /// deserialized amount.
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        let assets = Amount::read(buf)?;
+        let gen_bytes = <<jubjub::ExtendedPoint as GroupEncoding>::Repr as BorshDeserialize>::deserialize(buf)?;
+        let generator = Option::from(jubjub::ExtendedPoint::from_bytes(&gen_bytes))
+            .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+        Ok(AllowedConversion { assets, generator })
+    }
+}
+
 impl Add for AllowedConversion {
     type Output = Self;
 
@@ -151,6 +175,7 @@ mod tests {
     use crate::asset_type::AssetType;
     use crate::transaction::components::Amount;
     use crate::convert::AllowedConversion;
+    use borsh::{BorshSerialize, BorshDeserialize};
     
     /// Generate ZEC asset type
     fn zec() -> AssetType {
@@ -178,5 +203,23 @@ mod tests {
             AllowedConversion::from(a.clone() + b.clone()),
             AllowedConversion::from(a.clone()) + AllowedConversion::from(b.clone())
         );
+    }
+    #[test]
+    fn test_serialization() {
+        // Make conversion
+        let a: AllowedConversion = (
+            Amount::from(zec(), 5).unwrap() +
+                Amount::from(btc(), 6).unwrap() +
+                Amount::from(xan(), 7).unwrap()).into();
+        // Serialize conversion
+        let mut data = Vec::new();
+        a.serialize(&mut data).unwrap();
+        // Deserialize conversion
+        let mut ptr = &data[..];
+        let b = AllowedConversion::deserialize(&mut ptr).unwrap();
+        // Check that all bytes have been finished
+        assert!(ptr.is_empty(), "AllowedConversion bytes should be exhausted");
+        // Test that serializing then deserializing produces same object
+        assert_eq!(a, b, "serialization followed by deserialization changes value");
     }
 }
