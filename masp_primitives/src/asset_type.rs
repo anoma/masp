@@ -14,6 +14,9 @@ use std::hash::Hasher;
 use std::cmp::Ordering;
 use std::fmt::Formatter;
 use std::fmt::Display;
+use std::str::FromStr;
+use std::io::Error;
+use std::convert::TryInto;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Eq, Copy)]
 pub struct AssetType {
@@ -170,6 +173,18 @@ impl AssetType {
 impl Display for AssetType {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{}", hex::encode(self.get_identifier()))
+    }
+}
+
+impl FromStr for AssetType {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let vec = hex::decode(s).map_err(|x| Error::new(std::io::ErrorKind::InvalidData, x))?;
+        Self::from_identifier(
+            &vec.try_into()
+                .map_err(|_| Error::from(std::io::ErrorKind::InvalidData))?
+        ).ok_or_else(|| Error::from(std::io::ErrorKind::InvalidData))
     }
 }
 

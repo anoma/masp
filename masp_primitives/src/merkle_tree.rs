@@ -32,6 +32,7 @@ impl<Node: Hashable> PathFiller<Node> {
 }
 
 /// An immutable commitment tree
+#[derive(Clone, Debug)]
 pub struct FrozenCommitmentTree<Node>(HashMap<(usize, usize), Node>);
 
 impl<Node: Hashable> FrozenCommitmentTree<Node> {
@@ -104,6 +105,18 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
             to = parent_to;
         }
         path
+    }
+}
+
+impl<Node: BorshSerialize> BorshSerialize for FrozenCommitmentTree<Node> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.0.serialize(writer)
+    }
+}
+
+impl<Node: BorshDeserialize> BorshDeserialize for FrozenCommitmentTree<Node> {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Ok(Self(BorshDeserialize::deserialize(buf)?))
     }
 }
 
