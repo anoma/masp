@@ -32,7 +32,7 @@ impl<Node: Hashable> PathFiller<Node> {
 }
 
 /// An immutable commitment tree
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FrozenCommitmentTree<Node>(HashMap<(usize, usize), Node>);
 
 impl<Node: Hashable> FrozenCommitmentTree<Node> {
