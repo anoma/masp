@@ -38,10 +38,70 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
     pub fn new(leafs: &[Node]) -> Self {
         let mut tree = Vec::with_capacity(leafs.len()*2 + SAPLING_COMMITMENT_TREE_DEPTH + 1);
         tree.extend_from_slice(leafs);
+        // Infer the rest of the tree
+        Self::complete(tree, 0, leafs.len(), 0, leafs.len())
+    }
+    /// Merge the n-1 full Merkle trees with the last possibly unfilled one. All
+    /// full trees must have the same size which must be a power of 2 and the
+    /// tree must be smaller than this size.
+    pub fn merge(subtrees: &[FrozenCommitmentTree<Node>]) -> Self {
+        if subtrees.is_empty() {
+            return Self(Vec::new(), 0)
+        }
+        // Combine the 1 or more supplied subtrees
+        let mut height = 0;
+        let mut prev_first_start = 0;
+        let mut prev_first_width = subtrees[0].size();
+        let mut prev_last_start = 0;
+        let mut prev_last_width = subtrees.last().unwrap().size();
         let mut prev_start = 0;
-        let mut prev_width = tree.len();
+        let mut prev_width = (subtrees.len()-1) * prev_first_width + prev_last_width;
+        let leafs = prev_width;
+        let mut tree = Vec::with_capacity(leafs*2 + SAPLING_COMMITMENT_TREE_DEPTH + 1);
+        loop {
+            // Need to make sure that right child is present for parent
+            if prev_last_width % 2 == 1 && prev_first_width > 1 {
+                prev_last_width += 1;
+                prev_width += 1;
+            }
+            // Combine all the rows at the current level
+            for subtree in &subtrees[0..(subtrees.len()-1)] {
+                tree.extend_from_slice(
+                    &subtree.0[prev_first_start..(prev_first_start+prev_first_width)]
+                );
+            }
+            tree.extend_from_slice(
+                &subtrees.last()
+                    .unwrap()
+                    .0[prev_last_start..(prev_last_start+prev_last_width)]
+            );
+            // Quit when we are the top of the full trees
+            if prev_first_width == 1 {
+                break;
+            }
+            // Update our positions on the full and unfull trees
+            prev_first_start += prev_first_width;
+            prev_first_width /= 2;
+            prev_last_start += prev_last_width;
+            prev_last_width /= 2;
+            prev_start += prev_width;
+            prev_width /= 2;
+            height += 1;
+        }
+        // Now that we have taken as many levels as possible from the
+        // supplied subtrees, infer the rest
+        Self::complete(tree, prev_start, prev_width, height, leafs)
+    }
+    /// Complete the construction of given Merkle tree given the highest row data
+    fn complete(
+        mut tree: Vec<Node>,
+        mut prev_start: usize,
+        mut prev_width: usize,
+        heightp: usize,
+        leafs: usize,
+    ) -> Self {
         // Add higher and higher rows of the Merkle tree
-        for height in 0..SAPLING_COMMITMENT_TREE_DEPTH {
+        for height in heightp..SAPLING_COMMITMENT_TREE_DEPTH {
             if prev_width % 2 == 1 {
                 // Add a dummy for the right-most parent's right child
                 prev_width += 1;
@@ -60,7 +120,7 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
             prev_start += prev_width;
             prev_width /= 2;
         }
-        Self(tree, leafs.len())
+        Self(tree, leafs)
     }
     /// Get the root node of the commitment tree
     pub fn root(&self) -> Node {
@@ -92,6 +152,10 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
             pos /= 2;
         }
         path
+    }
+    /// Returns the number of leaf nodes in the tree.
+    pub fn size(&self) -> usize {
+        self.1
     }
 }
 
@@ -797,25 +861,29 @@ mod tests {
             "f43e3aac61e5a753062d4d0508c26ceaf5e4c0c58ba3c956e104b5d2cf67c41c",
             "3a3661bc12b72646c94bc6c92796e81953985ee62d80a9ec3645a9a95740ac15",
         ];
-        let mut orig = CommitmentTree::empty();
-        let mut cmus = Vec::new();
-        let mut paths:Vec<IncrementalWitness<Node>> = Vec::new();
-        for i in 0..16 {
-            let cmu = hex::decode(commitments[i]).unwrap();
-            let cmu = Node::new(cmu[..].try_into().unwrap());
-            orig.append(cmu).unwrap();
-            cmus.push(cmu);
-            for path in &mut paths {
-                path.append(cmu).unwrap();
+        for right in 8..16 {
+            let mut orig = CommitmentTree::empty();
+            let mut cmus = Vec::new();
+            let mut paths:Vec<IncrementalWitness<Node>> = Vec::new();
+            for i in 0..right {
+                let cmu = hex::decode(commitments[i]).unwrap();
+                let cmu = Node::new(cmu[..].try_into().unwrap());
+                orig.append(cmu).unwrap();
+                cmus.push(cmu);
+                for path in &mut paths {
+                    path.append(cmu).unwrap();
+                }
+                paths.push(IncrementalWitness::from_tree(&orig));
             }
-            paths.push(IncrementalWitness::from_tree(&orig));
-        }
-        let frozen = FrozenCommitmentTree::new(&cmus);
-        assert_eq!(orig.root(), frozen.root());
-        for (i, path) in paths.iter().enumerate() {
-            let path = path.path().unwrap();
-            assert_eq!(path.auth_path, frozen.path(i).auth_path);
-            assert_eq!(path.position, frozen.path(i).position);
+            let frozen1 = FrozenCommitmentTree::new(&cmus[0..8]);
+            let frozen2 = FrozenCommitmentTree::new(&cmus[8..right]);
+            let frozen = FrozenCommitmentTree::merge(&[frozen1, frozen2]);
+            assert_eq!(orig.root(), frozen.root());
+            for (i, path) in paths.iter().enumerate() {
+                let path = path.path().unwrap();
+                assert_eq!(path.auth_path, frozen.path(i).auth_path);
+                assert_eq!(path.position, frozen.path(i).position);
+            }
         }
     }
 
