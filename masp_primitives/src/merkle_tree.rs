@@ -3,12 +3,10 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
-use std::collections::HashMap;
 
 use incrementalmerkletree::{self, bridgetree};
 use zcash_encoding::{Optional, Vector};
 use borsh::{BorshSerialize, BorshDeserialize};
-use std::ops::Shl;
 use zcash_primitives::{
     merkle_tree::Hashable,
     sapling::{SAPLING_COMMITMENT_TREE_DEPTH, SAPLING_COMMITMENT_TREE_DEPTH_U8},
@@ -33,76 +31,65 @@ impl<Node: Hashable> PathFiller<Node> {
 
 /// An immutable commitment tree
 #[derive(Clone, Debug, Default)]
-pub struct FrozenCommitmentTree<Node>(HashMap<(usize, usize), Node>);
+pub struct FrozenCommitmentTree<Node>(Vec<Node>, usize);
 
 impl<Node: Hashable> FrozenCommitmentTree<Node> {
     /// Construct a commitment tree with the given leaf nodes
-    pub fn new(leafs: &Vec<Node>) -> Self {
-        let mut tree = HashMap::new();
-        // Trigger the construction of all tree nodes through the root
-        Self::build(
-            &mut tree,
-            leafs,
-            0,
-            (1 << SAPLING_COMMITMENT_TREE_DEPTH_U8)-1,
-            SAPLING_COMMITMENT_TREE_DEPTH
-        );
-        Self(tree)
-    }
-    /// Construct the commitment tree. Parent nodes are described by an inclusive
-    /// range of the nodes they cover.
-    fn build(
-        tree: &mut HashMap<(usize, usize), Node>,
-        leafs: &Vec<Node>,
-        from: usize,
-        to: usize,
-        height: usize,
-    ) -> Node {
-        // Compute the requested node
-        let new_node = if from >= leafs.len() {
-            Node::empty_root(height)
-        } else if to == from {
-            leafs[from]
-        } else {
-            // Midpoint computation done in this way to avoid overflows
-            let mid = from + ((to - from) >> 1);
-            // Build the left and right childs
-            let left = Self::build(tree, leafs, from, mid, height-1);
-            let right = Self::build(tree, leafs, mid+1, to, height-1);
-            // Then combine into single node
-            Node::combine(height-1, &left, &right)
-        };
-        // Then memorize computation for future lookups
-        tree.insert((from, to), new_node);
-        new_node
+    pub fn new(leafs: &[Node]) -> Self {
+        let mut tree = Vec::with_capacity(leafs.len()*2 + SAPLING_COMMITMENT_TREE_DEPTH + 1);
+        tree.extend_from_slice(leafs);
+        let mut prev_start = 0;
+        let mut prev_width = tree.len();
+        // Add higher and higher rows of the Merkle tree
+        for height in 0..SAPLING_COMMITMENT_TREE_DEPTH {
+            if prev_width % 2 == 1 {
+                // Add a dummy for the right-most parent's right child
+                prev_width += 1;
+                tree.push(Node::empty_root(height))
+            }
+            for j in 0..(prev_width/2) {
+                // Add the nodes of the next row dependent upon previous row
+                let comb = Node::combine(
+                    height,
+                    &tree[prev_start + 2*j],
+                    &tree[prev_start + 2*j + 1]
+                );
+                tree.push(comb);
+            }
+            // Next row will be adjacent to current row in vector
+            prev_start += prev_width;
+            prev_width /= 2;
+        }
+        Self(tree, leafs.len())
     }
     /// Get the root node of the commitment tree
     pub fn root(&self) -> Node {
-        // The node whose range covers all nodes is the root
-        self.0[&(0, (1 << SAPLING_COMMITMENT_TREE_DEPTH_U8)-1)]
+        self.0
+            .last()
+            .cloned()
+            .unwrap_or_else(|| Node::empty_root(SAPLING_COMMITMENT_TREE_DEPTH))
     }
     /// Construct a merkle path to the given position in commitment tree
-    pub fn path(&self, pos: usize) -> MerklePath<Node> {
+    pub fn path(&self, mut pos: usize) -> MerklePath<Node> {
         let mut path = MerklePath { auth_path: vec![], position: pos as u64 };
-        let mut from = pos;
-        let mut to = pos;
+        let mut start = 0;
+        let mut width = self.1;
         
-        for height in 0..SAPLING_COMMITMENT_TREE_DEPTH_U8 {
-            // Derive the parent node range
-            let mask = usize::MAX.shl(height + 1);
-            let parent_from = from & mask;
-            let parent_to = parent_from + (to-from) * 2 + 1;
-            if from == parent_from {
+        for _height in 0..SAPLING_COMMITMENT_TREE_DEPTH_U8 {
+            if pos % 2 == 0 {
                 // The current node is a left child
-                let sibling = self.0[&(to+1, parent_to)];
-                path.auth_path.push((sibling, false));
+                path.auth_path.push((self.0[start+pos+1], false));
             } else {
                 // The current node is a right child
-                let sibling = self.0[&(parent_from, from-1)];
-                path.auth_path.push((sibling, true));
+                path.auth_path.push((self.0[start+pos-1], true));
             }
-            from = parent_from;
-            to = parent_to;
+            if width % 2 == 1 {
+                width += 1;
+            }
+            // Move to the parent of the current node
+            start += width;
+            width /= 2;
+            pos /= 2;
         }
         path
     }
@@ -110,13 +97,14 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
 
 impl<Node: BorshSerialize> BorshSerialize for FrozenCommitmentTree<Node> {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        self.0.serialize(writer)
+        (&self.0, self.1).serialize(writer)
     }
 }
 
 impl<Node: BorshDeserialize> BorshDeserialize for FrozenCommitmentTree<Node> {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Ok(Self(BorshDeserialize::deserialize(buf)?))
+        let tup: (Vec<Node>, usize) = BorshDeserialize::deserialize(buf)?;
+        Ok(Self(tup.0, tup.1))
     }
 }
 
