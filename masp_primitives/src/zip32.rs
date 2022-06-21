@@ -11,6 +11,7 @@ use std::ops::AddAssign;
 use std::str::FromStr;
 use std::io::{Error, ErrorKind};
 use borsh::{BorshSerialize, BorshDeserialize};
+use std::cmp::Ordering;
 
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
@@ -344,6 +345,38 @@ impl std::fmt::Debug for ExtendedFullViewingKey {
     }
 }
 
+impl BorshDeserialize for ExtendedFullViewingKey {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for ExtendedFullViewingKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl PartialOrd for ExtendedFullViewingKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let a = self.try_to_vec()
+            .expect("unable to canonicalize ExtendedFullViewingKey");
+        let b = other.try_to_vec()
+            .expect("unable to canonicalize ExtendedFullViewingKey");
+        a.partial_cmp(&b)
+    }
+}
+
+impl Ord for ExtendedFullViewingKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let a = self.try_to_vec()
+            .expect("unable to canonicalize ExtendedFullViewingKey");
+        let b = other.try_to_vec()
+            .expect("unable to canonicalize ExtendedFullViewingKey");
+        a.cmp(&b)
+    }
+}
+
 impl ExtendedSpendingKey {
     pub fn master(seed: &[u8]) -> Self {
         let i = Blake2bParams::new()
@@ -508,6 +541,26 @@ impl FromStr for ExtendedSpendingKey {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let vec = hex::decode(s).map_err(|x| Error::new(ErrorKind::InvalidData, x))?;
         Ok(ExtendedSpendingKey::master(vec.as_ref()))
+    }
+}
+
+impl PartialOrd for ExtendedSpendingKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let a = self.try_to_vec()
+            .expect("unable to canonicalize ExtendedSpendingKey");
+        let b = other.try_to_vec()
+            .expect("unable to canonicalize ExtendedSpendingKey");
+        a.partial_cmp(&b)
+    }
+}
+
+impl Ord for ExtendedSpendingKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let a = self.try_to_vec()
+            .expect("unable to canonicalize ExtendedSpendingKey");
+        let b = other.try_to_vec()
+            .expect("unable to canonicalize ExtendedSpendingKey");
+        a.cmp(&b)
     }
 }
 
