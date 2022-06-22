@@ -21,6 +21,7 @@ use std::convert::TryInto;
 #[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Eq, Copy)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
+    #[borsh_skip]
     nonce: Option<u8>,
 }
 
