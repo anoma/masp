@@ -185,12 +185,12 @@ mod tests {
     #[test]
     fn test_homomorphism() {
         // Left operand
-        let a = Amount::from(zec(), 5).unwrap() +
-            Amount::from(btc(), 6).unwrap() +
-            Amount::from(xan(), 7).unwrap();
+        let a = Amount::from_pair(zec(), 5).unwrap() +
+            Amount::from_pair(btc(), 6).unwrap() +
+            Amount::from_pair(xan(), 7).unwrap();
         // Right operand
-        let b = Amount::from(zec(), 2).unwrap() +
-            Amount::from(xan(), 10).unwrap();
+        let b = Amount::from_pair(zec(), 2).unwrap() +
+            Amount::from_pair(xan(), 10).unwrap();
         // Test homomorphism
         assert_eq!(
             AllowedConversion::from(a.clone() + b.clone()),
@@ -201,9 +201,9 @@ mod tests {
     fn test_serialization() {
         // Make conversion
         let a: AllowedConversion = (
-            Amount::from(zec(), 5).unwrap() +
-                Amount::from(btc(), 6).unwrap() +
-                Amount::from(xan(), 7).unwrap()).into();
+            Amount::from_pair(zec(), 5).unwrap() +
+                Amount::from_pair(btc(), 6).unwrap() +
+                Amount::from_pair(xan(), 7).unwrap()).into();
         // Serialize conversion
         let mut data = Vec::new();
         a.serialize(&mut data).unwrap();
