@@ -61,7 +61,7 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
     /// Creates an Amount from a type convertible to i64.
     ///
     /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
-    pub fn from<Amt: TryInto<i64>>(
+    pub fn from_pair<Amt: TryInto<i64>>(
         atype: Unit,
         amount: Amt
     ) -> Result<Self, ()> {
@@ -95,7 +95,7 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
     /// Filters out everything but the given AssetType from this Amount
     pub fn project(&self, index: Unit) -> Self {
         let val = self.0.get(&index).copied().unwrap_or(0);
-        Self::from(index, val).unwrap()
+        Self::from_pair(index, val).unwrap()
     }
 
     /// Filters out the given AssetType from this Amount
@@ -122,7 +122,7 @@ impl Amount<AssetType> {
         })?;
         let mut ret = Self::zero();
         for (atype, amt) in vec {
-            ret += Self::from(atype, amt)
+            ret += Self::from_pair(atype, amt)
                 .map_err(|_| std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     "amount out of range"
@@ -140,6 +140,14 @@ impl Amount<AssetType> {
             writer.write_all(elt.1.to_le_bytes().as_ref())?;
             Ok(())
         })
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize> From<Unit> for Amount<Unit> {
+    fn from(atype: Unit) -> Self {
+        let mut ret = BTreeMap::new();
+        ret.insert(atype, 1);
+        Amount(ret)
     }
 }
 
@@ -287,7 +295,7 @@ pub fn zec() -> AssetType {
 }
 
 pub fn default_fee() -> Amount {
-    Amount::from(zec(), 10000).unwrap()
+    Amount::from_pair(zec(), 10000).unwrap()
 }
 
 #[cfg(test)]
@@ -302,13 +310,13 @@ mod tests {
         let neg_one = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\xff";
         assert_eq!(
             Amount::read(&mut neg_one.as_ref()).unwrap(),
-            Amount::from(zec(), -1).unwrap()
+            Amount::from_pair(zec(), -1).unwrap()
         );
 
         let max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x40\x07\x5a\xf0\x75\x07\x00";
         assert_eq!(
             Amount::read(&mut max_money.as_ref()).unwrap(),
-            Amount::from(zec(), MAX_MONEY).unwrap()
+            Amount::from_pair(zec(), MAX_MONEY).unwrap()
         );
 
         let max_money_p1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x40\x07\x5a\xf0\x75\x07\x00";
@@ -317,7 +325,7 @@ mod tests {
         let neg_max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\xc0\xf8\xa5\x0f\x8a\xf8\xff";
         assert_eq!(
             Amount::read(&mut neg_max_money.as_ref()).unwrap(),
-            Amount::from(zec(), -MAX_MONEY).unwrap()
+            Amount::from_pair(zec(), -MAX_MONEY).unwrap()
         );
 
         let neg_max_money_m1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xbf\xf8\xa5\x0f\x8a\xf8\xff";
@@ -327,28 +335,28 @@ mod tests {
     #[test]
     #[should_panic]
     fn add_panics_on_overflow() {
-        let v = Amount::from(zec(), MAX_MONEY).unwrap();
-        let _sum = v + Amount::from(zec(), 1).unwrap();
+        let v = Amount::from_pair(zec(), MAX_MONEY).unwrap();
+        let _sum = v + Amount::from_pair(zec(), 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn add_assign_panics_on_overflow() {
-        let mut a = Amount::from(zec(), MAX_MONEY).unwrap();
-        a += Amount::from(zec(), 1).unwrap();
+        let mut a = Amount::from_pair(zec(), MAX_MONEY).unwrap();
+        a += Amount::from_pair(zec(), 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn sub_panics_on_underflow() {
-        let v = Amount::from(zec(), -MAX_MONEY).unwrap();
-        let _diff = v - Amount::from(zec(), 1).unwrap();
+        let v = Amount::from_pair(zec(), -MAX_MONEY).unwrap();
+        let _diff = v - Amount::from_pair(zec(), 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn sub_assign_panics_on_underflow() {
-        let mut a = Amount::from(zec(), -MAX_MONEY).unwrap();
-        a -= Amount::from(zec(), 1).unwrap();
+        let mut a = Amount::from_pair(zec(), -MAX_MONEY).unwrap();
+        a -= Amount::from_pair(zec(), 1).unwrap();
     }
 }
