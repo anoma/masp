@@ -13,17 +13,10 @@ use std::ops::Index;
 use std::collections::btree_map::Keys;
 use std::collections::btree_map::Iter;
 use std::cmp::Ordering;
+use std::hash::Hash;
 
 const COIN: i64 = 1_0000_0000;
 const MAX_MONEY: i64 = 21_000_000 * COIN;
-
-pub fn zec() -> AssetType {
-    AssetType::new(b"ZEC").unwrap()
-}
-
-pub fn default_fee() -> Amount {
-    Amount::from(zec(), 10000).unwrap()
-}
 
 /// A type-safe representation of some quantity of Zcash.
 ///
@@ -39,28 +32,28 @@ pub fn default_fee() -> Amount {
 #[derive(
     Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Eq, Hash
 )]
-pub struct Amount(BTreeMap<AssetType, i64>);
+pub struct GenericAmount<Unit: Hash + Ord + BorshSerialize + BorshDeserialize>(BTreeMap<Unit, i64>);
 
-impl Amount {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> GenericAmount<Unit> {
     /// Returns a zero-valued Amount.
     pub fn zero() -> Self {
-        Amount(BTreeMap::new())
+        GenericAmount(BTreeMap::new())
     }
 
     /// Creates a non-negative Amount from an i64.
     ///
     /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
     pub fn from_nonnegative<Amt: TryInto<i64>>(
-        atype: AssetType,
+        atype: Unit,
         amount: Amt
     ) -> Result<Self, ()> {
         let amount = amount.try_into().map_err(|_| ())?;
         if amount == 0 {
-            Ok(Amount::zero())
+            Ok(GenericAmount::zero())
         } else if 0 <= amount && amount <= MAX_MONEY {
             let mut ret = BTreeMap::new();
             ret.insert(atype, amount);
-            Ok(Amount(ret))
+            Ok(GenericAmount(ret))
         } else {
             Err(())
         }
@@ -70,21 +63,44 @@ impl Amount {
     ///
     /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
     pub fn from<Amt: TryInto<i64>>(
-        atype: AssetType,
+        atype: Unit,
         amount: Amt
     ) -> Result<Self, ()> {
         let amount = amount.try_into().map_err(|_| ())?;
         if amount == 0 {
-            Ok(Amount::zero())
+            Ok(GenericAmount::zero())
         } else if -MAX_MONEY <= amount && amount <= MAX_MONEY {
             let mut ret = BTreeMap::new();
             ret.insert(atype, amount);
-            Ok(Amount(ret))
+            Ok(GenericAmount(ret))
         } else {
             Err(())
         }
     }
 
+    /// Returns an iterator over the amount's non-zero asset-types
+    pub fn asset_types(&self) -> Keys<'_, Unit, i64> {
+        self.0.keys()
+    }
+
+    /// Returns an iterator over the amount's non-zero components
+    pub fn components(&self) -> Iter<'_, Unit, i64> {
+        self.0.iter()
+    }
+
+    /// Filters out everything but the given AssetType from this Amount
+    pub fn project(&self, index: Unit) -> Self {
+        let val = self.0.get(&index).copied().unwrap_or(0);
+        Self::from(index, val).unwrap()
+    }
+
+    /// Filters out the given AssetType from this Amount
+    pub fn reject(&self, index: Unit) -> Self {
+        self.clone() - self.project(index)
+    }
+}
+
+impl Amount {
     /// Deserialize an Amount object from a list of amounts denominated by
     /// different assets
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
@@ -100,9 +116,9 @@ impl Amount {
                 ))?;
             Ok((atype, i64::from_le_bytes(value)))
         })?;
-        let mut ret = Amount::zero();
+        let mut ret = GenericAmount::zero();
         for (atype, amt) in vec {
-            ret += Amount::from(atype, amt)
+            ret += GenericAmount::from(atype, amt)
                 .map_err(|_| std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     "amount out of range"
@@ -121,33 +137,9 @@ impl Amount {
             Ok(())
         })
     }
-
-    /// Returns an iterator over the amount's non-zero asset-types
-    pub fn asset_types(&self) -> Keys<'_, AssetType, i64> {
-        self.0.keys()
-    }
-
-    /// Returns an iterator over the amount's non-zero components
-    pub fn components(&self) -> Iter<'_, AssetType, i64> {
-        self.0.iter()
-    }
-
-    /// Filters out everything but the given AssetType from this Amount
-    pub fn project(&self, index: AssetType) -> Amount {
-        Amount::from(index, if let Some(val) = self.0.get(&index) {
-            *val
-        } else {
-            0
-        }).unwrap()
-    }
-
-    /// Filters out the given AssetType from this Amount
-    pub fn reject(&self, index: AssetType) -> Amount {
-        self.clone() - self.project(index)
-    }
 }
 
-impl PartialOrd for Amount {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> PartialOrd for GenericAmount<Unit> {
     /// One Amount is more than or equal to another if each corresponding
     /// coordinate is more than the other's.
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -157,7 +149,7 @@ impl PartialOrd for Amount {
             if ent == 0 {
                 diff.0.remove(atype);
             } else {
-                diff.0.insert(*atype, ent);
+                diff.0.insert(atype.clone(), ent);
             }
         }
         if diff.0.values().all(|x| *x == 0) {
@@ -172,10 +164,10 @@ impl PartialOrd for Amount {
     }
 }
 
-impl Index<&AssetType> for Amount {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize> Index<&Unit> for GenericAmount<Unit> {
     type Output = i64;
     /// Query how much of the given asset this amount contains
-    fn index(&self, index: &AssetType) -> &Self::Output {
+    fn index(&self, index: &Unit) -> &Self::Output {
         if let Some(val) = self.0.get(index) {
             val
         } else {
@@ -184,21 +176,21 @@ impl Index<&AssetType> for Amount {
     }
 }
 
-impl From<Amount> for Vec<(AssetType, i64)> {
-    fn from(amount: Amount) -> Vec<(AssetType, i64)> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize> From<GenericAmount<Unit>> for Vec<(Unit, i64)> {
+    fn from(amount: GenericAmount<Unit>) -> Vec<(Unit, i64)> {
         Vec::from_iter(amount.0.into_iter())
     }
 }
 
-impl Mul<i64> for Amount {
-    type Output = Amount;
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i64> for GenericAmount<Unit> {
+    type Output = GenericAmount<Unit>;
 
-    fn mul(self, rhs: i64) -> Amount {
+    fn mul(self, rhs: i64) -> Self {
         let mut ret = self.clone();
         for (atype, amount) in self.components() {
             let ent = amount * rhs;
             if -MAX_MONEY <= ent && ent <= MAX_MONEY {
-                ret.0.insert(*atype, ent);
+                ret.0.insert(atype.clone(), ent);
             } else {
                 panic!("multiplication should remain in range");
             }
@@ -207,17 +199,17 @@ impl Mul<i64> for Amount {
     }
 }
 
-impl Add<Amount> for Amount {
-    type Output = Amount;
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<GenericAmount<Unit>> for GenericAmount<Unit> {
+    type Output = Self;
 
-    fn add(self, rhs: Amount) -> Amount {
+    fn add(self, rhs: Self) -> Self {
         let mut ret = self.clone();
         for (atype, amount) in rhs.components() {
             let ent = ret[atype] + amount;
             if ent == 0 {
                 ret.0.remove(atype);
             } else if -MAX_MONEY <= ent && ent <= MAX_MONEY {
-                ret.0.insert(*atype, ent);
+                ret.0.insert(atype.clone(), ent);
             } else {
                 panic!("addition should remain in range");
             }
@@ -226,23 +218,23 @@ impl Add<Amount> for Amount {
     }
 }
 
-impl AddAssign<Amount> for Amount {
-    fn add_assign(&mut self, rhs: Amount) {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<GenericAmount<Unit>> for GenericAmount<Unit> {
+    fn add_assign(&mut self, rhs: Self) {
         *self = self.clone() + rhs
     }
 }
 
-impl Sub<Amount> for Amount {
-    type Output = Amount;
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<GenericAmount<Unit>> for GenericAmount<Unit> {
+    type Output = Self;
 
-    fn sub(self, rhs: Amount) -> Amount {
+    fn sub(self, rhs: Self) -> Self {
         let mut ret = self.clone();
         for (atype, amount) in rhs.components() {
             let ent = ret[atype] - amount;
             if ent == 0 {
                 ret.0.remove(atype);
             } else if -MAX_MONEY <= ent && ent <= MAX_MONEY {
-                ret.0.insert(*atype, ent);
+                ret.0.insert(atype.clone(), ent);
             } else {
                 panic!("subtraction should remain in range");
             }
@@ -251,16 +243,27 @@ impl Sub<Amount> for Amount {
     }
 }
 
-impl SubAssign<Amount> for Amount {
-    fn sub_assign(&mut self, rhs: Amount) {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<GenericAmount<Unit>> for GenericAmount<Unit> {
+    fn sub_assign(&mut self, rhs: Self) {
         *self = self.clone() - rhs
     }
 }
 
-impl Sum for Amount {
-    fn sum<I: Iterator<Item = Amount>>(iter: I) -> Amount {
-        iter.fold(Amount::zero(), Add::add)
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sum for GenericAmount<Unit> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::zero(), Add::add)
     }
+}
+
+/// Represents amounts whose units are instances of AssetType
+pub type Amount = GenericAmount<AssetType>;
+
+pub fn zec() -> AssetType {
+    AssetType::new(b"ZEC").unwrap()
+}
+
+pub fn default_fee() -> Amount {
+    Amount::from(zec(), 10000).unwrap()
 }
 
 #[cfg(test)]
