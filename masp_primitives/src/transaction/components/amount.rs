@@ -185,36 +185,34 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize> From<Amount<Unit>> fo
 impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i64> for Amount<Unit> {
     type Output = Self;
 
-    fn mul(self, rhs: i64) -> Self {
-        let mut ret = self.clone();
-        for (atype, amount) in self.components() {
-            let ent = amount * rhs;
+    fn mul(mut self, rhs: i64) -> Self {
+        for (_atype, amount) in self.0.iter_mut() {
+            let ent = *amount * rhs;
             if -MAX_MONEY <= ent && ent <= MAX_MONEY {
-                ret.0.insert(atype.clone(), ent);
+                *amount = ent;
             } else {
                 panic!("multiplication should remain in range");
             }
         }
-        ret
+        self
     }
 }
 
 impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<Amount<Unit>> for Amount<Unit> {
     type Output = Self;
 
-    fn add(self, rhs: Self) -> Self {
-        let mut ret = self.clone();
+    fn add(mut self, rhs: Self) -> Self {
         for (atype, amount) in rhs.components() {
-            let ent = ret[atype] + amount;
+            let ent = self[atype] + amount;
             if ent == 0 {
-                ret.0.remove(atype);
+                self.0.remove(atype);
             } else if -MAX_MONEY <= ent && ent <= MAX_MONEY {
-                ret.0.insert(atype.clone(), ent);
+                self.0.insert(atype.clone(), ent);
             } else {
                 panic!("addition should remain in range");
             }
         }
-        ret
+        self
     }
 }
 
@@ -227,19 +225,18 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<Amo
 impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<Amount<Unit>> for Amount<Unit> {
     type Output = Self;
 
-    fn sub(self, rhs: Self) -> Self {
-        let mut ret = self.clone();
+    fn sub(mut self, rhs: Self) -> Self {
         for (atype, amount) in rhs.components() {
-            let ent = ret[atype] - amount;
+            let ent = self[atype] - amount;
             if ent == 0 {
-                ret.0.remove(atype);
+                self.0.remove(atype);
             } else if -MAX_MONEY <= ent && ent <= MAX_MONEY {
-                ret.0.insert(atype.clone(), ent);
+                self.0.insert(atype.clone(), ent);
             } else {
                 panic!("subtraction should remain in range");
             }
         }
-        ret
+        self
     }
 }
 
