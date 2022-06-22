@@ -233,7 +233,7 @@ impl TransparentInputs {
         {
             self.inputs
                 .iter()
-                .map(|input| Amount::from(input.coin.asset_type, input.coin.value).unwrap())
+                .map(|input| Amount::from_pair(input.coin.asset_type, input.coin.value).unwrap())
                 .sum::<Amount>()
         }
 
@@ -420,7 +420,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
 
         let alpha = jubjub::Fr::random(&mut self.rng);
 
-        self.mtx.value_balance += Amount::from(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?;
+        self.mtx.value_balance += Amount::from_pair(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?;
 
         self.spends.push(SpendDescriptionInfo {
             extsk,
@@ -477,7 +477,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
     ) -> Result<(), Error> {
         let output = SaplingOutput::new::<R, P>(self.height, &mut self.rng, ovk, to, asset_type, value, memo)?;
 
-        self.mtx.value_balance -= Amount::from(asset_type, value).map_err(|_| Error::InvalidAmount)?;
+        self.mtx.value_balance -= Amount::from_pair(asset_type, value).map_err(|_| Error::InvalidAmount)?;
 
         self.outputs.push(output);
 
@@ -546,7 +546,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
                 .mtx
                 .vout
                 .iter()
-                .map(|output| Amount::from(output.asset_type, output.value).unwrap())
+                .map(|output| Amount::from_pair(output.asset_type, output.value).unwrap())
                 .sum::<Amount>();
         if !(change >= Amount::zero()) {
             return Err(Error::ChangeIsNegative(change));
@@ -933,7 +933,7 @@ mod tests {
             let builder = Builder::<TestNetwork, OsRng>::new(0);
             assert_eq!(
                 builder.build(consensus::BranchId::Sapling, &MockTxProver),
-                Err(Error::ChangeIsNegative(Amount::from(zec(), -10000).unwrap()))
+                Err(Error::ChangeIsNegative(Amount::from_pair(zec(), -10000).unwrap()))
             );
         }
 
@@ -956,7 +956,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 builder.build(consensus::BranchId::Sapling, &MockTxProver),
-                Err(Error::ChangeIsNegative(Amount::from(zec(), -60000).unwrap()))
+                Err(Error::ChangeIsNegative(Amount::from_pair(zec(), -60000).unwrap()))
             );
         }
 
@@ -973,7 +973,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 builder.build(consensus::BranchId::Sapling, &MockTxProver),
-                Err(Error::ChangeIsNegative(Amount::from(zec(), -60000).unwrap()))
+                Err(Error::ChangeIsNegative(Amount::from_pair(zec(), -60000).unwrap()))
             );
         }
 
@@ -1015,7 +1015,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 builder.build(consensus::BranchId::Sapling, &MockTxProver),
-                Err(Error::ChangeIsNegative(Amount::from(zec(), -1).unwrap()))
+                Err(Error::ChangeIsNegative(Amount::from_pair(zec(), -1).unwrap()))
             );
         }
 
