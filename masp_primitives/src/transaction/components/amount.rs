@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use std::iter::Sum;
-use std::ops::{Add, AddAssign, Sub, SubAssign, Mul};
+use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign};
 use std::collections::BTreeMap;
 use crate::transaction::AssetType;
 use std::iter::FromIterator;
@@ -186,6 +186,13 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i64> for 
     type Output = Self;
 
     fn mul(mut self, rhs: i64) -> Self {
+        self *= rhs;
+        self
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> MulAssign<i64> for Amount<Unit> {
+    fn mul_assign(&mut self, rhs: i64) {
         for (_atype, amount) in self.0.iter_mut() {
             let ent = *amount * rhs;
             if -MAX_MONEY <= ent && ent <= MAX_MONEY {
@@ -194,7 +201,6 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i64> for 
                 panic!("multiplication should remain in range");
             }
         }
-        self
     }
 }
 
@@ -202,6 +208,13 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<Amount<Un
     type Output = Self;
 
     fn add(mut self, rhs: Self) -> Self {
+        self += rhs;
+        self
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<Amount<Unit>> for Amount<Unit> {
+    fn add_assign(&mut self, rhs: Self) {
         for (atype, amount) in rhs.components() {
             let ent = self[atype] + amount;
             if ent == 0 {
@@ -212,13 +225,6 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<Amount<Un
                 panic!("addition should remain in range");
             }
         }
-        self
-    }
-}
-
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<Amount<Unit>> for Amount<Unit> {
-    fn add_assign(&mut self, rhs: Self) {
-        *self = self.clone() + rhs
     }
 }
 
@@ -226,6 +232,13 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<Amount<Un
     type Output = Self;
 
     fn sub(mut self, rhs: Self) -> Self {
+        self -= rhs;
+        self
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<Amount<Unit>> for Amount<Unit> {
+    fn sub_assign(&mut self, rhs: Self) {
         for (atype, amount) in rhs.components() {
             let ent = self[atype] - amount;
             if ent == 0 {
@@ -236,13 +249,6 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<Amount<Un
                 panic!("subtraction should remain in range");
             }
         }
-        self
-    }
-}
-
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<Amount<Unit>> for Amount<Unit> {
-    fn sub_assign(&mut self, rhs: Self) {
-        *self = self.clone() - rhs
     }
 }
 
