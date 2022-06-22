@@ -131,10 +131,8 @@ impl Add for AllowedConversion {
 
 impl AddAssign for AllowedConversion {
     fn add_assign(&mut self, rhs: Self) {
-        *self = Self {
-            assets: self.assets.clone() + rhs.assets,
-            generator: self.generator + rhs.generator,
-        }
+        self.assets += rhs.assets;
+        self.generator += rhs.generator;
     }
 }
 
@@ -151,20 +149,15 @@ impl Sub for AllowedConversion {
 
 impl SubAssign for AllowedConversion {
     fn sub_assign(&mut self, rhs: Self) {
-        *self = Self {
-            assets: self.assets.clone() - rhs.assets,
-            generator: self.generator - rhs.generator,
-        }
+        self.assets -= rhs.assets;
+        self.generator -= rhs.generator;
     }
 }
 
 impl Sum for AllowedConversion {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(
-            AllowedConversion {
-                assets: Amount::zero(),
-                generator: jubjub::ExtendedPoint::identity()
-            },
+            AllowedConversion::from(Amount::zero()),
             Add::add
         )
     }

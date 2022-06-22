@@ -4,14 +4,13 @@ use std::iter::Sum;
 use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign};
 use std::collections::BTreeMap;
 use crate::transaction::AssetType;
-use std::iter::FromIterator;
 use crate::serialize::Vector;
 use std::io::Read;
 use std::io::Write;
 use std::convert::TryInto;
 use std::ops::Index;
 use std::collections::btree_map::Keys;
-use std::collections::btree_map::Iter;
+use std::collections::btree_map::{Iter, IntoIter};
 use std::cmp::Ordering;
 use std::hash::Hash;
 
@@ -88,6 +87,11 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
         self.0.iter()
     }
 
+    /// Returns an iterator over the amount's non-zero components
+    pub fn into_components(self) -> IntoIter<Unit, i64> {
+        self.0.into_iter()
+    }
+
     /// Filters out everything but the given AssetType from this Amount
     pub fn project(&self, index: Unit) -> Self {
         let val = self.0.get(&index).copied().unwrap_or(0);
@@ -130,7 +134,7 @@ impl Amount<AssetType> {
     /// Serialize an Amount object into a list of amounts denominated by
     /// distinct asset types
     pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let vec = Vec::<(AssetType, i64)>::from(self.clone());
+        let vec: Vec<_> = self.components().collect();
         Vector::write(writer, vec.as_ref(), |writer, elt| {
             writer.write_all(elt.0.get_identifier())?;
             writer.write_all(elt.1.to_le_bytes().as_ref())?;
@@ -168,26 +172,7 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize> Index<&Unit> for Amou
     type Output = i64;
     /// Query how much of the given asset this amount contains
     fn index(&self, index: &Unit) -> &Self::Output {
-        if let Some(val) = self.0.get(index) {
-            val
-        } else {
-            &0
-        }
-    }
-}
-
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize> From<Amount<Unit>> for Vec<(Unit, i64)> {
-    fn from(amount: Amount<Unit>) -> Self {
-        Vec::from_iter(amount.0.into_iter())
-    }
-}
-
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i64> for Amount<Unit> {
-    type Output = Self;
-
-    fn mul(mut self, rhs: i64) -> Self {
-        self *= rhs;
-        self
+        self.0.get(index).unwrap_or(&0)
     }
 }
 
@@ -204,17 +189,17 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> MulAssign<i64
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<Amount<Unit>> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i64> for Amount<Unit> {
     type Output = Self;
 
-    fn add(mut self, rhs: Self) -> Self {
-        self += rhs;
+    fn mul(mut self, rhs: i64) -> Self {
+        self *= rhs;
         self
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<Amount<Unit>> for Amount<Unit> {
-    fn add_assign(&mut self, rhs: Self) {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<&Amount<Unit>> for Amount<Unit> {
+    fn add_assign(&mut self, rhs: &Self) {
         for (atype, amount) in rhs.components() {
             let ent = self[atype] + amount;
             if ent == 0 {
@@ -228,17 +213,32 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<Amo
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<Amount<Unit>> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<Amount<Unit>> for Amount<Unit> {
+    fn add_assign(&mut self, rhs: Self) {
+        *self += &rhs
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<&Amount<Unit>> for Amount<Unit> {
     type Output = Self;
 
-    fn sub(mut self, rhs: Self) -> Self {
-        self -= rhs;
+    fn add(mut self, rhs: &Self) -> Self {
+        self += rhs;
         self
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<Amount<Unit>> for Amount<Unit> {
-    fn sub_assign(&mut self, rhs: Self) {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<Amount<Unit>> for Amount<Unit> {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self {
+        self += &rhs;
+        self
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<&Amount<Unit>> for Amount<Unit> {
+    fn sub_assign(&mut self, rhs: &Self) {
         for (atype, amount) in rhs.components() {
             let ent = self[atype] - amount;
             if ent == 0 {
@@ -249,6 +249,30 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<Amo
                 panic!("subtraction should remain in range");
             }
         }
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<Amount<Unit>> for Amount<Unit> {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self -= &rhs
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<&Amount<Unit>> for Amount<Unit> {
+    type Output = Self;
+
+    fn sub(mut self, rhs: &Self) -> Self {
+        self -= rhs;
+        self
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<Amount<Unit>> for Amount<Unit> {
+    type Output = Self;
+
+    fn sub(mut self, rhs: Self) -> Self {
+        self -= &rhs;
+        self
     }
 }
 
