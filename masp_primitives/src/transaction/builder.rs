@@ -796,7 +796,12 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
                 prover
                     .binding_sig(
                         &mut ctx,
-                        Vec::<(AssetType, i64)>::from(self.mtx.value_balance.clone()).as_ref(),
+                        self.mtx
+                            .value_balance
+                            .clone()
+                            .into_components()
+                            .collect::<Vec<_>>()
+                            .as_ref(),
                         &sighash
                     )
                     .map_err(|()| Error::BindingSig)?,
