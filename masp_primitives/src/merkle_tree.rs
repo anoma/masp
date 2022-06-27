@@ -135,16 +135,28 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
         let mut start = 0;
         let mut width = self.1;
         
-        for _height in 0..SAPLING_COMMITMENT_TREE_DEPTH_U8 {
-            if pos % 2 == 0 {
-                // The current node is a left child
-                path.auth_path.push((self.0[start+pos+1], false));
-            } else {
-                // The current node is a right child
-                path.auth_path.push((self.0[start+pos-1], true));
-            }
+        for height in 0..SAPLING_COMMITMENT_TREE_DEPTH {
             if width % 2 == 1 {
                 width += 1;
+            }
+            if pos % 2 == 0 {
+                // The current node is a left child
+                let node = if pos+1 < width {
+                    // Node is within current row
+                    self.0[start+pos+1]
+                } else {
+                    // Node is to the right of current row
+                    Node::empty_root(height)
+                };
+                path.auth_path.push((node, false));
+            } else {
+                // The current node is a right child
+                let node = if pos-1 < width {
+                    self.0[start+pos-1]
+                } else {
+                    Node::empty_root(height)
+                };
+                path.auth_path.push((node, true));
             }
             // Move to the parent of the current node
             start += width;
