@@ -194,11 +194,11 @@ pub mod tx_read_write {
 
 pub mod zip_0143 {
     use crate::transaction::AssetType;
-    use crate::{consensus, legacy::Script};
+    use crate::{consensus};
 
     pub struct Test0143Vector {
         pub tx: Vec<u8>,
-        pub script_code: Script,
+        // pub script_code: Script,
         pub transparent_input: Option<u32>,
         pub hash_type: u32,
         pub asset_type: AssetType,
@@ -2009,11 +2009,11 @@ pub mod zip_0143 {
 
 pub mod zip_0243 {
     use crate::transaction::AssetType;
-    use crate::{consensus, legacy::Script};
+    use crate::{consensus};
 
     pub struct Test0243Vector {
         pub tx: Vec<u8>,
-        pub script_code: Script,
+        // pub script_code: Script,
         pub transparent_input: Option<u32>,
         pub hash_type: u32,
         pub asset_type: AssetType,

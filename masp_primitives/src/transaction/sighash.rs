@@ -5,11 +5,12 @@ use group::GroupEncoding;
 use crate::transaction::AssetType;
 
 use super::{
+    components::ReadWrite,
     TxIn, TxOut,
     Transaction, TransactionData, OVERWINTER_VERSION_GROUP_ID, SAPLING_TX_VERSION,
     SAPLING_VERSION_GROUP_ID,
 };
-use crate::{consensus, legacy::Script};
+use crate::consensus;
 
 const MASP_SIGHASH_PERSONALIZATION_PREFIX: &[u8; 12] = b"Masp_SigHash";
 const MASP_PREVOUTS_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_PrevoutHash";
@@ -161,7 +162,7 @@ pub fn signature_hash_data<Ti: TxIn, To: TxOut>(
     tx: &TransactionData<Ti, To>,
     consensus_branch_id: consensus::BranchId,
     hash_type: u32,
-    transparent_input: Option<(usize, &Script, AssetType, u64)>,
+    transparent_input: Option<(usize, &impl ReadWrite, AssetType, u64)>,
 ) -> Vec<u8> {
     let sigversion = SigHashVersion::from_tx(tx);
     match sigversion {
@@ -243,7 +244,7 @@ pub fn signature_hash<Ti: TxIn, To: TxOut>(
     tx: &Transaction<Ti, To>,
     consensus_branch_id: consensus::BranchId,
     hash_type: u32,
-    transparent_input: Option<(usize, &Script, AssetType, u64)>,
+    transparent_input: Option<(usize, &impl ReadWrite, AssetType, u64)>,
 ) -> Vec<u8> {
     signature_hash_data(tx, consensus_branch_id, hash_type, transparent_input)
 }

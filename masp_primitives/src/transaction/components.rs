@@ -28,6 +28,11 @@ const PHGR_PROOF_SIZE: usize = 33 + 33 + 65 + 33 + 33 + 33 + 33 + 33;
 const ZC_NUM_JS_INPUTS: usize = 2;
 const ZC_NUM_JS_OUTPUTS: usize = 2;
 
+pub trait ReadWrite: Sized {
+    fn read(reader: &mut impl Read) -> io::Result<Self>;
+    fn write(&self, writer: &mut impl Write) -> io::Result<()>;
+}
+
 pub trait TxIn: Debug + BorshSerialize + BorshDeserialize + Hash {
     fn read(reader: &mut impl Read) -> io::Result<Self>;
     fn write(&self, writer: &mut impl Write) -> io::Result<()>;

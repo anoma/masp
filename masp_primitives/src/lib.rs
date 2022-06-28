@@ -24,7 +24,6 @@ pub mod transaction;
 pub mod consensus;
 pub mod serialize;
 pub mod util;
-pub mod legacy;
 pub mod convert;
 
 #[cfg(test)]
