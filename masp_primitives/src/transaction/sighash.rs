@@ -5,7 +5,7 @@ use group::GroupEncoding;
 use crate::transaction::AssetType;
 
 use super::{
-    components::TxOut,
+    TxIn, TxOut,
     Transaction, TransactionData, OVERWINTER_VERSION_GROUP_ID, SAPLING_TX_VERSION,
     SAPLING_VERSION_GROUP_ID,
 };
@@ -14,7 +14,7 @@ use crate::{consensus, legacy::Script};
 const MASP_SIGHASH_PERSONALIZATION_PREFIX: &[u8; 12] = b"Masp_SigHash";
 const MASP_PREVOUTS_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_PrevoutHash";
 const MASP_SEQUENCE_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_SequencHash";
-const MASP_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_OutputsHash";
+pub const MASP_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_OutputsHash";
 const MASP_JOINSPLITS_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_JSplitsHash";
 const MASP_SHIELDED_SPENDS_HASH_PERSONALIZATION: &[u8; 16] = b"Masp_SSpendsHash";
 const MASP_SHIELDED_CONVERTS_HASH_PERSONALIZATION: &[u8; 16] = b"MaspSConvertHash";
@@ -51,7 +51,7 @@ enum SigHashVersion {
 }
 
 impl SigHashVersion {
-    fn from_tx(tx: &TransactionData) -> Self {
+    fn from_tx<Ti: TxIn, To: TxOut>(tx: &TransactionData<Ti, To>) -> Self {
         if tx.overwintered {
             match tx.version_group_id {
                 OVERWINTER_VERSION_GROUP_ID => SigHashVersion::Overwinter,
@@ -64,10 +64,10 @@ impl SigHashVersion {
     }
 }
 
-fn prevout_hash(tx: &TransactionData) -> Blake2bHash {
+fn prevout_hash<Ti: TxIn, To: TxOut>(tx: &TransactionData<Ti, To>) -> Blake2bHash {
     let mut data = Vec::with_capacity(tx.vin.len() * 36);
     for t_in in &tx.vin {
-        t_in.prevout.write(&mut data).unwrap();
+        t_in.write_prevout(&mut data).unwrap();
     }
     Blake2bParams::new()
         .hash_length(32)
@@ -75,11 +75,11 @@ fn prevout_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
-fn sequence_hash(tx: &TransactionData) -> Blake2bHash {
+fn sequence_hash<Ti: TxIn, To: TxOut>(tx: &TransactionData<Ti, To>) -> Blake2bHash {
     let mut data = Vec::with_capacity(tx.vin.len() * 4);
     for t_in in &tx.vin {
         (&mut data)
-            .write_u32::<LittleEndian>(t_in.sequence)
+            .write_u32::<LittleEndian>(t_in.sequence())
             .unwrap();
     }
     Blake2bParams::new()
@@ -88,7 +88,7 @@ fn sequence_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
-fn outputs_hash(tx: &TransactionData) -> Blake2bHash {
+fn outputs_hash<Ti: TxIn, To: TxOut>(tx: &TransactionData<Ti, To>) -> Blake2bHash {
     let mut data = Vec::with_capacity(tx.vout.len() * (4 + 1));
     for t_out in &tx.vout {
         t_out.write(&mut data).unwrap();
@@ -99,16 +99,7 @@ fn outputs_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
-fn single_output_hash(tx_out: &TxOut) -> Blake2bHash {
-    let mut data = vec![];
-    tx_out.write(&mut data).unwrap();
-    Blake2bParams::new()
-        .hash_length(32)
-        .personal(MASP_OUTPUTS_HASH_PERSONALIZATION)
-        .hash(&data)
-}
-
-fn joinsplits_hash(tx: &TransactionData) -> Blake2bHash {
+fn joinsplits_hash<Ti: TxIn, To: TxOut>(tx: &TransactionData<Ti, To>) -> Blake2bHash {
     let mut data = Vec::with_capacity(
         tx.joinsplits.len()
             * if tx.version < SAPLING_TX_VERSION {
@@ -127,7 +118,7 @@ fn joinsplits_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
-fn shielded_spends_hash(tx: &TransactionData) -> Blake2bHash {
+fn shielded_spends_hash<Ti: TxIn, To: TxOut>(tx: &TransactionData<Ti, To>) -> Blake2bHash {
     let mut data = Vec::with_capacity(tx.shielded_spends.len() * 384);
     for s_spend in &tx.shielded_spends {
         data.extend_from_slice(&s_spend.cv.to_bytes());
@@ -142,7 +133,7 @@ fn shielded_spends_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
-fn shielded_converts_hash(tx: &TransactionData) -> Blake2bHash {
+fn shielded_converts_hash<Ti: TxIn, To: TxOut>(tx: &TransactionData<Ti, To>) -> Blake2bHash {
     let mut data = Vec::with_capacity(tx.shielded_converts.len() * 256);
     for s_convert in &tx.shielded_converts {
         data.extend_from_slice(&s_convert.cv.to_bytes());
@@ -155,7 +146,7 @@ fn shielded_converts_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
-fn shielded_outputs_hash(tx: &TransactionData) -> Blake2bHash {
+fn shielded_outputs_hash<Ti: TxIn, To: TxOut>(tx: &TransactionData<Ti, To>) -> Blake2bHash {
     let mut data = Vec::with_capacity(tx.shielded_outputs.len() * 948);
     for s_out in &tx.shielded_outputs {
         s_out.write(&mut data).unwrap();
@@ -166,8 +157,8 @@ fn shielded_outputs_hash(tx: &TransactionData) -> Blake2bHash {
         .hash(&data)
 }
 
-pub fn signature_hash_data(
-    tx: &TransactionData,
+pub fn signature_hash_data<Ti: TxIn, To: TxOut>(
+    tx: &TransactionData<Ti, To>,
     consensus_branch_id: consensus::BranchId,
     hash_type: u32,
     transparent_input: Option<(usize, &Script, AssetType, u64)>,
@@ -206,7 +197,7 @@ pub fn signature_hash_data(
                 && transparent_input.as_ref().unwrap().0 < tx.vout.len()
             {
                 h.update(
-                    single_output_hash(&tx.vout[transparent_input.as_ref().unwrap().0]).as_ref(),
+                    &tx.vout[transparent_input.as_ref().unwrap().0].sighash().as_ref(),
                 );
             } else {
                 h.update(&[0; 32]);
@@ -232,12 +223,12 @@ pub fn signature_hash_data(
 
             if let Some((n, script_code, atype, value)) = transparent_input {
                 let mut data = vec![];
-                tx.vin[n].prevout.write(&mut data).unwrap();
+                tx.vin[n].write_prevout(&mut data).unwrap();
                 script_code.write(&mut data).unwrap();
                 data.extend_from_slice(atype.get_identifier());
                 data.extend_from_slice(value.to_le_bytes().as_ref());
                 (&mut data)
-                    .write_u32::<LittleEndian>(tx.vin[n].sequence)
+                    .write_u32::<LittleEndian>(tx.vin[n].sequence())
                     .unwrap();
                 h.update(&data);
             }
@@ -248,8 +239,8 @@ pub fn signature_hash_data(
     }
 }
 
-pub fn signature_hash(
-    tx: &Transaction,
+pub fn signature_hash<Ti: TxIn, To: TxOut>(
+    tx: &Transaction<Ti, To>,
     consensus_branch_id: consensus::BranchId,
     hash_type: u32,
     transparent_input: Option<(usize, &Script, AssetType, u64)>,

@@ -29,7 +29,7 @@ pub fn generate_random_rseed<P: consensus::Parameters, R: RngCore + CryptoRng>(
 ) -> Rseed {
     if P::is_nu_active(NetworkUpgrade::Canopy, height) {
         let mut buffer = [0u8; 32];
-        &rng.fill_bytes(&mut buffer);
+        let _ = &rng.fill_bytes(&mut buffer);
         Rseed::AfterZip212(buffer)
     } else {
         Rseed::BeforeZip212(jubjub::Fr::random(rng))

@@ -14,7 +14,6 @@ use crate::serialize::Vector;
 use crate::util::*;
 use crate::asset_type::AssetType;
 
-pub mod builder;
 pub mod components;
 mod sighash;
 
@@ -23,7 +22,7 @@ mod tests;
 
 pub use self::sighash::{signature_hash, signature_hash_data, SIGHASH_ALL};
 
-use self::components::{Amount, JSDescription, ConvertDescription, OutputDescription, SpendDescription, TxIn, TxOut};
+use self::components::{Amount, JSDescription, ConvertDescription, OutputDescription, SpendDescription, TxOut, TxIn};
 
 const OVERWINTER_VERSION_GROUP_ID: u32 = 0x03C48270;
 const OVERWINTER_TX_VERSION: u32 = 3;
@@ -56,12 +55,12 @@ impl fmt::Display for TxId {
 
 /// A Zcash transaction.
 #[derive(Debug, Serialize, Deserialize, Clone, Hash, Eq, PartialOrd)]
-pub struct Transaction {
+pub struct Transaction<Ti: TxIn, To: TxOut> {
     txid: TxId,
-    data: TransactionData,
+    data: TransactionData<Ti, To>,
 }
 
-impl borsh::BorshSchema for Transaction {
+impl<Ti: TxIn, To: TxOut> borsh::BorshSchema for Transaction<Ti, To> {
     fn add_definitions_recursively(
         _definitions: &mut std::collections::HashMap<
                 borsh::schema::Declaration,
@@ -74,27 +73,27 @@ impl borsh::BorshSchema for Transaction {
     }
 }
 
-impl Deref for Transaction {
-    type Target = TransactionData;
+impl<Ti: TxIn, To: TxOut> Deref for Transaction<Ti, To> {
+    type Target = TransactionData<Ti, To>;
 
-    fn deref(&self) -> &TransactionData {
+    fn deref(&self) -> &TransactionData<Ti, To> {
         &self.data
     }
 }
 
-impl PartialEq for Transaction {
-    fn eq(&self, other: &Transaction) -> bool {
+impl<Ti: TxIn, To: TxOut> PartialEq for Transaction<Ti, To> {
+    fn eq(&self, other: &Transaction<Ti, To>) -> bool {
         self.txid == other.txid
     }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, Hash, PartialEq, Eq, PartialOrd)]
-pub struct TransactionData {
+pub struct TransactionData<Ti: TxIn, To: TxOut> {
     pub overwintered: bool,
     pub version: u32,
     pub version_group_id: u32,
-    pub vin: Vec<TxIn>,
-    pub vout: Vec<TxOut>,
+    pub vin: Vec<Ti>,
+    pub vout: Vec<To>,
     pub lock_time: u32,
     pub expiry_height: u32,
     pub value_balance: Amount,
@@ -109,7 +108,7 @@ pub struct TransactionData {
     pub binding_sig: Option<Signature>,
 }
 
-impl std::fmt::Debug for TransactionData {
+impl<Ti: TxIn, To: TxOut> std::fmt::Debug for TransactionData<Ti, To> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(
             f,
@@ -144,7 +143,7 @@ impl std::fmt::Debug for TransactionData {
     }
 }
 
-impl TransactionData {
+impl<Ti: TxIn, To: TxOut> TransactionData<Ti, To> {
     pub fn new() -> Self {
         TransactionData {
             overwintered: true,
@@ -173,13 +172,13 @@ impl TransactionData {
         header
     }
 
-    pub fn freeze(self) -> io::Result<Transaction> {
+    pub fn freeze(self) -> io::Result<Transaction<Ti, To>> {
         Transaction::from_data(self)
     }
 }
 
-impl Transaction {
-    fn from_data(data: TransactionData) -> io::Result<Self> {
+impl<Ti: TxIn, To: TxOut> Transaction<Ti, To> {
+    fn from_data(data: TransactionData<Ti, To>) -> io::Result<Self> {
         let mut tx = Transaction {
             txid: TxId([0; 32]),
             data,
@@ -376,13 +375,13 @@ impl Transaction {
     }
 }
 
-impl BorshSerialize for Transaction {
+impl<Ti: TxIn, To: TxOut> BorshSerialize for Transaction<Ti, To> {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
         self.write(writer)
     }
 }
 
-impl BorshDeserialize for Transaction {
+impl<Ti: TxIn, To: TxOut> BorshDeserialize for Transaction<Ti, To> {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
         Self::read(buf)
     }

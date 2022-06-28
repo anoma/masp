@@ -3,7 +3,6 @@
 use borsh::maybestd::io::Error;
 use borsh::maybestd::io::ErrorKind;
 use borsh::{BorshDeserialize, BorshSerialize};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ff::PrimeField;
 use group::GroupEncoding;
 use serde::{Deserialize, Serialize};
@@ -12,9 +11,9 @@ use std::io::{self, Read, Write};
 use std::hash::Hasher;
 use std::hash::Hash;
 use std::cmp::Ordering;
+use std::fmt::Debug;
 use crate::transaction::AssetType;
 
-use crate::legacy::Script;
 use crate::redjubjub::{PublicKey, Signature};
 use crate::util::*;
 
@@ -29,145 +28,17 @@ const PHGR_PROOF_SIZE: usize = 33 + 33 + 65 + 33 + 33 + 33 + 33 + 33;
 const ZC_NUM_JS_INPUTS: usize = 2;
 const ZC_NUM_JS_OUTPUTS: usize = 2;
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Serialize, Deserialize, Hash)]
-pub struct OutPoint {
-    hash: [u8; 32],
-    n: u32,
+pub trait TxIn: Debug + BorshSerialize + BorshDeserialize + Hash {
+    fn read(reader: &mut impl Read) -> io::Result<Self>;
+    fn write(&self, writer: &mut impl Write) -> io::Result<()>;
+    fn write_prevout(&self, writer: &mut impl Write) -> io::Result<()>;
+    fn sequence(&self) -> u32;
 }
 
-impl OutPoint {
-    pub fn new(hash: [u8; 32], n: u32) -> Self {
-        OutPoint { hash, n }
-    }
-
-    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
-        let mut hash = [0u8; 32];
-        reader.read_exact(&mut hash)?;
-        let n = reader.read_u32::<LittleEndian>()?;
-        Ok(OutPoint { hash, n })
-    }
-
-    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        writer.write_all(&self.hash)?;
-        writer.write_u32::<LittleEndian>(self.n)
-    }
-
-    pub fn n(&self) -> u32 {
-        self.n
-    }
-
-    pub fn hash(&self) -> &[u8; 32] {
-        &self.hash
-    }
-}
-
-impl BorshDeserialize for OutPoint {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
-    }
-}
-
-impl BorshSerialize for OutPoint {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        self.write(writer)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Hash, PartialEq, Eq, PartialOrd)]
-pub struct TxIn {
-    pub prevout: OutPoint,
-    pub script_sig: Script,
-    pub sequence: u32,
-}
-
-impl TxIn {
-    #[cfg(feature = "transparent-inputs")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "transparent-inputs")))]
-    pub fn new(prevout: OutPoint) -> Self {
-        TxIn {
-            prevout,
-            script_sig: Script::default(),
-            sequence: std::u32::MAX,
-        }
-    }
-
-    pub fn read<R: Read>(mut reader: &mut R) -> io::Result<Self> {
-        let prevout = OutPoint::read(&mut reader)?;
-        let script_sig = Script::read(&mut reader)?;
-        let sequence = reader.read_u32::<LittleEndian>()?;
-
-        Ok(TxIn {
-            prevout,
-            script_sig,
-            sequence,
-        })
-    }
-
-    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        self.prevout.write(&mut writer)?;
-        self.script_sig.write(&mut writer)?;
-        writer.write_u32::<LittleEndian>(self.sequence)
-    }
-}
-
-impl BorshDeserialize for TxIn {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
-    }
-}
-
-impl BorshSerialize for TxIn {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        self.write(writer)
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Hash, PartialOrd, PartialEq, Ord, Eq)]
-pub struct TxOut {
-    pub asset_type: AssetType,
-    pub value: u64,
-    pub script_pubkey: Script,
-}
-
-impl TxOut {
-    pub fn read<R: Read>(mut reader: &mut R) -> io::Result<Self> {
-        let asset_type = {
-            let mut tmp = [0u8; 32];
-            reader.read_exact(&mut tmp)?;
-            AssetType::from_identifier(&tmp)
-        }
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "value out of range"))?;
-        let value = {
-            let mut tmp = [0u8; 8];
-            reader.read_exact(&mut tmp)?;
-            u64::from_le_bytes(tmp)
-        };
-        let script_pubkey = Script::read(&mut reader)?;
-
-        Ok(TxOut {
-            asset_type,
-            value,
-            script_pubkey,
-        })
-    }
-
-    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        writer.write_all(self.asset_type.get_identifier())?;
-        writer.write_all(&self.value.to_le_bytes())?;
-        self.script_pubkey.write(&mut writer)
-    }
-}
-
-impl BorshDeserialize for TxOut {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
-    }
-}
-
-impl BorshSerialize for TxOut {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        self.write(writer)
-    }
+pub trait TxOut: Debug + BorshSerialize + BorshDeserialize + Hash {
+    fn read(reader: &mut impl Read) -> io::Result<Self>;
+    fn write(&self, writer: &mut impl Write) -> io::Result<()>;
+    fn sighash(&self) -> blake2b_simd::Hash;
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -609,7 +480,7 @@ impl BorshDeserialize for JSDescription {
         let macs = BorshDeserialize::deserialize(buf)?;
         let proof = BorshDeserialize::deserialize(buf)?;
         let mut ciphertexts = Vec::new();
-        for i in 0..ZC_NUM_JS_OUTPUTS {
+        for _ in 0..ZC_NUM_JS_OUTPUTS {
             ciphertexts.push(deserialize_array(buf)?);
         }
         let ciphertexts = ciphertexts.try_into().unwrap();

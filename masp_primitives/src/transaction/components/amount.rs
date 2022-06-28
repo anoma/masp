@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign};
 use std::collections::BTreeMap;
+use crate::convert::AllowedConversion;
 use crate::transaction::AssetType;
 use crate::serialize::Vector;
 use std::io::Read;
@@ -296,6 +297,19 @@ pub fn zec() -> AssetType {
 
 pub fn default_fee() -> Amount {
     Amount::from_pair(zec(), 10000).unwrap()
+}
+
+
+impl From<AllowedConversion> for Amount<AssetType> {
+    fn from(conv: AllowedConversion) -> Amount {
+        Amount(conv.assets)
+    }
+}
+
+impl Into<AllowedConversion> for Amount<AssetType> {
+    fn into(self) -> AllowedConversion {
+        AllowedConversion { assets: self.0 }
+    }
 }
 
 #[cfg(test)]
