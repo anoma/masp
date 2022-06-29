@@ -15,19 +15,16 @@ use crate::util::*;
 use crate::asset_type::AssetType;
 
 pub mod components;
-mod sighash;
 
 #[cfg(test)]
 mod tests;
 
-pub use self::sighash::{signature_hash, signature_hash_data, SIGHASH_ALL};
-
 use self::components::{Amount, JSDescription, ConvertDescription, OutputDescription, SpendDescription, TxOut, TxIn};
 
-const OVERWINTER_VERSION_GROUP_ID: u32 = 0x03C48270;
-const OVERWINTER_TX_VERSION: u32 = 3;
-const SAPLING_VERSION_GROUP_ID: u32 = 0x892F2085;
-const SAPLING_TX_VERSION: u32 = 4;
+pub const OVERWINTER_VERSION_GROUP_ID: u32 = 0x03C48270;
+pub const OVERWINTER_TX_VERSION: u32 = 3;
+pub const SAPLING_VERSION_GROUP_ID: u32 = 0x892F2085;
+pub const SAPLING_TX_VERSION: u32 = 4;
 
 #[derive(
     Clone,
@@ -164,7 +161,7 @@ impl<Ti: TxIn, To: TxOut> TransactionData<Ti, To> {
         }
     }
 
-    fn header(&self) -> u32 {
+    pub fn header(&self) -> u32 {
         let mut header = self.version;
         if self.overwintered {
             header |= 1 << 31;

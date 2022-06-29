@@ -1,6 +1,6 @@
 use ff::Field;
 use rand_core::OsRng;
-use super::{sighash::signature_hash, Transaction, TransactionData};
+use super::{Transaction, TransactionData};
 use crate::{constants::SPENDING_KEY_GENERATOR, redjubjub::PrivateKey};
 use crate::transaction::components::{TxIn as Ti, TxOut as To};
 use std::io::{self, Read, Write};
