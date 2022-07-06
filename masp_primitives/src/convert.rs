@@ -6,6 +6,9 @@ use group::{Curve, GroupEncoding};
 use std::collections::BTreeMap;
 use std::iter::FromIterator;
 use std::ops::AddAssign;
+use borsh::{BorshSerialize, BorshDeserialize};
+use std::io::Write;
+use borsh::maybestd::io::{Error, ErrorKind};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AllowedConversion {
@@ -109,5 +112,26 @@ impl AddAssign for AllowedConversion {
     fn add_assign(&mut self, rhs: Self) {
         self.assets += rhs.assets;
         self.generator += rhs.generator;
+    }
+}
+
+impl BorshSerialize for AllowedConversion {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.assets.write(writer)?;
+        writer.write(&self.generator.to_bytes())?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for AllowedConversion {
+    /// This deserialization is unsafe because it does not do the expensive
+    /// computation of checking whether the asset generator corresponds to the
+    /// deserialized amount.
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        let assets = Amount::read(buf)?;
+        let gen_bytes = <<jubjub::ExtendedPoint as GroupEncoding>::Repr as BorshDeserialize>::deserialize(buf)?;
+        let generator = Option::from(jubjub::ExtendedPoint::from_bytes(&gen_bytes))
+            .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+        Ok(AllowedConversion { assets, generator })
     }
 }
