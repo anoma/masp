@@ -302,15 +302,10 @@ pub fn default_fee() -> Amount {
 
 impl From<AllowedConversion> for Amount<AssetType> {
     fn from(conv: AllowedConversion) -> Amount {
-        Amount(conv.assets)
+        conv.assets
     }
 }
 
-impl Into<AllowedConversion> for Amount<AssetType> {
-    fn into(self) -> AllowedConversion {
-        AllowedConversion { assets: self.0 }
-    }
-}
 
 #[cfg(test)]
 mod tests {
