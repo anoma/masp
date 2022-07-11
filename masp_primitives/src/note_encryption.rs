@@ -219,7 +219,7 @@ pub fn prf_ock(
 ///     keys::{OutgoingViewingKey, prf_expand},
 ///     note_encryption::{Memo, SaplingNoteEncryption},
 ///     primitives::{Diversifier, PaymentAddress, ValueCommitment},
-///     transaction::components::amount::zec,
+///     amount::zec,
 /// };
 ///
 /// let mut rng = OsRng;
@@ -651,7 +651,7 @@ mod tests {
     use rand_core::{CryptoRng, RngCore};
     use std::convert::TryInto;
     use std::str::FromStr;
-    use crate::transaction::components::amount::zec;
+    use crate::amount::zec;
     use crate::note_encryption::AssetType;
 
     use super::{

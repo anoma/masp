@@ -51,7 +51,6 @@ proptest = "1.0.0"
 rand_xorshift = "0.3"
 
 [features]
-transparent-inputs = ["ripemd160", "secp256k1"]
 test-dependencies = ["proptest"]
 
 

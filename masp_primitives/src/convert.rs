@@ -1,7 +1,7 @@
 use crate::pedersen_hash::{pedersen_hash, Personalization};
 use crate::primitives::ValueCommitment;
 use group::{Curve, GroupEncoding};
-use crate::transaction::components::Amount;
+use crate::amount::Amount;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use borsh::{BorshSerialize, BorshDeserialize};
@@ -166,7 +166,7 @@ impl Sum for AllowedConversion {
 #[cfg(test)]
 mod tests {
     use crate::asset_type::AssetType;
-    use crate::transaction::components::Amount;
+    use crate::amount::Amount;
     use crate::convert::AllowedConversion;
     use borsh::{BorshSerialize, BorshDeserialize};
     
