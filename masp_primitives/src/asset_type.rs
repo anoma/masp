@@ -128,6 +128,7 @@ impl AssetType {
     /// Attempt to construct an asset type from an existing asset identifier
     pub fn from_identifier(identifier: &[u8; ASSET_IDENTIFIER_LENGTH]) -> Option<AssetType> {
         // Attempt to hash to point
+        println!("{:?}", identifier);
         if AssetType::hash_to_point(identifier).is_some() {
             Some(AssetType {
                 identifier: *identifier,

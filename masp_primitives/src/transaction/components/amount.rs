@@ -35,6 +35,11 @@ const MAX_MONEY: i64 = 21_000_000 * COIN;
 pub struct Amount<Unit: Hash + Ord + BorshSerialize + BorshDeserialize = AssetType>(BTreeMap<Unit, i64>);
 
 impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> {
+    /// Creates a new Amount from Assettype to value map
+    pub fn new(data: BTreeMap<Unit, i64>) -> Self {
+        Self(data)
+    }
+
     /// Returns a zero-valued Amount.
     pub fn zero() -> Self {
         Amount(BTreeMap::new())
@@ -302,7 +307,7 @@ pub fn default_fee() -> Amount {
 
 impl From<AllowedConversion> for Amount<AssetType> {
     fn from(conv: AllowedConversion) -> Amount {
-        conv.assets
+        conv.assets()
     }
 }
 

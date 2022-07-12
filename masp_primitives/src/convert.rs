@@ -5,22 +5,22 @@ use crate::transaction::components::Amount;
 use group::{Curve, GroupEncoding};
 use std::collections::BTreeMap;
 use std::iter::FromIterator;
-use std::ops::AddAssign;
 use borsh::{BorshSerialize, BorshDeserialize};
 use std::io::Write;
 use borsh::maybestd::io::{Error, ErrorKind};
+use derive_more::{Add, AddAssign};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Add, AddAssign)]
 pub struct AllowedConversion {
     /// The asset type that the note represents
-    pub assets: Amount,
+    assets: Amount,
     /// Memorize generator because it's expensive to recompute
     generator: jubjub::ExtendedPoint,
 }
 
 impl AllowedConversion {
     pub fn new(values: Vec<(AssetType, i64)>) -> Self {
-        let assets = Amount(BTreeMap::from_iter(values));
+        let assets = Amount::new(BTreeMap::from_iter(values));
         let generator = asset_generator_internal(&assets);
         Self { assets, generator }
     }
@@ -29,6 +29,10 @@ impl AllowedConversion {
         // The smallest u-coordinate that is not on the curve
         // is one.
         bls12_381::Scalar::one()
+    }
+
+    pub fn assets(&self) -> Amount {
+        self.assets.clone()
     }
 
     /// Computes the note commitment, returning the full point.
@@ -108,13 +112,6 @@ impl From<Amount> for AllowedConversion {
     }
 }
 
-impl AddAssign for AllowedConversion {
-    fn add_assign(&mut self, rhs: Self) {
-        self.assets += rhs.assets;
-        self.generator += rhs.generator;
-    }
-}
-
 impl BorshSerialize for AllowedConversion {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
         self.assets.write(writer)?;
@@ -135,3 +132,58 @@ impl BorshDeserialize for AllowedConversion {
         Ok(AllowedConversion { assets, generator })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::asset_type::AssetType;
+    use crate::transaction::components::Amount;
+    use crate::convert::AllowedConversion;
+    use borsh::{BorshSerialize, BorshDeserialize};
+
+    /// Generate ZEC asset type
+    fn zec() -> AssetType {
+        AssetType::new(b"ZEC").unwrap()
+    }
+    /// Generate BTC asset type
+    fn btc() -> AssetType {
+        AssetType::new(b"BTC").unwrap()
+    }
+    /// Generate XAN asset type
+    fn xan() -> AssetType {
+        AssetType::new(b"XAN").unwrap()
+    }
+    #[test]
+    fn test_homomorphism() {
+        // Left operand
+        let a = Amount::from(zec(), 5).unwrap() +
+            Amount::from(btc(), 6).unwrap() +
+            Amount::from(xan(), 7).unwrap();
+        // Right operand
+        let b = Amount::from(zec(), 2).unwrap() +
+            Amount::from(xan(), 10).unwrap();
+        // Test homomorphism
+        assert_eq!(
+            AllowedConversion::from(a.clone() + b.clone()),
+            AllowedConversion::from(a.clone()) + AllowedConversion::from(b.clone())
+        );
+    }
+    #[test]
+    fn test_serialization() {
+
+        // Make conversion	
+        let a: AllowedConversion = (	
+            Amount::from(zec(), 5).unwrap() +	
+                Amount::from(btc(), 6).unwrap() +	
+                Amount::from(xan(), 7).unwrap()).into();	
+        // Serialize conversion	
+        let mut data = Vec::new();	
+        a.serialize(&mut data).unwrap();	
+        // Deserialize conversion	
+        let mut ptr = &data[..];	
+        let b = AllowedConversion::deserialize(&mut ptr).unwrap();	
+        // Check that all bytes have been finished	
+        assert!(ptr.is_empty(), "AllowedConversion bytes should be exhausted");	
+        // Test that serializing then deserializing produces same object	
+        assert_eq!(a, b, "serialization followed by deserialization changes value");	
+    }	
+}	

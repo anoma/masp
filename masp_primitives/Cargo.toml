@@ -43,6 +43,7 @@ subtle = "2.2.3"
 zcash_primitives = { git = "https://github.com/zcash/librustzcash", rev = "2425a08" }
 zcash_encoding = { version = "0.0", git = "https://github.com/zcash/librustzcash", rev = "2425a08" }
 borsh = "0.9.0"
+derive_more = "0.99.0"
 serde = {version = "1.0.125", features = ["derive"]}
 
 [dev-dependencies]
