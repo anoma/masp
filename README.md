@@ -68,14 +68,14 @@ These libraries are currently under development and have not been fully-reviewed
 
 The following audits have been done on the MASP protocol:
 
-[Inference AG](https://github.com/anoma/namada-audit/blob/main/audits/report-anoma-inference.pdf)
-[Least Authority](https://leastauthority.com/static/publications/LeastAuthority_Tezos_Foundation_Multi_Asset_Shielded_Pool_Audit_Report.pdf)
+* [Inference AG](https://github.com/anoma/namada-audit/blob/main/audits/report-anoma-inference.pdf)
+* [Least Authority](https://leastauthority.com/static/publications/LeastAuthority_Tezos_Foundation_Multi_Asset_Shielded_Pool_Audit_Report.pdf)
 
 In addition, the original Zcash Sapling protocol was audited without the MASP extensions:
 
-[Kudelski Security](https://cybermashup.files.wordpress.com/2018/08/zcash-audit.pdf)
-[Least Authority](https://leastauthority.com/static/publications/LeastAuthority-Zcash-Overwinter%2BSapling-Specification-Final-Audit-Report.pdf)
-[NCC Group](https://research.nccgroup.com/wp-content/uploads/2020/07/NCC_Group_Zcash2018_Public_Report_2019-01-30_v1.3.pdf)
+* [Kudelski Security](https://cybermashup.files.wordpress.com/2018/08/zcash-audit.pdf)
+* [Least Authority](https://leastauthority.com/static/publications/LeastAuthority-Zcash-Overwinter%2BSapling-Specification-Final-Audit-Report.pdf)
+* [NCC Group](https://research.nccgroup.com/wp-content/uploads/2020/07/NCC_Group_Zcash2018_Public_Report_2019-01-30_v1.3.pdf)
 
 ## License
 
