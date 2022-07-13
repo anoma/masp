@@ -27,5 +27,11 @@ pub mod util;
 pub mod legacy;
 pub mod convert;
 
+pub use group;
+pub use ff;
+pub use jubjub;
+pub use bls12_381;
+pub use zcash_primitives;
+
 #[cfg(test)]
 mod test_vectors;

@@ -34,6 +34,13 @@ pub mod sapling;
 )]
 pub mod prover;
 
+pub use group;
+pub use ff;
+pub use bellman;
+pub use jubjub;
+pub use bls12_381;
+pub use zcash_primitives;
+
 // Circuit names
 #[cfg(feature = "local-prover")]
 const MASP_SPEND_NAME: &str = "masp-spend.params";
