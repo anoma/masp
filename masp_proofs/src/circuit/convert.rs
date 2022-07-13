@@ -134,7 +134,7 @@ fn test_convert_circuit_with_bls12_381() {
     use masp_primitives::{asset_type::AssetType, convert::AllowedConversion, pedersen_hash};
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use masp_primitives::transaction::components::Amount;
+    use masp_primitives::transaction::Amount;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,

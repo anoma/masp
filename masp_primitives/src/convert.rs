@@ -1,7 +1,7 @@
 use crate::asset_type::AssetType;
 use crate::pedersen_hash::{pedersen_hash, Personalization};
 use crate::primitives::ValueCommitment;
-use crate::transaction::components::Amount;
+use crate::transaction::Amount;
 use group::{Curve, GroupEncoding};
 use std::collections::BTreeMap;
 use std::iter::FromIterator;
@@ -136,7 +136,7 @@ impl BorshDeserialize for AllowedConversion {
 #[cfg(test)]
 mod tests {
     use crate::asset_type::AssetType;
-    use crate::transaction::components::Amount;
+    use crate::transaction::descriptions::Amount;
     use crate::convert::AllowedConversion;
     use borsh::{BorshSerialize, BorshDeserialize};
 

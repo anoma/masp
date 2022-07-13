@@ -4,7 +4,7 @@ use std::iter::Sum;
 use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign};
 use std::collections::BTreeMap;
 use crate::convert::AllowedConversion;
-use crate::transaction::AssetType;
+use crate::asset_type::AssetType;
 use crate::serialize::Vector;
 use std::io::Read;
 use std::io::Write;

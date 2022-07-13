@@ -11,14 +11,12 @@ use std::io::{self, Read, Write};
 use std::hash::Hasher;
 use std::hash::Hash;
 use std::cmp::Ordering;
-use std::fmt::Debug;
-use crate::transaction::AssetType;
+use crate::asset_type::AssetType;
 
 use crate::redjubjub::{PublicKey, Signature};
 use crate::util::*;
 
-pub mod amount;
-pub use self::amount::Amount;
+pub use crate::transaction::amount::Amount;
 
 // π_A + π_B + π_C
 pub const GROTH_PROOF_SIZE: usize = 48 + 96 + 48;
@@ -27,24 +25,6 @@ const PHGR_PROOF_SIZE: usize = 33 + 33 + 65 + 33 + 33 + 33 + 33 + 33;
 
 const ZC_NUM_JS_INPUTS: usize = 2;
 const ZC_NUM_JS_OUTPUTS: usize = 2;
-
-pub trait ReadWrite: Sized {
-    fn read(reader: &mut impl Read) -> io::Result<Self>;
-    fn write(&self, writer: &mut impl Write) -> io::Result<()>;
-}
-
-pub trait TxIn: Debug + BorshSerialize + BorshDeserialize + Hash {
-    fn read(reader: &mut impl Read) -> io::Result<Self>;
-    fn write(&self, writer: &mut impl Write) -> io::Result<()>;
-    fn write_prevout(&self, writer: &mut impl Write) -> io::Result<()>;
-    fn sequence(&self) -> u32;
-}
-
-pub trait TxOut: Debug + BorshSerialize + BorshDeserialize + Hash {
-    fn read(reader: &mut impl Read) -> io::Result<Self>;
-    fn write(&self, writer: &mut impl Write) -> io::Result<()>;
-    fn sighash(&self) -> blake2b_simd::Hash;
-}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct SpendDescription {

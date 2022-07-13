@@ -651,7 +651,7 @@ mod tests {
     use rand_core::{CryptoRng, RngCore};
     use std::convert::TryInto;
     use std::str::FromStr;
-    use crate::transaction::components::amount::zec;
+    use crate::transaction::amount::zec;
     use crate::note_encryption::AssetType;
 
     use super::{
