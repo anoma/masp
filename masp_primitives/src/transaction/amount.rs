@@ -296,15 +296,6 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sum for Amoun
     }
 }
 
-pub fn zec() -> AssetType {
-    AssetType::new(b"ZEC").unwrap()
-}
-
-pub fn default_fee() -> Amount {
-    Amount::from_pair(zec(), 10000).unwrap()
-}
-
-
 impl From<AllowedConversion> for Amount<AssetType> {
     fn from(conv: AllowedConversion) -> Amount {
         conv.assets()
@@ -314,7 +305,12 @@ impl From<AllowedConversion> for Amount<AssetType> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Amount, MAX_MONEY, zec};
+    use super::{Amount, AssetType, MAX_MONEY};
+
+    pub fn zec() -> AssetType {
+        AssetType::new(b"ZEC").unwrap()
+    }
+    
 
     #[test]
     fn amount_in_range() {

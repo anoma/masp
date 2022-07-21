@@ -21,7 +21,7 @@ pub struct AllowedConversion {
 impl AllowedConversion {
     pub fn new(values: Vec<(AssetType, i64)>) -> Self {
         let assets = Amount::new(BTreeMap::from_iter(values));
-        let generator = asset_generator_internal(&assets);
+        let generator = Self::asset_generator_internal(&assets);
         Self { assets, generator }
     }
 
@@ -63,9 +63,36 @@ impl AllowedConversion {
             .get_u()
     }
 
+    fn asset_generator_internal(assets: &Amount) -> jubjub::ExtendedPoint {
+        let mut asset_generator = jubjub::ExtendedPoint::identity();
+        for (asset, value) in assets.components() {
+            // Compute the absolute value (failing if -i64::MAX is
+            // the value)
+            let abs = match value.checked_abs() {
+                Some(a) => a as u64,
+                None => panic!("invalid conversion"),
+            };
+    
+            // Is it negative? We'll have to negate later if so.
+            let is_negative = value.is_negative();
+    
+            // Compute it in the exponent
+            let mut value_balance = asset.asset_generator() * jubjub::Fr::from(abs);
+    
+            // Negate if necessary
+            if is_negative {
+                value_balance = -value_balance;
+            }
+    
+            // Add to asset generator
+            asset_generator += value_balance;
+        }
+        asset_generator
+    }
+
     /// Produces an asset generator without cofactor cleared
     pub fn asset_generator(&self) -> jubjub::ExtendedPoint {
-        asset_generator_internal(&self.assets)
+        Self::asset_generator_internal(&self.assets)
     }
 
     /// Computes the value commitment for a given amount and randomness
@@ -78,36 +105,9 @@ impl AllowedConversion {
     }
 }
 
-fn asset_generator_internal(assets: &Amount) -> jubjub::ExtendedPoint {
-    let mut asset_generator = jubjub::ExtendedPoint::identity();
-    for (asset, value) in assets.components() {
-        // Compute the absolute value (failing if -i64::MAX is
-        // the value)
-        let abs = match value.checked_abs() {
-            Some(a) => a as u64,
-            None => panic!("invalid conversion"),
-        };
-
-        // Is it negative? We'll have to negate later if so.
-        let is_negative = value.is_negative();
-
-        // Compute it in the exponent
-        let mut value_balance = asset.asset_generator() * jubjub::Fr::from(abs);
-
-        // Negate if necessary
-        if is_negative {
-            value_balance = -value_balance;
-        }
-
-        // Add to asset generator
-        asset_generator += value_balance;
-    }
-    asset_generator
-}
-
 impl From<Amount> for AllowedConversion {
     fn from(assets: Amount) -> AllowedConversion {
-        let generator = asset_generator_internal(&assets);
+        let generator = Self::asset_generator_internal(&assets);
         AllowedConversion { assets, generator }
     }
 }
@@ -155,12 +155,12 @@ mod tests {
     #[test]
     fn test_homomorphism() {
         // Left operand
-        let a = Amount::from(zec(), 5).unwrap() +
-            Amount::from(btc(), 6).unwrap() +
-            Amount::from(xan(), 7).unwrap();
+        let a = Amount::from_pair(zec(), 5).unwrap() +
+            Amount::from_pair(btc(), 6).unwrap() +
+            Amount::from_pair(xan(), 7).unwrap();
         // Right operand
-        let b = Amount::from(zec(), 2).unwrap() +
-            Amount::from(xan(), 10).unwrap();
+        let b = Amount::from_pair(zec(), 2).unwrap() +
+            Amount::from_pair(xan(), 10).unwrap();
         // Test homomorphism
         assert_eq!(
             AllowedConversion::from(a.clone() + b.clone()),
@@ -172,9 +172,9 @@ mod tests {
 
         // Make conversion	
         let a: AllowedConversion = (	
-            Amount::from(zec(), 5).unwrap() +	
-                Amount::from(btc(), 6).unwrap() +	
-                Amount::from(xan(), 7).unwrap()).into();	
+            Amount::from_pair(zec(), 5).unwrap() +	
+                Amount::from_pair(btc(), 6).unwrap() +	
+                Amount::from_pair(xan(), 7).unwrap()).into();	
         // Serialize conversion	
         let mut data = Vec::new();	
         a.serialize(&mut data).unwrap();	

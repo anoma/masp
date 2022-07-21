@@ -216,10 +216,10 @@ pub fn prf_ock(
 /// use rand_core::OsRng;
 /// use zcash_primitives::sapling::Rseed;
 /// use masp_primitives::{
+///     asset_type::AssetType,
 ///     keys::{OutgoingViewingKey, prf_expand},
 ///     note_encryption::{Memo, SaplingNoteEncryption},
 ///     primitives::{Diversifier, PaymentAddress, ValueCommitment},
-///     transaction::components::amount::zec,
 /// };
 ///
 /// let mut rng = OsRng;
@@ -231,7 +231,7 @@ pub fn prf_ock(
 ///
 /// let value = 1000;
 /// let rcv = jubjub::Fr::random(&mut rng);
-/// let asset_type = zec();
+/// let asset_type = AssetType::new(b"ZEC").unwrap();
 /// let cv = ValueCommitment {
 ///     value,
 ///     asset_generator: asset_type.asset_generator(),
@@ -651,7 +651,6 @@ mod tests {
     use rand_core::{CryptoRng, RngCore};
     use std::convert::TryInto;
     use std::str::FromStr;
-    use crate::transaction::amount::zec;
     use crate::note_encryption::AssetType;
 
     use super::{
@@ -672,6 +671,10 @@ mod tests {
         primitives::{Diversifier, PaymentAddress, ValueCommitment},
         util::generate_random_rseed,
     };
+
+    pub fn zec() -> AssetType {
+        AssetType::new(b"ZEC").unwrap()
+    }
 
     #[test]
     fn memo_from_str() {
