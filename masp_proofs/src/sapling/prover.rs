@@ -5,6 +5,7 @@ use bellman::{
 use bls12_381::Bls12;
 use ff::Field;
 use group::{Curve, GroupEncoding};
+use masp_primitives::merkle_tree::MerklePath;
 use masp_primitives::{
     asset_type::AssetType,
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
@@ -16,9 +17,7 @@ use masp_primitives::{
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
 use zcash_primitives::sapling::Rseed;
-use masp_primitives::merkle_tree::MerklePath;
 
-use crate::circuit::convert::Convert;
 use super::masp_compute_value_balance;
 use crate::circuit::convert::Convert;
 use crate::circuit::sapling::{Output, Spend};

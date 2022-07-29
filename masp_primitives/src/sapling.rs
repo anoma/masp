@@ -6,13 +6,13 @@ use crate::{
     primitives::Note,
 };
 use bitvec::{order::Lsb0, view::AsBits};
+use borsh::{BorshDeserialize, BorshSerialize};
 use ff::PrimeField;
 use group::{Curve, GroupEncoding};
 use incrementalmerkletree::{self, Altitude};
 use lazy_static::lazy_static;
 use rand_core::{CryptoRng, RngCore};
 use std::io::{self, Read, Write};
-use borsh::{BorshSerialize, BorshDeserialize};
 
 use crate::redjubjub::{PrivateKey, PublicKey, Signature};
 use zcash_primitives::{

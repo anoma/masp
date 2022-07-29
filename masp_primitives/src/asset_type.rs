@@ -6,17 +6,17 @@ use crate::{
     primitives::ValueCommitment,
 };
 use blake2s_simd::Params as Blake2sParams;
+use borsh::{BorshDeserialize, BorshSerialize};
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
-use borsh::{BorshSerialize, BorshDeserialize};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::convert::TryInto;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::hash::Hash;
 use std::hash::Hasher;
-use std::cmp::Ordering;
-use std::fmt::Formatter;
-use std::fmt::Display;
-use std::str::FromStr;
 use std::io::Error;
-use std::convert::TryInto;
+use std::str::FromStr;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Eq, Copy)]
 pub struct AssetType {
@@ -185,8 +185,9 @@ impl FromStr for AssetType {
         let vec = hex::decode(s).map_err(|x| Error::new(std::io::ErrorKind::InvalidData, x))?;
         Self::from_identifier(
             &vec.try_into()
-                .map_err(|_| Error::from(std::io::ErrorKind::InvalidData))?
-        ).ok_or_else(|| Error::from(std::io::ErrorKind::InvalidData))
+                .map_err(|_| Error::from(std::io::ErrorKind::InvalidData))?,
+        )
+        .ok_or_else(|| Error::from(std::io::ErrorKind::InvalidData))
     }
 }
 

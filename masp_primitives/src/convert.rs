@@ -1,14 +1,16 @@
+use crate::asset_type::AssetType;
 use crate::pedersen_hash::{pedersen_hash, Personalization};
 use crate::primitives::ValueCommitment;
-use group::{Curve, GroupEncoding};
-use crate::transaction::components::Amount;
-use std::iter::Sum;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
-use borsh::{BorshSerialize, BorshDeserialize};
-use std::io::Write;
+use crate::transaction::Amount;
 use borsh::maybestd::io::{Error, ErrorKind};
+use borsh::{BorshDeserialize, BorshSerialize};
+use derive_more::{Add, AddAssign};
+use group::{Curve, GroupEncoding};
+use std::collections::BTreeMap;
+use std::io::Write;
+use std::iter::FromIterator;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Add, AddAssign)]
 pub struct AllowedConversion {
     /// The asset type that the note represents
     assets: Amount,
@@ -17,10 +19,20 @@ pub struct AllowedConversion {
 }
 
 impl AllowedConversion {
+    pub fn new(values: Vec<(AssetType, i64)>) -> Self {
+        let assets = Amount::new(BTreeMap::from_iter(values));
+        let generator = Self::asset_generator_internal(&assets);
+        Self { assets, generator }
+    }
+
     pub fn uncommitted() -> bls12_381::Scalar {
         // The smallest u-coordinate that is not on the curve
         // is one.
         bls12_381::Scalar::one()
+    }
+
+    pub fn assets(&self) -> Amount {
+        self.assets.clone()
     }
 
     /// Computes the note commitment, returning the full point.
@@ -29,7 +41,7 @@ impl AllowedConversion {
         let mut asset_generator_bytes = vec![];
 
         // Write the asset generator, cofactor not cleared
-        asset_generator_bytes.extend_from_slice(&self.generator.to_bytes());
+        asset_generator_bytes.extend_from_slice(&self.asset_generator().to_bytes());
 
         assert_eq!(asset_generator_bytes.len(), 32);
 
@@ -51,25 +63,7 @@ impl AllowedConversion {
             .get_u()
     }
 
-    /// Computes the value commitment for a given amount and randomness
-    pub fn value_commitment(&self, value: u64, randomness: jubjub::Fr) -> ValueCommitment {
-        ValueCommitment {
-            asset_generator: self.generator,
-            value,
-            randomness,
-        }
-    }
-}
-
-impl Into<Amount> for AllowedConversion {
-    fn into(self) -> Amount {
-        self.assets
-    }
-}
-
-impl From<Amount> for AllowedConversion {
-    /// Produces an asset generator without cofactor cleared
-    fn from(assets: Amount) -> Self {
+    fn asset_generator_internal(assets: &Amount) -> jubjub::ExtendedPoint {
         let mut asset_generator = jubjub::ExtendedPoint::identity();
         for (asset, value) in assets.components() {
             // Compute the absolute value (failing if -i64::MAX is
@@ -93,14 +87,35 @@ impl From<Amount> for AllowedConversion {
             // Add to asset generator
             asset_generator += value_balance;
         }
-        AllowedConversion { assets, generator: asset_generator }
+        asset_generator
+    }
+
+    /// Produces an asset generator without cofactor cleared
+    pub fn asset_generator(&self) -> jubjub::ExtendedPoint {
+        Self::asset_generator_internal(&self.assets)
+    }
+
+    /// Computes the value commitment for a given amount and randomness
+    pub fn value_commitment(&self, value: u64, randomness: jubjub::Fr) -> ValueCommitment {
+        ValueCommitment {
+            asset_generator: self.asset_generator(),
+            value,
+            randomness,
+        }
+    }
+}
+
+impl From<Amount> for AllowedConversion {
+    fn from(assets: Amount) -> AllowedConversion {
+        let generator = Self::asset_generator_internal(&assets);
+        AllowedConversion { assets, generator }
     }
 }
 
 impl BorshSerialize for AllowedConversion {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
         self.assets.write(writer)?;
-        writer.write(&self.generator.to_bytes())?;
+        writer.write_all(&self.generator.to_bytes())?;
         Ok(())
     }
 }
@@ -111,65 +126,21 @@ impl BorshDeserialize for AllowedConversion {
     /// deserialized amount.
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
         let assets = Amount::read(buf)?;
-        let gen_bytes = <<jubjub::ExtendedPoint as GroupEncoding>::Repr as BorshDeserialize>::deserialize(buf)?;
+        let gen_bytes =
+            <<jubjub::ExtendedPoint as GroupEncoding>::Repr as BorshDeserialize>::deserialize(buf)?;
         let generator = Option::from(jubjub::ExtendedPoint::from_bytes(&gen_bytes))
             .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
         Ok(AllowedConversion { assets, generator })
     }
 }
 
-impl Add for AllowedConversion {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self {
-        Self {
-            assets: self.assets + rhs.assets,
-            generator: self.generator + rhs.generator,
-        }
-    }
-}
-
-impl AddAssign for AllowedConversion {
-    fn add_assign(&mut self, rhs: Self) {
-        self.assets += rhs.assets;
-        self.generator += rhs.generator;
-    }
-}
-
-impl Sub for AllowedConversion {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self {
-        Self {
-            assets: self.assets - rhs.assets,
-            generator: self.generator - rhs.generator,
-        }
-    }
-}
-
-impl SubAssign for AllowedConversion {
-    fn sub_assign(&mut self, rhs: Self) {
-        self.assets -= rhs.assets;
-        self.generator -= rhs.generator;
-    }
-}
-
-impl Sum for AllowedConversion {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        iter.fold(
-            AllowedConversion::from(Amount::zero()),
-            Add::add
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::asset_type::AssetType;
-    use crate::transaction::components::Amount;
     use crate::convert::AllowedConversion;
-    use borsh::{BorshSerialize, BorshDeserialize};
-    
+    use crate::transaction::descriptions::Amount;
+    use borsh::{BorshDeserialize, BorshSerialize};
+
     /// Generate ZEC asset type
     fn zec() -> AssetType {
         AssetType::new(b"ZEC").unwrap()
@@ -185,25 +156,24 @@ mod tests {
     #[test]
     fn test_homomorphism() {
         // Left operand
-        let a = Amount::from_pair(zec(), 5).unwrap() +
-            Amount::from_pair(btc(), 6).unwrap() +
-            Amount::from_pair(xan(), 7).unwrap();
+        let a = Amount::from_pair(zec(), 5).unwrap()
+            + Amount::from_pair(btc(), 6).unwrap()
+            + Amount::from_pair(xan(), 7).unwrap();
         // Right operand
-        let b = Amount::from_pair(zec(), 2).unwrap() +
-            Amount::from_pair(xan(), 10).unwrap();
+        let b = Amount::from_pair(zec(), 2).unwrap() + Amount::from_pair(xan(), 10).unwrap();
         // Test homomorphism
         assert_eq!(
             AllowedConversion::from(a.clone() + b.clone()),
-            AllowedConversion::from(a.clone()) + AllowedConversion::from(b.clone())
+            AllowedConversion::from(a) + AllowedConversion::from(b)
         );
     }
     #[test]
     fn test_serialization() {
         // Make conversion
-        let a: AllowedConversion = (
-            Amount::from_pair(zec(), 5).unwrap() +
-                Amount::from_pair(btc(), 6).unwrap() +
-                Amount::from_pair(xan(), 7).unwrap()).into();
+        let a: AllowedConversion = (Amount::from_pair(zec(), 5).unwrap()
+            + Amount::from_pair(btc(), 6).unwrap()
+            + Amount::from_pair(xan(), 7).unwrap())
+        .into();
         // Serialize conversion
         let mut data = Vec::new();
         a.serialize(&mut data).unwrap();
@@ -211,8 +181,14 @@ mod tests {
         let mut ptr = &data[..];
         let b = AllowedConversion::deserialize(&mut ptr).unwrap();
         // Check that all bytes have been finished
-        assert!(ptr.is_empty(), "AllowedConversion bytes should be exhausted");
+        assert!(
+            ptr.is_empty(),
+            "AllowedConversion bytes should be exhausted"
+        );
         // Test that serializing then deserializing produces same object
-        assert_eq!(a, b, "serialization followed by deserialization changes value");
+        assert_eq!(
+            a, b,
+            "serialization followed by deserialization changes value"
+        );
     }
 }

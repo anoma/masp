@@ -11,9 +11,9 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use crate::{consensus, consensus::NetworkUpgrade};
-use zcash_primitives::sapling::Rseed;
 use ff::Field;
 use rand_core::{CryptoRng, RngCore};
+use zcash_primitives::sapling::Rseed;
 
 pub fn hash_to_scalar(persona: &[u8], a: &[u8], b: &[u8]) -> jubjub::Fr {
     let mut hasher = Params::new().hash_length(64).personal(persona).to_state();
@@ -29,7 +29,7 @@ pub fn generate_random_rseed<P: consensus::Parameters, R: RngCore + CryptoRng>(
 ) -> Rseed {
     if P::is_nu_active(NetworkUpgrade::Canopy, height) {
         let mut buffer = [0u8; 32];
-        &rng.fill_bytes(&mut buffer);
+        let _ = &rng.fill_bytes(&mut buffer);
         Rseed::AfterZip212(buffer)
     } else {
         Rseed::BeforeZip212(jubjub::Fr::random(rng))
@@ -154,6 +154,7 @@ impl<T: Clone + Debug + Serialize + for<'des> Deserialize<'des>, const N: usize>
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl<T: Clone + Debug + Serialize + for<'des> Deserialize<'des>, const N: usize> Into<[T; N]>
     for SerdeArray<T, N>
 {

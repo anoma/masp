@@ -3,22 +3,20 @@
 //!
 //! [RedJubjub]: https://zips.z.cash/protocol/protocol.pdf#concretereddsa
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use ff::{Field, PrimeField};
 use group::GroupEncoding;
 use jubjub::{AffinePoint, ExtendedPoint, SubgroupPoint};
 use rand_core::RngCore;
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::io::{self, Read, Write};
 use std::ops::{AddAssign, MulAssign, Neg};
-use borsh::{BorshSerialize, BorshDeserialize};
-use serde::{Serialize, Deserialize};
-use std::hash::Hasher;
-use std::hash::Hash;
-use std::cmp::Ordering;
 
+use crate::util::{sdeserialize_extended_point, sserialize_extended_point};
 use zcash_primitives::sapling::util::hash_to_scalar;
-use crate::util::{
-    sdeserialize_extended_point, sserialize_extended_point,
-};
 
 fn read_scalar<R: Read>(mut reader: R) -> io::Result<jubjub::Fr> {
     let mut s_repr = [0u8; 32];
@@ -48,7 +46,7 @@ pub struct PrivateKey(pub jubjub::Fr);
 pub struct PublicKey(
     #[serde(serialize_with = "sserialize_extended_point")]
     #[serde(deserialize_with = "sdeserialize_extended_point")]
-    pub ExtendedPoint
+    pub ExtendedPoint,
 );
 
 impl PartialOrd for PublicKey {

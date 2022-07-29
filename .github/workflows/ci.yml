@@ -14,22 +14,14 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-<<<<<<< HEAD
           toolchain: 1.56.1
-=======
-          toolchain: 1.51.0
->>>>>>> 6d83947 (ci fixes)
           override: true
 
       - name: Fetch path to MASP parameters
         working-directory: ./masp_proofs
         shell: bash
         run: echo "MASP_PARAMS=$(cargo run --release --example get-params-path --features directories)" >> $GITHUB_ENV
-<<<<<<< HEAD
       - name: Cache MASP parameters
-=======
-      - name: Cache Zcash parameters
->>>>>>> 6d83947 (ci fixes)
         id: cache-params
         uses: actions/cache@v2
         with:
@@ -57,21 +49,14 @@ jobs:
     strategy:
       matrix:
         target:
-<<<<<<< HEAD
           - wasm32-unknown-unknown
-=======
->>>>>>> 6d83947 (ci fixes)
           - wasm32-wasi
 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-<<<<<<< HEAD
           toolchain: 1.56.1
-=======
-          toolchain: 1.51.0
->>>>>>> 6d83947 (ci fixes)
           override: true
       - name: Add target
         run: rustup target add ${{ matrix.target }}
@@ -92,11 +77,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-<<<<<<< HEAD
           toolchain: 1.56.1
-=======
-          toolchain: 1.51.0
->>>>>>> 6d83947 (ci fixes)
           override: true
       # Build benchmarks to prevent bitrot
       - name: Build benchmarks
@@ -106,42 +87,25 @@ jobs:
           args: --all --benches
 
   clippy:
-<<<<<<< HEAD
     name: Lint #Clippy (1.56.1)
-=======
-    name: Clippy (1.51.0)
->>>>>>> 6d83947 (ci fixes)
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-<<<<<<< HEAD
           toolchain: 1.56.1
-=======
-          toolchain: 1.51.0
->>>>>>> 6d83947 (ci fixes)
           components: clippy
           override: true
       - name: Run clippy
         uses: actions-rs/clippy-check@v1
         with:
-<<<<<<< HEAD
           name: Clippy (1.56.1)
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --all-targets -- -D warnings
 
   clippy-beta:
     name: Nightly lint # Clippy (beta)
-=======
-          name: Clippy (1.51.0)
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features --all-targets -- -D warnings
-
-  clippy-nightly:
-    name: Clippy (nightly)
->>>>>>> 6d83947 (ci fixes)
     timeout-minutes: 30
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -149,7 +113,6 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-<<<<<<< HEAD
           toolchain: beta
           components: clippy
           override: true
@@ -158,16 +121,6 @@ jobs:
         continue-on-error: true
         with:
           name: Clippy (beta)
-=======
-          toolchain: nightly
-          components: clippy
-          override: true
-      - name: Run Clippy (nightly)
-        uses: actions-rs/clippy-check@v1
-        continue-on-error: true
-        with:
-          name: Clippy (nightly)
->>>>>>> 6d83947 (ci fixes)
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --all-targets -- -W clippy::all
 

@@ -4,14 +4,14 @@
 
 use aes::Aes256;
 use blake2b_simd::Params as Blake2bParams;
+use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use fpe::ff1::{BinaryNumeralString, FF1};
+use std::cmp::Ordering;
 use std::convert::TryInto;
+use std::io::{Error, ErrorKind};
 use std::ops::AddAssign;
 use std::str::FromStr;
-use std::io::{Error, ErrorKind};
-use borsh::{BorshSerialize, BorshDeserialize};
-use std::cmp::Ordering;
 
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
@@ -359,9 +359,11 @@ impl BorshSerialize for ExtendedFullViewingKey {
 
 impl PartialOrd for ExtendedFullViewingKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let a = self.try_to_vec()
+        let a = self
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedFullViewingKey");
-        let b = other.try_to_vec()
+        let b = other
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedFullViewingKey");
         a.partial_cmp(&b)
     }
@@ -369,9 +371,11 @@ impl PartialOrd for ExtendedFullViewingKey {
 
 impl Ord for ExtendedFullViewingKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        let a = self.try_to_vec()
+        let a = self
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedFullViewingKey");
-        let b = other.try_to_vec()
+        let b = other
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedFullViewingKey");
         a.cmp(&b)
     }
@@ -432,7 +436,7 @@ impl ExtendedSpendingKey {
 
     /// Returns the child key corresponding to the path derived from the master key
     pub fn from_path(master: &ExtendedSpendingKey, path: &[ChildIndex]) -> Self {
-        let mut xsk = master.clone();
+        let mut xsk = *master;
         for &i in path.iter() {
             xsk = xsk.derive_child(i);
         }
@@ -546,9 +550,11 @@ impl FromStr for ExtendedSpendingKey {
 
 impl PartialOrd for ExtendedSpendingKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let a = self.try_to_vec()
+        let a = self
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedSpendingKey");
-        let b = other.try_to_vec()
+        let b = other
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedSpendingKey");
         a.partial_cmp(&b)
     }
@@ -556,9 +562,11 @@ impl PartialOrd for ExtendedSpendingKey {
 
 impl Ord for ExtendedSpendingKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        let a = self.try_to_vec()
+        let a = self
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedSpendingKey");
-        let b = other.try_to_vec()
+        let b = other
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedSpendingKey");
         a.cmp(&b)
     }

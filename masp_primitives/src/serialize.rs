@@ -78,7 +78,7 @@ impl Vector {
         F: Fn(&mut W, &E) -> io::Result<()>,
     {
         CompactSize::write(writer, vec.len())?;
-        vec.iter().map(|e| func(writer, e)).collect()
+        vec.iter().try_for_each(|e| func(writer, e))
     }
 }
 
@@ -162,7 +162,7 @@ mod tests {
         macro_rules! eval {
             ($value:expr, $expected:expr) => {
                 let mut data = vec![];
-                Vector::write(&mut data, &$value, |w, e| w.write_u8(*e)).unwrap();
+                Vector::write(&mut data, $value, |w, e| w.write_u8(*e)).unwrap();
                 assert_eq!(&data[..], &$expected[..]);
                 let mut rdr = &data[..];
                 match Vector::read(&mut rdr, |r| r.read_u8()) {
@@ -172,10 +172,10 @@ mod tests {
             };
         }
 
-        eval!(vec![], [0]);
-        eval!(vec![0], [1, 0]);
-        eval!(vec![1], [1, 1]);
-        eval!(vec![5; 8], [8, 5, 5, 5, 5, 5, 5, 5, 5]);
+        eval!(&[], [0]);
+        eval!(&[0], [1, 0]);
+        eval!(&[1], [1, 1]);
+        eval!(&[5; 8], [8, 5, 5, 5, 5, 5, 5, 5, 5]);
 
         {
             // expected = [253, 4, 1, 7, 7, 7, ...]
@@ -184,7 +184,7 @@ mod tests {
             expected[1] = 4;
             expected[2] = 1;
 
-            eval!(vec![7; 260], expected);
+            eval!(&[7; 260], expected);
         }
     }
 

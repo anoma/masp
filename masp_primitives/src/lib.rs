@@ -8,8 +8,10 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 // Temporary until we have addressed all Result<T, ()> cases.
 #![allow(clippy::result_unit_err)]
+#![allow(clippy::derive_hash_xor_eq)]
 
 pub mod asset_type;
+pub mod consensus;
 pub mod constants;
 pub mod convert;
 pub mod keys;
@@ -19,13 +21,10 @@ pub mod primitives;
 pub mod prover;
 pub mod redjubjub;
 pub mod sapling;
-pub mod zip32;
-pub mod transaction;
-pub mod consensus;
 pub mod serialize;
+pub mod transaction;
 pub mod util;
-pub mod legacy;
-pub mod convert;
+pub mod zip32;
 
 #[cfg(test)]
 mod test_vectors;

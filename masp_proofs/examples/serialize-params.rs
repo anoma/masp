@@ -26,7 +26,3 @@ fn main() {
         }
     }
 }
-<<<<<<< HEAD
-=======
-
->>>>>>> 7ad7c6c (Augmented transaction objects to include convert notes.)

@@ -2,6 +2,7 @@
 
 use bellman::groth16::{Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
+use masp_primitives::merkle_tree::MerklePath;
 use masp_primitives::{
     asset_type::AssetType,
     convert::AllowedConversion,
@@ -10,9 +11,8 @@ use masp_primitives::{
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };
-use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
 use zcash_primitives::sapling::Rseed;
-use masp_primitives::merkle_tree::MerklePath;
+use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
 
 use crate::{parse_parameters, sapling::SaplingProvingContext};
 

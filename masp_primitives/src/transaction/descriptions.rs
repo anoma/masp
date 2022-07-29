@@ -1,25 +1,22 @@
 //! Structs representing the components within Zcash transactions.
 
+use crate::asset_type::AssetType;
 use borsh::maybestd::io::Error;
 use borsh::maybestd::io::ErrorKind;
 use borsh::{BorshDeserialize, BorshSerialize};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ff::PrimeField;
 use group::GroupEncoding;
 use serde::{Deserialize, Serialize};
-use std::convert::TryInto;
-use std::io::{self, Read, Write};
-use std::hash::Hasher;
-use std::hash::Hash;
 use std::cmp::Ordering;
-use crate::transaction::AssetType;
+use std::convert::TryInto;
+use std::hash::Hash;
+use std::hash::Hasher;
+use std::io::{self, Read, Write};
 
-use crate::legacy::Script;
 use crate::redjubjub::{PublicKey, Signature};
 use crate::util::*;
 
-pub mod amount;
-pub use self::amount::Amount;
+pub use crate::transaction::amount::Amount;
 
 // π_A + π_B + π_C
 pub const GROTH_PROOF_SIZE: usize = 48 + 96 + 48;
@@ -28,147 +25,6 @@ const PHGR_PROOF_SIZE: usize = 33 + 33 + 65 + 33 + 33 + 33 + 33 + 33;
 
 const ZC_NUM_JS_INPUTS: usize = 2;
 const ZC_NUM_JS_OUTPUTS: usize = 2;
-
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Serialize, Deserialize, Hash)]
-pub struct OutPoint {
-    hash: [u8; 32],
-    n: u32,
-}
-
-impl OutPoint {
-    pub fn new(hash: [u8; 32], n: u32) -> Self {
-        OutPoint { hash, n }
-    }
-
-    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
-        let mut hash = [0u8; 32];
-        reader.read_exact(&mut hash)?;
-        let n = reader.read_u32::<LittleEndian>()?;
-        Ok(OutPoint { hash, n })
-    }
-
-    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        writer.write_all(&self.hash)?;
-        writer.write_u32::<LittleEndian>(self.n)
-    }
-
-    pub fn n(&self) -> u32 {
-        self.n
-    }
-
-    pub fn hash(&self) -> &[u8; 32] {
-        &self.hash
-    }
-}
-
-impl BorshDeserialize for OutPoint {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
-    }
-}
-
-impl BorshSerialize for OutPoint {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        self.write(writer)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Hash, PartialEq, Eq, PartialOrd)]
-pub struct TxIn {
-    pub prevout: OutPoint,
-    pub script_sig: Script,
-    pub sequence: u32,
-}
-
-impl TxIn {
-    #[cfg(feature = "transparent-inputs")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "transparent-inputs")))]
-    pub fn new(prevout: OutPoint) -> Self {
-        TxIn {
-            prevout,
-            script_sig: Script::default(),
-            sequence: std::u32::MAX,
-        }
-    }
-
-    pub fn read<R: Read>(mut reader: &mut R) -> io::Result<Self> {
-        let prevout = OutPoint::read(&mut reader)?;
-        let script_sig = Script::read(&mut reader)?;
-        let sequence = reader.read_u32::<LittleEndian>()?;
-
-        Ok(TxIn {
-            prevout,
-            script_sig,
-            sequence,
-        })
-    }
-
-    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        self.prevout.write(&mut writer)?;
-        self.script_sig.write(&mut writer)?;
-        writer.write_u32::<LittleEndian>(self.sequence)
-    }
-}
-
-impl BorshDeserialize for TxIn {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
-    }
-}
-
-impl BorshSerialize for TxIn {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        self.write(writer)
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Hash, PartialOrd, PartialEq, Ord, Eq)]
-pub struct TxOut {
-    pub asset_type: AssetType,
-    pub value: u64,
-    pub script_pubkey: Script,
-}
-
-impl TxOut {
-    pub fn read<R: Read>(mut reader: &mut R) -> io::Result<Self> {
-        let asset_type = {
-            let mut tmp = [0u8; 32];
-            reader.read_exact(&mut tmp)?;
-            AssetType::from_identifier(&tmp)
-        }
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "value out of range"))?;
-        let value = {
-            let mut tmp = [0u8; 8];
-            reader.read_exact(&mut tmp)?;
-            u64::from_le_bytes(tmp)
-        };
-        let script_pubkey = Script::read(&mut reader)?;
-
-        Ok(TxOut {
-            asset_type,
-            value,
-            script_pubkey,
-        })
-    }
-
-    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        writer.write_all(self.asset_type.get_identifier())?;
-        writer.write_all(&self.value.to_le_bytes())?;
-        self.script_pubkey.write(&mut writer)
-    }
-}
-
-impl BorshDeserialize for TxOut {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
-    }
-}
-
-impl BorshSerialize for TxOut {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        self.write(writer)
-    }
-}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct SpendDescription {
@@ -188,12 +44,30 @@ pub struct SpendDescription {
 
 impl PartialOrd for SpendDescription {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        (self.cv.to_bytes(), self.anchor.to_bytes(), self.nullifier, self.rk, self.zkproof, self.spend_auth_sig).partial_cmp(&(other.cv.to_bytes(), other.anchor.to_bytes(), other.nullifier, other.rk, other.zkproof, other.spend_auth_sig))
+        (
+            self.cv.to_bytes(),
+            self.anchor.to_bytes(),
+            self.nullifier,
+            self.rk,
+            self.zkproof,
+            self.spend_auth_sig,
+        )
+            .partial_cmp(&(
+                other.cv.to_bytes(),
+                other.anchor.to_bytes(),
+                other.nullifier,
+                other.rk,
+                other.zkproof,
+                other.spend_auth_sig,
+            ))
     }
 }
 
 impl Hash for SpendDescription {
-    fn hash<H>(&self, state: &mut H) where H: Hasher {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
         self.cv.to_bytes().hash(state);
         self.anchor.to_bytes().hash(state);
         self.nullifier.hash(state);
@@ -310,12 +184,19 @@ pub struct ConvertDescription {
 
 impl PartialOrd for ConvertDescription {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        (self.cv.to_bytes(), self.anchor.to_bytes(), self.zkproof).partial_cmp(&(other.cv.to_bytes(), other.anchor.to_bytes(), other.zkproof))
+        (self.cv.to_bytes(), self.anchor.to_bytes(), self.zkproof).partial_cmp(&(
+            other.cv.to_bytes(),
+            other.anchor.to_bytes(),
+            other.zkproof,
+        ))
     }
 }
 
 impl Hash for ConvertDescription {
-    fn hash<H>(&self, state: &mut H) where H: Hasher {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
         self.cv.to_bytes().hash(state);
         self.anchor.to_bytes().hash(state);
         self.zkproof.hash(state);
@@ -413,12 +294,30 @@ pub struct OutputDescription {
 
 impl PartialOrd for OutputDescription {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        (self.cv.to_bytes(), self.cmu.to_bytes(), self.ephemeral_key.to_bytes(), self.enc_ciphertext, self.out_ciphertext, self.zkproof).partial_cmp(&(other.cv.to_bytes(), other.cmu.to_bytes(), other.ephemeral_key.to_bytes(), other.enc_ciphertext, other.out_ciphertext, other.zkproof))
+        (
+            self.cv.to_bytes(),
+            self.cmu.to_bytes(),
+            self.ephemeral_key.to_bytes(),
+            self.enc_ciphertext,
+            self.out_ciphertext,
+            self.zkproof,
+        )
+            .partial_cmp(&(
+                other.cv.to_bytes(),
+                other.cmu.to_bytes(),
+                other.ephemeral_key.to_bytes(),
+                other.enc_ciphertext,
+                other.out_ciphertext,
+                other.zkproof,
+            ))
     }
 }
 
 impl Hash for OutputDescription {
-    fn hash<H>(&self, state: &mut H) where H: Hasher {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
         self.cv.to_bytes().hash(state);
         self.cmu.to_bytes().hash(state);
         self.ephemeral_key.to_bytes().hash(state);
@@ -523,6 +422,7 @@ impl OutputDescription {
 }
 
 #[derive(Serialize, Deserialize, Clone, Hash, PartialEq, Eq, PartialOrd)]
+#[allow(clippy::upper_case_acronyms)]
 enum SproutProof {
     #[serde(serialize_with = "sserialize_array::<_, u8, u8, GROTH_PROOF_SIZE>")]
     #[serde(deserialize_with = "sdeserialize_array::<_, u8, u8, GROTH_PROOF_SIZE>")]
@@ -548,11 +448,11 @@ impl BorshSerialize for SproutProof {
         match self {
             Self::Groth(groth) => {
                 BorshSerialize::serialize(&0u8, writer)?;
-                writer.write(groth.as_ref())?;
+                writer.write_all(groth.as_ref())?;
             }
             Self::PHGR(phgr) => {
                 BorshSerialize::serialize(&0u8, writer)?;
-                writer.write(phgr.as_ref())?;
+                writer.write_all(phgr.as_ref())?;
             }
         }
         Ok(())
@@ -609,7 +509,7 @@ impl BorshDeserialize for JSDescription {
         let macs = BorshDeserialize::deserialize(buf)?;
         let proof = BorshDeserialize::deserialize(buf)?;
         let mut ciphertexts = Vec::new();
-        for i in 0..ZC_NUM_JS_OUTPUTS {
+        for _ in 0..ZC_NUM_JS_OUTPUTS {
             ciphertexts.push(deserialize_array(buf)?);
         }
         let ciphertexts = ciphertexts.try_into().unwrap();
@@ -642,7 +542,7 @@ impl BorshSerialize for JSDescription {
         BorshSerialize::serialize(&self.macs, writer)?;
         BorshSerialize::serialize(&self.proof, writer)?;
         for ct in &self.ciphertexts {
-            writer.write(ct.as_ref())?;
+            writer.write_all(ct.as_ref())?;
         }
         Ok(())
     }
@@ -672,13 +572,17 @@ impl std::fmt::Debug for JSDescription {
     }
 }
 
+#[allow(clippy::map_collect_result_unit)]
 impl JSDescription {
     pub fn read<R: Read>(reader: &mut R, use_groth: bool) -> io::Result<Self> {
         let asset_type = {
             let mut tmp = [0u8; 32];
             reader.read_exact(&mut tmp)?;
             AssetType::from_identifier(&tmp)
-        }.ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type"))?;
+        }
+        .ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
+        })?;
         // Consensus rule (§4.3): Canonical encoding is enforced here
         let vpub_old = {
             let mut tmp = [0u8; 8];

@@ -131,10 +131,10 @@ fn test_convert_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
     use ff::{Field, PrimeField, PrimeFieldBits};
     use group::Curve;
+    use masp_primitives::transaction::Amount;
     use masp_primitives::{asset_type::AssetType, convert::AllowedConversion, pedersen_hash};
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use masp_primitives::transaction::components::Amount;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -153,11 +153,11 @@ fn test_convert_circuit_with_bls12_381() {
         let output_value = i as i64 + 1;
         let mint_value = i as i64 + 1;
 
-        let allowed_conversion: AllowedConversion = (
-            Amount::from_pair(spend_asset, spend_value).unwrap() +
-                Amount::from_pair(output_asset, output_value).unwrap() +
-                Amount::from_pair(mint_asset, mint_value).unwrap()
-        ).into();
+        let allowed_conversion: AllowedConversion = (Amount::from_pair(spend_asset, spend_value)
+            .unwrap()
+            + Amount::from_pair(output_asset, output_value).unwrap()
+            + Amount::from_pair(mint_asset, mint_value).unwrap())
+        .into();
 
         let value = rng.next_u64();
 

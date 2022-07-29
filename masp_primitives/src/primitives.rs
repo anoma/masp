@@ -7,24 +7,24 @@ use crate::{
     pedersen_hash::{pedersen_hash, Personalization},
 };
 use blake2s_simd::Params as Blake2sParams;
-use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
-use ff::PrimeField;
-use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
-use rand_core::{CryptoRng, RngCore};
-use std::convert::TryInto;
-use zcash_primitives::sapling::{group_hash::group_hash, Nullifier, Rseed};
 use borsh::maybestd::io::Error;
 use borsh::maybestd::io::ErrorKind;
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use ff::PrimeField;
+use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
+use rand_core::{CryptoRng, RngCore};
 use std::cmp::Ordering;
+use std::convert::TryInto;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::hash::Hash;
 use std::hash::Hasher;
-use std::str::FromStr;
 use std::io::{self, Read, Write};
+use std::str::FromStr;
 use subtle::CtOption;
+use zcash_primitives::sapling::{group_hash::group_hash, Nullifier, Rseed};
 
 #[derive(Clone)]
 pub struct ValueCommitment {
@@ -63,7 +63,9 @@ pub struct ViewingKey {
 
 impl Hash for ViewingKey {
     fn hash<H>(&self, state: &mut H)
-    where H: Hasher {
+    where
+        H: Hasher,
+    {
         self.ak.to_bytes().hash(state);
         self.nk.to_bytes().hash(state);
     }
@@ -95,7 +97,7 @@ impl ViewingKey {
     pub fn to_payment_address(&self, diversifier: Diversifier) -> Option<PaymentAddress> {
         self.ivk().to_payment_address(diversifier)
     }
-    
+
     pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
         let ak = {
             let mut buf = [0u8; 32];
@@ -317,15 +319,17 @@ impl Hash for PaymentAddress {
 
 impl BorshSerialize for PaymentAddress {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
-        writer.write(self.to_bytes().as_ref()).and(Ok(()))
+        writer.write_all(self.to_bytes().as_ref()).and(Ok(()))
     }
 }
 
 impl BorshDeserialize for PaymentAddress {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        let data = buf.get(..43).ok_or(Error::from(ErrorKind::UnexpectedEof))?;
+        let data = buf
+            .get(..43)
+            .ok_or_else(|| Error::from(ErrorKind::UnexpectedEof))?;
         let res = Self::from_bytes(data.try_into().unwrap());
-        let pa = res.ok_or(Error::from(ErrorKind::InvalidData))?;
+        let pa = res.ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
         *buf = &buf[43..];
         Ok(pa)
     }
@@ -466,21 +470,21 @@ impl BorshSerialize for Note {
         // Write note value
         writer.write_u64::<LittleEndian>(self.value)?;
         // Write diversified base
-        writer.write(&self.g_d.to_bytes())?;
+        writer.write_all(&self.g_d.to_bytes())?;
         // Write diversified transmission key
-        writer.write(&self.pk_d.to_bytes())?;
+        writer.write_all(&self.pk_d.to_bytes())?;
         match self.rseed {
             Rseed::BeforeZip212(rcm) => {
                 // Write note plaintext lead byte
                 writer.write_u8(1)?;
                 // Write rseed
-                writer.write(&rcm.to_repr())
-            },
+                writer.write_all(&rcm.to_repr())
+            }
             Rseed::AfterZip212(rseed) => {
                 // Write note plaintext lead byte
                 writer.write_u8(2)?;
                 // Write rseed
-                writer.write(&rseed)
+                writer.write_all(&rseed)
             }
         }?;
         Ok(())
@@ -513,6 +517,12 @@ impl BorshDeserialize for Note {
             Rseed::AfterZip212(rseed_bytes)
         };
         // Finally construct note object
-        Ok(Note { asset_type, value, g_d, pk_d, rseed })
+        Ok(Note {
+            asset_type,
+            value,
+            g_d,
+            pk_d,
+            rseed,
+        })
     }
 }

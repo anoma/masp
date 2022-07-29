@@ -1,14 +1,14 @@
 //! Abstractions over the proving system and parameters.
 
-use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey};
 use crate::convert::AllowedConversion;
+use crate::merkle_tree::MerklePath;
+use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey};
 use crate::{
     redjubjub::{PublicKey, Signature},
     sapling::Node,
 };
-use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
 use zcash_primitives::sapling::Rseed;
-use crate::merkle_tree::MerklePath;
+use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
 
 use crate::asset_type::AssetType;
 
@@ -87,13 +87,13 @@ pub mod mock {
         primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
     };
 
+    use crate::merkle_tree::MerklePath;
     use crate::{
         redjubjub::{PublicKey, Signature},
         sapling::Node,
     };
-    use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
     use zcash_primitives::sapling::Rseed;
-    use crate::merkle_tree::MerklePath;
+    use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
 
     use super::TxProver;
 

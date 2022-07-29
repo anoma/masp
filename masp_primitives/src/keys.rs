@@ -3,7 +3,6 @@
 //! Implements [section 4.2.2] of the Zcash Protocol Specification.
 //!
 //! [section 4.2.2]: https://zips.z.cash/protocol/protocol.pdf#saplingkeycomponents
-
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
     primitives::{ProofGenerationKey, ViewingKey},
@@ -11,14 +10,14 @@ use crate::{
 use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
-use std::io::{self, Read, Write};
-use subtle::CtOption;
-use std::hash::Hasher;
-use std::hash::Hash;
-use std::fmt::Formatter;
 use std::fmt::Display;
+use std::fmt::Formatter;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::io::Error;
+use std::io::{self, Read, Write};
 use std::str::FromStr;
+use subtle::CtOption;
 
 pub const PRF_EXPAND_PERSONALIZATION: &[u8; 16] = b"MASP__ExpandSeed";
 
@@ -133,7 +132,7 @@ impl FromStr for FullViewingKey {
         let vec = hex::decode(s).map_err(|x| Error::new(std::io::ErrorKind::InvalidData, x))?;
         let mut rdr = vec.as_slice();
         let res = Self::read(&mut rdr)?;
-        if rdr.len() > 0 {
+        if !rdr.is_empty() {
             Err(Error::from(std::io::ErrorKind::InvalidData))
         } else {
             Ok(res)
