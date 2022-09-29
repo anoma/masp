@@ -68,7 +68,7 @@ These libraries are currently under development and have not been fully-reviewed
 
 The following audits have been done on the MASP protocol:
 
-* [Inference AG](https://github.com/anoma/namada-audit/blob/main/audits/report-anoma-inference.pdf)
+* [Inference AG](https://github.com/anoma/namada/blob/main/audits/report-anoma-inference.pdf)
 * [Least Authority](https://leastauthority.com/static/publications/LeastAuthority_Tezos_Foundation_Multi_Asset_Shielded_Pool_Audit_Report.pdf)
 
 In addition, the original Zcash Sapling protocol was audited without the MASP extensions:
