@@ -263,7 +263,7 @@ fn generate_pedersen_hash_exp_table() -> Vec<Vec<Vec<SubgroupPoint>>> {
 
 #[cfg(test)]
 mod tests {
-    use jubjub::SubgroupPoint;
+    use jubjub::{SubgroupPoint, ExtendedPoint};
 
     use super::*;
     use zcash_primitives::sapling::group_hash::group_hash;
@@ -413,5 +413,23 @@ mod tests {
         pedersen_hash_generators.push(PEDERSEN_HASH_GENERATORS[0] + PEDERSEN_HASH_GENERATORS[1]);
 
         check_consistency_of_pedersen_hash_generators(&pedersen_hash_generators);
+    }
+
+    #[test]
+    fn test_subgroup_membership() {
+        for point in [
+            &[
+                PROOF_GENERATION_KEY_GENERATOR,
+                NOTE_COMMITMENT_RANDOMNESS_GENERATOR,
+                NULLIFIER_POSITION_GENERATOR,
+                VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
+                SPENDING_KEY_GENERATOR,
+            ],
+            PEDERSEN_HASH_GENERATORS,
+        ].concat() {
+            let x:ExtendedPoint = point.into();
+            let boo:bool = x.is_torsion_free().into();
+            assert!(boo);
+        }
     }
 }
