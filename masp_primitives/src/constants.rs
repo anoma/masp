@@ -263,7 +263,7 @@ fn generate_pedersen_hash_exp_table() -> Vec<Vec<Vec<SubgroupPoint>>> {
 
 #[cfg(test)]
 mod tests {
-    use jubjub::{SubgroupPoint, ExtendedPoint};
+    use jubjub::{ExtendedPoint, SubgroupPoint};
 
     use super::*;
     use zcash_primitives::sapling::group_hash::group_hash;
@@ -426,9 +426,11 @@ mod tests {
                 SPENDING_KEY_GENERATOR,
             ],
             PEDERSEN_HASH_GENERATORS,
-        ].concat() {
-            let x:ExtendedPoint = point.into();
-            let boo:bool = x.is_torsion_free().into();
+        ]
+        .concat()
+        {
+            let x: ExtendedPoint = point.into();
+            let boo: bool = x.is_torsion_free().into();
             assert!(boo);
         }
     }
