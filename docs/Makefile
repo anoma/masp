@@ -57,3 +57,6 @@ nolatexmk-sapling:
 .PHONY: clean
 clean:
 	rm -f aux/* html/* multi-asset-shielded-pool.ver multi-asset-shielded-pool.pdf
+
+packages:
+	tlmgr install newtxsf ncntrsbk boisik fdsymbol newtx soul rsfso mathalpha fontaxes quattrocento biblatex silence cleveref media9 ocgx2 ntheorem imakeidx was pict2e tocloft hyphenat subdepth xstring titlesec needspace comment stackengine enumitem changepage bytefield
