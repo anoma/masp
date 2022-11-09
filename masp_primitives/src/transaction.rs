@@ -5,6 +5,8 @@ use group::GroupEncoding;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io::{self, Read, Write};
+use std::hash::{Hash,Hasher};
+use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 
 use masp_note_encryption::{
     EphemeralKeyBytes, ShieldedOutput, COMPACT_NOTE_SIZE, ENC_CIPHERTEXT_SIZE,
@@ -55,7 +57,7 @@ pub trait MapAuth<A: Authorization, B: Authorization> {
 pub struct Bundle<A: Authorization + PartialEq + BorshSerialize + BorshDeserialize> {
     pub shielded_spends: Vec<SpendDescription<A>>,
     pub shielded_outputs: Vec<OutputDescription<A::Proof>>,
-    pub value_balance: BTreeMap<AssetType, Amount>,
+    pub value_balance: Amount,
     pub authorization: A,
 }
 
@@ -98,6 +100,168 @@ impl<A: Authorization + PartialEq + BorshSerialize + BorshDeserialize> Bundle<A>
     }
 }
 
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+pub struct OutPoint {
+    hash: [u8; 32],
+    n: u32,
+}
+
+impl OutPoint {
+    pub fn new(hash: [u8; 32], n: u32) -> Self {
+        OutPoint { hash, n }
+    }
+
+    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+        let mut hash = [0u8; 32];
+        reader.read_exact(&mut hash)?;
+        let n = reader.read_u32::<LittleEndian>()?;
+        Ok(OutPoint { hash, n })
+    }
+
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        writer.write_all(&self.hash)?;
+        writer.write_u32::<LittleEndian>(self.n)
+    }
+
+    pub fn n(&self) -> u32 {
+        self.n
+    }
+
+    pub fn hash(&self) -> &[u8; 32] {
+        &self.hash
+    }
+}
+
+impl BorshDeserialize for OutPoint {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for OutPoint {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd)]
+pub struct TxIn {
+    pub prevout: OutPoint,
+    //pub script_sig: Script,
+    pub sequence: u32,
+}
+
+impl TxIn {
+    #[cfg(feature = "transparent-inputs")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "transparent-inputs")))]
+    pub fn new(prevout: OutPoint) -> Self {
+        TxIn {
+            prevout,
+            //script_sig: Script::default(),
+            sequence: std::u32::MAX,
+        }
+    }
+
+    pub fn read<R: Read>(mut reader: &mut R) -> io::Result<Self> {
+        let prevout = OutPoint::read(&mut reader)?;
+        //let script_sig = Script::read(&mut reader)?;
+        let sequence = reader.read_u32::<LittleEndian>()?;
+
+        Ok(TxIn {
+            prevout,
+            //script_sig,
+            sequence,
+        })
+    }
+
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        self.prevout.write(&mut writer)?;
+        //self.script_sig.write(&mut writer)?;
+        writer.write_u32::<LittleEndian>(self.sequence)
+    }
+}
+
+impl BorshDeserialize for TxIn {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for TxIn {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialOrd, PartialEq, Ord, Eq)]
+pub struct TxOut {
+    pub asset_type: AssetType,
+    pub value: u64,
+    //pub script_pubkey: Script,
+}
+
+impl TxOut {
+    pub fn read<R: Read>(mut reader: &mut R) -> io::Result<Self> {
+        let asset_type = {
+            let mut tmp = [0u8; 32];
+            reader.read_exact(&mut tmp)?;
+            AssetType::from_identifier(&tmp)
+        }
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "value out of range"))?;
+        let value = {
+            let mut tmp = [0u8; 8];
+            reader.read_exact(&mut tmp)?;
+            u64::from_le_bytes(tmp)
+        };
+        //let script_pubkey = Script::read(&mut reader)?;
+
+        Ok(TxOut {
+            asset_type,
+            value,
+            //script_pubkey,
+        })
+    }
+
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        writer.write_all(self.asset_type.get_identifier())?;
+        writer.write_all(&self.value.to_le_bytes())
+        //self.script_pubkey.write(&mut writer)
+    }
+}
+
+impl BorshDeserialize for TxOut {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for TxOut {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+    Hash,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+pub struct TxId(pub [u8; 32]);
+
+impl std::fmt::Display for TxId {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut data = self.0;
+        data.reverse();
+        formatter.write_str(&hex::encode(data))
+    }
+}
 #[derive(Clone, PartialEq, Eq)]
 pub struct SpendDescription<A: Authorization + PartialEq> {
     pub cv: jubjub::ExtendedPoint,
@@ -256,6 +420,80 @@ impl SpendDescriptionV5 {
     }
 }
 
+#[derive( Clone, PartialEq, Eq)]
+pub struct ConvertDescription {
+    //#[serde(serialize_with = "sserialize_extended_point")]
+    //#[serde(deserialize_with = "sdeserialize_extended_point")]
+    pub cv: jubjub::ExtendedPoint,
+    //#[serde(serialize_with = "sserialize_scalar")]
+    //#[serde(deserialize_with = "sdeserialize_scalar")]
+    pub anchor: bls12_381::Scalar,
+    //#[serde(serialize_with = "sserialize_array::<_, u8, u8, GROTH_PROOF_SIZE>")]
+    //#[serde(deserialize_with = "sdeserialize_array::<_, u8, u8, GROTH_PROOF_SIZE>")]
+    pub zkproof: [u8; GROTH_PROOF_SIZE],
+}
+
+impl PartialOrd for ConvertDescription {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        (self.cv.to_bytes(), self.anchor.to_bytes(), self.zkproof).partial_cmp(&(other.cv.to_bytes(), other.anchor.to_bytes(), other.zkproof))
+    }
+}
+
+impl Hash for ConvertDescription {
+    fn hash<H>(&self, state: &mut H) where H: Hasher {
+        self.cv.to_bytes().hash(state);
+        self.anchor.to_bytes().hash(state);
+        self.zkproof.hash(state);
+    }
+}
+impl std::fmt::Debug for ConvertDescription {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "ConvertDescription(cv = {:?}, anchor = {:?})",
+            self.cv, self.anchor
+        )
+    }
+}
+
+impl BorshDeserialize for ConvertDescription {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for ConvertDescription {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+impl ConvertDescription {
+
+pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+    // Consensus rules (§4.4) & (§4.5):
+    // - Canonical encoding is enforced here.
+    // - "Not small order" is enforced in SaplingVerificationContext::(check_spend()/check_output())
+    //   (located in zcash_proofs::sapling::verifier).
+    let cv = read_point(&mut reader, "cv")?;
+    // Consensus rules (§7.3) & (§7.4):
+    // - Canonical encoding is enforced here
+    let anchor = read_base(&mut reader, "anchor")?;
+    let zkproof = read_zkproof(&mut reader)?;
+
+    Ok(ConvertDescription {
+        cv,
+        anchor,
+        zkproof,
+    })
+}
+
+pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+    writer.write_all(&self.cv.to_bytes())?;
+    writer.write_all(self.anchor.to_repr().as_ref())?;
+    writer.write_all(&self.zkproof)
+}
+}
+
 #[derive(Clone, PartialEq)]
 pub struct OutputDescription<Proof> {
     pub cv: jubjub::ExtendedPoint,
@@ -266,12 +504,12 @@ pub struct OutputDescription<Proof> {
     pub zkproof: Proof,
 }
 
-/*impl<Proof: PartialEq> PartialOrd for OutputDescription<Proof> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+impl<Proof: PartialOrd> PartialOrd for OutputDescription<Proof> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         (
             self.cv.to_bytes(),
             self.cmu.to_bytes(),
-            self.ephemeral_key.to_bytes(),
+            self.ephemeral_key,
             self.enc_ciphertext,
             self.out_ciphertext,
             self.zkproof,
@@ -279,7 +517,7 @@ pub struct OutputDescription<Proof> {
             .partial_cmp(&(
                 other.cv.to_bytes(),
                 other.cmu.to_bytes(),
-                other.ephemeral_key.to_bytes(),
+                other.ephemeral_key,
                 other.enc_ciphertext,
                 other.out_ciphertext,
                 other.zkproof,
@@ -294,12 +532,12 @@ impl<Proof: Hash> Hash for OutputDescription<Proof> {
     {
         self.cv.to_bytes().hash(state);
         self.cmu.to_bytes().hash(state);
-        self.ephemeral_key.to_bytes().hash(state);
+        self.ephemeral_key.hash(state);
         self.enc_ciphertext.hash(state);
         self.out_ciphertext.hash(state);
         self.zkproof.hash(state);
     }
-}*/
+}
 
 impl<P: consensus::Parameters, A> ShieldedOutput<SaplingDomain<P>, ENC_CIPHERTEXT_SIZE>
     for OutputDescription<A>
@@ -561,7 +799,7 @@ pub mod testing {
 
                 let mut value_balance = std::collections::BTreeMap::new();
                 value_balance.insert(crate::asset_type::AssetType::new(b"prop_test").unwrap(), value);
-
+                let value_balance = crate::transaction::amount::Amount(value_balance);
                 Some(
                     Bundle {
                         shielded_spends,

@@ -1,10 +1,11 @@
 //! Implementation of a Merkle tree of commitments used to prove the existence of notes.
 
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 
 use crate::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
+use borsh::{BorshDeserialize, BorshSerialize};
 use core::convert::TryFrom;
 use incrementalmerkletree::{
     self,
@@ -12,6 +13,7 @@ use incrementalmerkletree::{
     Altitude,
 };
 use zcash_encoding::{Optional, Vector};
+
 /// A hashable node within a Merkle tree.
 pub trait Hashable: Clone + Copy {
     /// Parses a node from the given byte source.
@@ -93,6 +95,162 @@ impl<Node: Hashable> PathFiller<Node> {
         self.queue
             .pop_front()
             .unwrap_or_else(|| Node::empty_root(depth))
+    }
+}
+
+/// An immutable commitment tree
+#[derive(Clone, Debug, Default)]
+pub struct FrozenCommitmentTree<Node>(Vec<Node>, usize);
+
+impl<Node: Hashable> FrozenCommitmentTree<Node> {
+    /// Construct a commitment tree with the given leaf nodes
+    pub fn new(leafs: &[Node]) -> Self {
+        let mut tree = Vec::with_capacity(leafs.len() * 2 + SAPLING_COMMITMENT_TREE_DEPTH + 1);
+        tree.extend_from_slice(leafs);
+        // Infer the rest of the tree
+        Self::complete(tree, 0, leafs.len(), 0, leafs.len())
+    }
+    /// Merge the n-1 full Merkle trees with the last possibly unfilled one. All
+    /// full trees must have the same size which must be a power of 2 and the
+    /// tree must be smaller than this size.
+    pub fn merge(subtrees: &[FrozenCommitmentTree<Node>]) -> Self {
+        if subtrees.is_empty() {
+            return Self(Vec::new(), 0);
+        }
+        // Combine the 1 or more supplied subtrees
+        let mut height = 0;
+        let mut prev_first_start = 0;
+        let mut prev_first_width = subtrees[0].size();
+        let mut prev_last_start = 0;
+        let mut prev_last_width = subtrees.last().unwrap().size();
+        let mut prev_start = 0;
+        let mut prev_width = (subtrees.len() - 1) * prev_first_width + prev_last_width;
+        let leafs = prev_width;
+        let mut tree = Vec::with_capacity(leafs * 2 + SAPLING_COMMITMENT_TREE_DEPTH + 1);
+        loop {
+            // Need to make sure that right child is present for parent
+            if prev_last_width % 2 == 1 && prev_first_width > 1 {
+                prev_last_width += 1;
+                prev_width += 1;
+            }
+            // Combine all the rows at the current level
+            for subtree in &subtrees[0..(subtrees.len() - 1)] {
+                tree.extend_from_slice(
+                    &subtree.0[prev_first_start..(prev_first_start + prev_first_width)],
+                );
+            }
+            tree.extend_from_slice(
+                &subtrees.last().unwrap().0[prev_last_start..(prev_last_start + prev_last_width)],
+            );
+            // Quit when we are the top of the full trees
+            if prev_first_width == 1 {
+                break;
+            }
+            // Update our positions on the full and unfull trees
+            prev_first_start += prev_first_width;
+            prev_first_width /= 2;
+            prev_last_start += prev_last_width;
+            prev_last_width /= 2;
+            prev_start += prev_width;
+            prev_width /= 2;
+            height += 1;
+        }
+        // Now that we have taken as many levels as possible from the
+        // supplied subtrees, infer the rest
+        Self::complete(tree, prev_start, prev_width, height, leafs)
+    }
+    /// Complete the construction of given Merkle tree given the highest row data
+    fn complete(
+        mut tree: Vec<Node>,
+        mut prev_start: usize,
+        mut prev_width: usize,
+        heightp: usize,
+        leafs: usize,
+    ) -> Self {
+        // Add higher and higher rows of the Merkle tree
+        for height in heightp..SAPLING_COMMITMENT_TREE_DEPTH {
+            if prev_width % 2 == 1 {
+                // Add a dummy for the right-most parent's right child
+                prev_width += 1;
+                tree.push(Node::empty_root(height))
+            }
+            for j in 0..(prev_width / 2) {
+                // Add the nodes of the next row dependent upon previous row
+                let comb = Node::combine(
+                    height,
+                    &tree[prev_start + 2 * j],
+                    &tree[prev_start + 2 * j + 1],
+                );
+                tree.push(comb);
+            }
+            // Next row will be adjacent to current row in vector
+            prev_start += prev_width;
+            prev_width /= 2;
+        }
+        Self(tree, leafs)
+    }
+    /// Get the root node of the commitment tree
+    pub fn root(&self) -> Node {
+        self.0
+            .last()
+            .cloned()
+            .unwrap_or_else(|| Node::empty_root(SAPLING_COMMITMENT_TREE_DEPTH))
+    }
+    /// Construct a merkle path to the given position in commitment tree
+    pub fn path(&self, mut pos: usize) -> MerklePath<Node> {
+        let mut path = MerklePath {
+            auth_path: vec![],
+            position: pos as u64,
+        };
+        let mut start = 0;
+        let mut width = self.1;
+
+        for height in 0..SAPLING_COMMITMENT_TREE_DEPTH {
+            if width % 2 == 1 {
+                width += 1;
+            }
+            if pos % 2 == 0 {
+                // The current node is a left child
+                let node = if pos + 1 < width {
+                    // Node is within current row
+                    self.0[start + pos + 1]
+                } else {
+                    // Node is to the right of current row
+                    Node::empty_root(height)
+                };
+                path.auth_path.push((node, false));
+            } else {
+                // The current node is a right child
+                let node = if pos - 1 < width {
+                    self.0[start + pos - 1]
+                } else {
+                    Node::empty_root(height)
+                };
+                path.auth_path.push((node, true));
+            }
+            // Move to the parent of the current node
+            start += width;
+            width /= 2;
+            pos /= 2;
+        }
+        path
+    }
+    /// Returns the number of leaf nodes in the tree.
+    pub fn size(&self) -> usize {
+        self.1
+    }
+}
+
+impl<Node: BorshSerialize> BorshSerialize for FrozenCommitmentTree<Node> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        (&self.0, self.1).serialize(writer)
+    }
+}
+
+impl<Node: BorshDeserialize> BorshDeserialize for FrozenCommitmentTree<Node> {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        let tup: (Vec<Node>, usize) = BorshDeserialize::deserialize(buf)?;
+        Ok(Self(tup.0, tup.1))
     }
 }
 
@@ -294,6 +452,18 @@ impl<Node: Hashable> CommitmentTree<Node> {
     }
 }
 
+impl<Node: Hashable> BorshSerialize for CommitmentTree<Node> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl<Node: Hashable> BorshDeserialize for CommitmentTree<Node> {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
 /// An updatable witness to a path from a position in a particular [`CommitmentTree`].
 ///
 /// Appending the same commitments in the same order to both the original
@@ -325,7 +495,7 @@ impl<Node: Hashable> CommitmentTree<Node> {
 /// witness.append(cmu);
 /// assert_eq!(tree.root(), witness.root());
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IncrementalWitness<Node: Hashable> {
     tree: CommitmentTree<Node>,
     filled: Vec<Node>,
@@ -506,8 +676,20 @@ impl<Node: Hashable> IncrementalWitness<Node> {
     }
 }
 
+impl<Node: Hashable> BorshSerialize for IncrementalWitness<Node> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl<Node: Hashable> BorshDeserialize for IncrementalWitness<Node> {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
 /// A path from a position in a particular commitment tree to the root of that tree.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MerklePath<Node: Hashable> {
     pub auth_path: Vec<(Node, bool)>,
     pub position: u64,
@@ -528,60 +710,14 @@ impl<Node: Hashable> MerklePath<Node> {
     }
 
     fn from_slice_with_depth(mut witness: &[u8], depth: usize) -> Result<Self, ()> {
-        // Skip the first byte, which should be "depth" to signify the length of
-        // the following vector of Pedersen hashes.
-        if witness[0] != depth as u8 {
+        let path = Self::deserialize(&mut witness).map_err(|_| ())?;
+        if path.auth_path.len() != depth {
             return Err(());
-        }
-        witness = &witness[1..];
-
-        // Begin to construct the authentication path
-        let iter = witness.chunks_exact(33);
-        witness = iter.remainder();
-
-        // The vector works in reverse
-        let mut auth_path = iter
-            .rev()
-            .map(|bytes| {
-                // Length of inner vector should be the length of a Pedersen hash
-                if bytes[0] == 32 {
-                    // Sibling node should be an element of Fr
-                    Node::read(&bytes[1..])
-                        .map(|sibling| {
-                            // Set the value in the auth path; we put false here
-                            // for now (signifying the position bit) which we'll
-                            // fill in later.
-                            (sibling, false)
-                        })
-                        .map_err(|_| ())
-                } else {
-                    Err(())
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if auth_path.len() != depth {
-            return Err(());
-        }
-
-        // Read the position from the witness
-        let position = witness.read_u64::<LittleEndian>().map_err(|_| ())?;
-
-        // Given the position, let's finish constructing the authentication
-        // path
-        let mut tmp = position;
-        for entry in auth_path.iter_mut() {
-            entry.1 = (tmp & 1) == 1;
-            tmp >>= 1;
-        }
-
-        // The witness should be empty now; if it wasn't, the caller would
-        // have provided more information than they should have, indicating
-        // a bug downstream
+        } // The witness should be empty now; if it wasn't, the caller would
+          // have provided more information than they should have, indicating
+          // a bug downstream
         if witness.is_empty() {
-            Ok(MerklePath {
-                auth_path,
-                position,
-            })
+            Ok(path)
         } else {
             Err(())
         }
@@ -602,6 +738,82 @@ impl<Node: Hashable> MerklePath<Node> {
     }
 }
 
+impl<Node: Hashable> BorshDeserialize for MerklePath<Node> {
+    fn deserialize(witness: &mut &[u8]) -> Result<Self, std::io::Error> {
+        // Skip the first byte, which should be "depth" to signify the length of
+        // the following vector of Pedersen hashes.
+        let depth = witness[0] as usize;
+        *witness = &witness[1..];
+
+        // Begin to construct the authentication path
+        let iter = witness[..33 * depth + 8].chunks_exact(33);
+        *witness = iter.remainder();
+
+        // The vector works in reverse
+        let mut auth_path = iter
+            .rev()
+            .map(|bytes| {
+                // Length of inner vector should be the length of a Pedersen hash
+                if bytes[0] == 32 {
+                    // Sibling node should be an element of Fr
+                    Node::read(&bytes[1..])
+                        .map(|sibling| {
+                            // Set the value in the auth path; we put false here
+                            // for now (signifying the position bit) which we'll
+                            // fill in later.
+                            (sibling, false)
+                        })
+                        .map_err(|_| ())
+                } else {
+                    Err(())
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
+        if auth_path.len() != depth {
+            return Err(std::io::Error::from(std::io::ErrorKind::InvalidData));
+        }
+
+        // Read the position from the witness
+        let position = witness.read_u64::<LittleEndian>()?;
+
+        // Given the position, let's finish constructing the authentication
+        // path
+        let mut tmp = position;
+        for entry in auth_path.iter_mut() {
+            entry.1 = (tmp & 1) == 1;
+            tmp >>= 1;
+        }
+
+        Ok(MerklePath {
+            auth_path,
+            position,
+        })
+    }
+}
+
+impl<Node: Hashable> BorshSerialize for MerklePath<Node> {
+    fn serialize<W: Write>(&self, witness: &mut W) -> Result<(), std::io::Error> {
+        //let mut witness = Vec::new();
+        let mut position = 0u64;
+        // Write path length
+        witness.write_u8(self.auth_path.len() as u8)?;
+        for (i, (node, b)) in self.auth_path.iter().enumerate().rev() {
+            // Write node into temporary object to measure data length
+            let mut node_bytes = Vec::new();
+            node.write(&mut node_bytes)?;
+            // Write node length
+            witness.write_u8(node_bytes.len() as u8)?;
+            // Write node data
+            witness.write_all(&node_bytes)?;
+            position |= (*b as u64) << i;
+        }
+        // Write bit vector indicating positions
+        witness.write_u64::<LittleEndian>(position)?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::sapling::testing::arb_node;
@@ -611,10 +823,11 @@ mod tests {
     use proptest::prelude::*;
     use std::convert::TryInto;
     use std::io::{self, Read, Write};
+    use borsh::BorshSerialize;
 
     use super::{
-        testing::arb_commitment_tree, CommitmentTree, Hashable, IncrementalWitness, MerklePath,
-        PathFiller,
+        testing::arb_commitment_tree, CommitmentTree, FrozenCommitmentTree, Hashable,
+        IncrementalWitness, MerklePath, PathFiller,
     };
     const HEX_EMPTY_ROOTS: [&str; 33] = [
         "0100000000000000000000000000000000000000000000000000000000000000",
@@ -651,6 +864,52 @@ mod tests {
         "de43f9cb72ec5b01c93aff1981a6cb7765b3e0c60ecdd4f0ddc1f1dda252ff0e",
         "2d924d748574cf8b52f92b40d84f3781c8036defd40bc688ea182b1e52e8bf32",
     ];
+
+    #[test]
+    fn test_frozen_tree() {
+        let commitments = [
+            "b02310f2e087e55bfd07ef5e242e3b87ee5d00c9ab52f61e6bd42542f93a6f55",
+            "225747f3b5d5dab4e5a424f81f85c904ff43286e0f3fd07ef0b8c6a627b11458",
+            "7c3ea01a6e3a3d90cf59cd789e467044b5cd78eb2c84cc6816f960746d0e036c",
+            "50421d6c2c94571dfaaa135a4ff15bf916681ebd62c0e43e69e3b90684d0a030",
+            "aaec63863aaa0b2e3b8009429bdddd455e59be6f40ccab887a32eb98723efc12",
+            "f76748d40d5ee5f9a608512e7954dd515f86e8f6d009141c89163de1cf351a02",
+            "bc8a5ec71647415c380203b681f7717366f3501661512225b6dc3e121efc0b2e",
+            "da1adda2ccde9381e11151686c121e7f52d19a990439161c7eb5a9f94be5a511",
+            "3a27fed5dbbc475d3880360e38638c882fd9b273b618fc433106896083f77446",
+            "c7ca8f7df8fd997931d33985d935ee2d696856cc09cc516d419ea6365f163008",
+            "f0fa37e8063b139d342246142fc48e7c0c50d0a62c97768589e06466742c3702",
+            "e6d4d7685894d01b32f7e081ab188930be6c2b9f76d6847b7f382e3dddd7c608",
+            "8cebb73be883466d18d3b0c06990520e80b936440a2c9fd184d92a1f06c4e826",
+            "22fab8bcdb88154dbf5877ad1e2d7f1b541bc8a5ec1b52266095381339c27c03",
+            "f43e3aac61e5a753062d4d0508c26ceaf5e4c0c58ba3c956e104b5d2cf67c41c",
+            "3a3661bc12b72646c94bc6c92796e81953985ee62d80a9ec3645a9a95740ac15",
+        ];
+        for right in 8..16 {
+            let mut orig = CommitmentTree::empty();
+            let mut cmus = Vec::new();
+            let mut paths: Vec<IncrementalWitness<Node>> = Vec::new();
+            for i in 0..right {
+                let cmu = hex::decode(commitments[i]).unwrap();
+                let cmu = Node::new(cmu[..].try_into().unwrap());
+                orig.append(cmu).unwrap();
+                cmus.push(cmu);
+                for path in &mut paths {
+                    path.append(cmu).unwrap();
+                }
+                paths.push(IncrementalWitness::from_tree(&orig));
+            }
+            let frozen1 = FrozenCommitmentTree::new(&cmus[0..8]);
+            let frozen2 = FrozenCommitmentTree::new(&cmus[8..right]);
+            let frozen = FrozenCommitmentTree::merge(&[frozen1, frozen2]);
+            assert_eq!(orig.root(), frozen.root());
+            for (i, path) in paths.iter().enumerate() {
+                let path = path.path().unwrap();
+                assert_eq!(path.auth_path, frozen.path(i).auth_path);
+                assert_eq!(path.position, frozen.path(i).position);
+            }
+        }
+    }
 
     const TESTING_DEPTH: usize = 4;
 
@@ -1166,6 +1425,10 @@ mod tests {
                     )
                     .unwrap();
                     assert_eq!(path, expected);
+                    let mut reser_vec = Vec::new();
+                    path.serialize(&mut reser_vec)
+                        .expect("should be able to serialize path");
+                    assert_eq!(reser_vec, hex::decode(paths[paths_i]).unwrap());
                     assert_eq!(path.root(*leaf), witness.root());
                     paths_i += 1;
                 } else {

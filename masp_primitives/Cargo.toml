@@ -20,8 +20,8 @@ all-features = true
 aes = "0.7"
 bitvec = "0.22"
 bip0039 = { version = "0.9", features = ["std", "all-languages"] }
-blake2b_simd = "1"
-blake2s_simd = "1"
+blake2b_simd = "1.0.0"
+blake2s_simd = "1.0.0"
 bls12_381 = "0.6"
 borsh = {version = "0.9", features = ["const-generics"]}
 byteorder = "1"
@@ -42,6 +42,7 @@ subtle = "2.2.3"
 zcash_encoding = { version = "0.0", git = "https://github.com/zcash/librustzcash", rev = "43c18d0" }
 masp_note_encryption = { path = "../masp_note_encryption", features = ["pre-zip-212"] }
 memuse = "0.2"
+serde = "1"
 
 [dev-dependencies]
 criterion = "0.3"

@@ -7,6 +7,7 @@ use crate::{
     primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
     redjubjub::{PublicKey, Signature},
     sapling::Node,
+    transaction::amount::Amount,
 };
 pub const GROTH_PROOF_SIZE: usize = 48 + 96 + 48;
 
@@ -69,7 +70,7 @@ pub trait TxProver {
     fn binding_sig(
         &self,
         ctx: &mut Self::SaplingProvingContext,
-        assets_and_values: &[(AssetType, i64)],
+        amount: &Amount,
         sighash: &[u8; 32],
     ) -> Result<Signature, ()>;
 }

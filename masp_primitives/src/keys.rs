@@ -11,7 +11,12 @@ use crate::{
 use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
-use std::io::{self, Read, Write};
+use std::{
+    fmt::{Display, Formatter},
+    hash::{Hash, Hasher},
+    io::{self, Read, Write},
+    str::FromStr,
+};
 use subtle::CtOption;
 
 pub const PRF_EXPAND_PERSONALIZATION: &[u8; 16] = b"MASP__ExpandSeed";
@@ -34,22 +39,51 @@ pub fn prf_expand_vec(sk: &[u8], ts: &[&[u8]]) -> Blake2bHash {
 }
 
 /// An outgoing viewing key
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct OutgoingViewingKey(pub [u8; 32]);
 
 /// A Sapling expanded spending key
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Copy)]
 pub struct ExpandedSpendingKey {
     pub ask: jubjub::Fr,
     pub nsk: jubjub::Fr,
     pub ovk: OutgoingViewingKey,
 }
 
+impl Hash for ExpandedSpendingKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ask.to_bytes().hash(state);
+        self.nsk.to_bytes().hash(state);
+        self.ovk.hash(state);
+    }
+}
+
 /// A Sapling full viewing key
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct FullViewingKey {
     pub vk: ViewingKey,
     pub ovk: OutgoingViewingKey,
+}
+
+impl Display for FullViewingKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", hex::encode(self.to_bytes()))
+    }
+}
+
+impl FromStr for FullViewingKey {
+    type Err = io::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let vec = hex::decode(s).map_err(|x| io::Error::new(std::io::ErrorKind::InvalidData, x))?;
+        let mut rdr = vec.as_slice();
+        let res = Self::read(&mut rdr)?;
+        if !rdr.is_empty() {
+            Err(io::Error::from(std::io::ErrorKind::InvalidData))
+        } else {
+            Ok(res)
+        }
+    }
 }
 
 impl ExpandedSpendingKey {
@@ -69,7 +103,7 @@ impl ExpandedSpendingKey {
         }
     }
 
-    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let mut ask_repr = [0u8; 32];
         reader.read_exact(ask_repr.as_mut())?;
         let ask = Option::from(jubjub::Fr::from_repr(ask_repr))
@@ -90,7 +124,7 @@ impl ExpandedSpendingKey {
         })
     }
 
-    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(self.ask.to_repr().as_ref())?;
         writer.write_all(self.nsk.to_repr().as_ref())?;
         writer.write_all(&self.ovk.0)?;
@@ -106,18 +140,6 @@ impl ExpandedSpendingKey {
     }
 }
 
-impl Clone for FullViewingKey {
-    fn clone(&self) -> Self {
-        FullViewingKey {
-            vk: ViewingKey {
-                ak: self.vk.ak,
-                nk: self.vk.nk,
-            },
-            ovk: self.ovk,
-        }
-    }
-}
-
 impl FullViewingKey {
     pub fn from_expanded_spending_key(expsk: &ExpandedSpendingKey) -> Self {
         FullViewingKey {
@@ -129,7 +151,7 @@ impl FullViewingKey {
         }
     }
 
-    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let ak = {
             let mut buf = [0u8; 32];
             reader.read_exact(&mut buf)?;
@@ -164,7 +186,7 @@ impl FullViewingKey {
         })
     }
 
-    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&self.vk.ak.to_bytes())?;
         writer.write_all(&self.vk.nk.to_bytes())?;
         writer.write_all(&self.ovk.0)?;

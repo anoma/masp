@@ -8,6 +8,7 @@ use crate::{
     redjubjub::{PrivateKey, PublicKey, Signature},
 };
 use bitvec::{order::Lsb0, view::AsBits};
+use borsh::{BorshDeserialize, BorshSerialize};
 use ff::PrimeField;
 use group::{Curve, GroupEncoding};
 use incrementalmerkletree::{self, Altitude};
@@ -52,7 +53,7 @@ pub fn merkle_hash(depth: usize, lhs: &[u8; 32], rhs: &[u8; 32]) -> [u8; 32] {
 }
 
 /// A node within the Sapling commitment tree.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, BorshSerialize, BorshDeserialize, Default)]
 pub struct Node {
     repr: [u8; 32],
 }
@@ -136,7 +137,7 @@ pub(crate) fn spend_sig_internal<R: RngCore>(
     // Compute the signature's message for rk/spend_auth_sig
     let mut data_to_be_signed = [0u8; 64];
     data_to_be_signed[0..32].copy_from_slice(&rk.0.to_bytes());
-    (&mut data_to_be_signed[32..64]).copy_from_slice(&sighash[..]);
+    data_to_be_signed[32..64].copy_from_slice(&sighash[..]);
 
     // Do the signing
     rsk.sign(&data_to_be_signed, rng, SPENDING_KEY_GENERATOR)

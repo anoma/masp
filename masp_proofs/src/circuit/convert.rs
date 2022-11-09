@@ -152,13 +152,11 @@ fn test_convert_circuit_with_bls12_381() {
         let output_value = i as i64 + 1;
         let mint_value = i as i64 + 1;
 
-        let allowed_conversion = AllowedConversion {
-            assets: vec![
-                (spend_asset, spend_value),
-                (output_asset, output_value),
-                (mint_asset, mint_value),
-            ],
-        };
+        let allowed_conversion: AllowedConversion = (
+            Amount::from_pair(spend_asset, spend_value).unwrap() +
+                Amount::from_pair(output_asset, output_value).unwrap() +
+                Amount::from_pair(mint_asset, mint_value).unwrap()
+        ).into();
 
         let value = rng.next_u64();
 

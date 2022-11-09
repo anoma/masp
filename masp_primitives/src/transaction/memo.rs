@@ -6,6 +6,7 @@ use std::error;
 use std::fmt;
 use std::ops::Deref;
 use std::str;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 /// Format a byte array as a colon-delimited hex string.
 ///
@@ -47,7 +48,7 @@ impl fmt::Display for Error {
 impl error::Error for Error {}
 
 /// The unencrypted memo bytes received alongside a shielded note in a Zcash transaction.
-#[derive(Clone)]
+#[derive(Clone, BorshSerialize, BorshDeserialize)]
 pub struct MemoBytes(pub(crate) Box<[u8; 512]>);
 
 impl fmt::Debug for MemoBytes {

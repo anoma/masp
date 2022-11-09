@@ -24,6 +24,7 @@ use crate::{
     transaction::GrothProofBytes,
     transaction::{amount::Amount, OutputDescription},
 };
+use borsh::{BorshDeserialize, BorshSerialize};
 
 pub const KDF_SAPLING_PERSONALIZATION: &[u8; 16] = b"MASP__SaplingKDF";
 pub const PRF_OCK_PERSONALIZATION: &[u8; 16] = b"MASP__Derive_ock";

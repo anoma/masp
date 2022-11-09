@@ -15,9 +15,14 @@ use group::{cofactor::CofactorGroup, Curve, Group, GroupEncoding};
 use rand_core::{CryptoRng, RngCore};
 use std::{
     array::TryFromSliceError,
+    cmp::Ordering,
     convert::{TryFrom, TryInto},
+    fmt::{Display, Formatter},
+    hash::{Hash, Hasher},
+    io::{self, Read, Write},
+    str::FromStr,
 };
-use subtle::{Choice, ConstantTimeEq};
+use subtle::{Choice, ConstantTimeEq, CtOption};
 
 #[derive(Clone)]
 pub struct ValueCommitment {
@@ -48,10 +53,20 @@ impl ProofGenerationKey {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct ViewingKey {
     pub ak: jubjub::SubgroupPoint,
     pub nk: jubjub::SubgroupPoint,
+}
+
+impl Hash for ViewingKey {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        self.ak.to_bytes().hash(state);
+        self.nk.to_bytes().hash(state);
+    }
 }
 
 impl ViewingKey {
@@ -80,6 +95,72 @@ impl ViewingKey {
     pub fn to_payment_address(&self, diversifier: Diversifier) -> Option<PaymentAddress> {
         self.ivk().to_payment_address(diversifier)
     }
+    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+        let ak = {
+            let mut buf = [0u8; 32];
+            reader.read_exact(&mut buf)?;
+            jubjub::SubgroupPoint::from_bytes(&buf).and_then(|p| CtOption::new(p, !p.is_identity()))
+        };
+        let nk = {
+            let mut buf = [0u8; 32];
+            reader.read_exact(&mut buf)?;
+            jubjub::SubgroupPoint::from_bytes(&buf)
+        };
+        if ak.is_none().into() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "ak not of prime order",
+            ));
+        }
+        if nk.is_none().into() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "nk not in prime-order subgroup",
+            ));
+        }
+        let ak = ak.unwrap();
+        let nk = nk.unwrap();
+
+        Ok(ViewingKey { ak, nk })
+    }
+
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        writer.write_all(&self.ak.to_bytes())?;
+        writer.write_all(&self.nk.to_bytes())?;
+
+        Ok(())
+    }
+
+    pub fn to_bytes(&self) -> [u8; 64] {
+        let mut result = [0u8; 64];
+        self.write(&mut result[..])
+            .expect("should be able to serialize a ViewingKey");
+        result
+    }
+}
+
+impl BorshSerialize for ViewingKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl BorshDeserialize for ViewingKey {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl PartialOrd for ViewingKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.to_bytes().partial_cmp(&other.to_bytes())
+    }
+}
+
+impl Ord for ViewingKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.to_bytes().cmp(&other.to_bytes())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -99,7 +180,7 @@ impl SaplingIvk {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize)]
 pub struct Diversifier(pub [u8; 11]);
 
 impl Diversifier {
@@ -114,16 +195,10 @@ impl Diversifier {
 ///
 /// `pk_d` is guaranteed to be prime-order (i.e. in the prime-order subgroup of Jubjub,
 /// and not the identity).
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PaymentAddress {
     pk_d: jubjub::SubgroupPoint,
     diversifier: Diversifier,
-}
-
-impl PartialEq for PaymentAddress {
-    fn eq(&self, other: &Self) -> bool {
-        self.pk_d == other.pk_d && self.diversifier == other.diversifier
-    }
 }
 
 impl PaymentAddress {
@@ -206,6 +281,54 @@ impl PaymentAddress {
     }
 }
 
+impl Display for PaymentAddress {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", hex::encode(&self.to_bytes()))
+    }
+}
+
+impl FromStr for PaymentAddress {
+    type Err = io::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let vec = hex::decode(s).map_err(|x| io::Error::new(io::ErrorKind::InvalidData, x))?;
+        BorshDeserialize::try_from_slice(&vec)
+    }
+}
+
+impl PartialOrd for PaymentAddress {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.to_bytes().partial_cmp(&other.to_bytes())
+    }
+}
+impl Ord for PaymentAddress {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.to_bytes().cmp(&other.to_bytes())
+    }
+}
+impl Hash for PaymentAddress {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.to_bytes().hash(state)
+    }
+}
+
+impl BorshSerialize for PaymentAddress {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        writer.write(self.to_bytes().as_ref()).and(Ok(()))
+    }
+}
+impl BorshDeserialize for PaymentAddress {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        let data = buf
+            .get(..43)
+            .ok_or_else(|| io::Error::from(io::ErrorKind::UnexpectedEof))?;
+        let res = Self::from_bytes(data.try_into().unwrap());
+        let pa = res.ok_or_else(|| io::Error::from(io::ErrorKind::InvalidData))?;
+        *buf = &buf[43..];
+        Ok(pa)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Note {
     /// The asset type that the note represents
@@ -247,45 +370,6 @@ impl BorshSerialize for Note {
     }
 }
 
-impl BorshDeserialize for Note {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        // Read asset type
-        let asset_type = AssetType::deserialize(buf)?;
-        // Read note value
-        let value = buf.read_u64::<LittleEndian>()?;
-        // Read diversified base
-        let g_d_bytes = <[u8; 32]>::deserialize(buf)?;
-        let g_d = Option::from(jubjub::SubgroupPoint::from_bytes(&g_d_bytes)).ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, "g_d not in field")
-        })?;
-        // Read diversified transmission key
-        let pk_d_bytes = <[u8; 32]>::deserialize(buf)?;
-        let pk_d =
-            Option::from(jubjub::SubgroupPoint::from_bytes(&pk_d_bytes)).ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "pk_d not in field")
-            })?;
-        // Read note plaintext lead byte
-        let rseed_type = buf.read_u8()?;
-        // Read rseed
-        let rseed_bytes = <[u8; 32]>::deserialize(buf)?;
-        let rseed = if rseed_type == 0x01 {
-            let data = Option::from(jubjub::Fr::from_bytes(&rseed_bytes)).ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "rseed not in field")
-            })?;
-            Rseed::BeforeZip212(data)
-        } else {
-            Rseed::AfterZip212(rseed_bytes)
-        };
-        // Finally construct note object
-        Ok(Note {
-            asset_type,
-            value,
-            g_d,
-            pk_d,
-            rseed,
-        })
-    }
-}
 /// Enum for note randomness before and after [ZIP 212](https://zips.z.cash/zip-0212).
 ///
 /// Before ZIP 212, the note commitment trapdoor `rcm` must be a scalar value.
@@ -365,9 +449,7 @@ impl Note {
         note_contents.extend_from_slice(&self.asset_type.asset_generator().to_bytes());
 
         // Writing the value in little endian
-        (&mut note_contents)
-            .write_u64::<LittleEndian>(self.value)
-            .unwrap();
+        note_contents.write_u64::<LittleEndian>(self.value).unwrap();
 
         // Write g_d
         note_contents.extend_from_slice(&self.g_d.to_bytes());
@@ -448,6 +530,42 @@ impl Note {
                 prf_expand(&rseed, &[0x05]).as_array(),
             )),
         }
+    }
+}
+
+impl BorshDeserialize for Note {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        // Read asset type
+        let asset_type = AssetType::deserialize(buf)?;
+        // Read note value
+        let value = buf.read_u64::<LittleEndian>()?;
+        // Read diversified base
+        let g_d_bytes = <[u8; 32]>::deserialize(buf)?;
+        let g_d = Option::from(jubjub::SubgroupPoint::from_bytes(&g_d_bytes))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "g_d not in field"))?;
+        // Read diversified transmission key
+        let pk_d_bytes = <[u8; 32]>::deserialize(buf)?;
+        let pk_d = Option::from(jubjub::SubgroupPoint::from_bytes(&pk_d_bytes))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "pk_d not in field"))?;
+        // Read note plaintext lead byte
+        let rseed_type = buf.read_u8()?;
+        // Read rseed
+        let rseed_bytes = <[u8; 32]>::deserialize(buf)?;
+        let rseed = if rseed_type == 0x01 {
+            let data = Option::from(jubjub::Fr::from_bytes(&rseed_bytes))
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "rseed not in field"))?;
+            Rseed::BeforeZip212(data)
+        } else {
+            Rseed::AfterZip212(rseed_bytes)
+        };
+        // Finally construct note object
+        Ok(Note {
+            asset_type,
+            value,
+            g_d,
+            pk_d,
+            rseed,
+        })
     }
 }
 

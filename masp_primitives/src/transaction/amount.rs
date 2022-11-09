@@ -1,11 +1,18 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::convert::TryFrom;
 use std::iter::Sum;
-use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Neg, Sub, SubAssign, Mul, MulAssign, Index};
+use crate::asset_type::AssetType;
+use std::hash::{Hash, Hasher};
+use std::collections::BTreeMap;
+use std::collections::btree_map::Keys;
+use std::collections::btree_map::{Iter, IntoIter};
+use std::cmp::Ordering;
+use std::convert::TryInto;
+use crate::serialize::Vector;
+use std::io::{Read, Write};
 
 pub const MAX_MONEY: i64 = i64::MAX;
-
-pub const DEFAULT_FEE: Amount = Amount(1000);
 
 /// A type-safe representation of some quantity of Zcash.
 ///
@@ -18,9 +25,9 @@ pub const DEFAULT_FEE: Amount = Amount(1000);
 /// by the network consensus rules.
 ///
 #[derive(
-    Clone, Copy, Default, Debug, PartialEq, PartialOrd, Eq, Ord, BorshSerialize, BorshDeserialize,
+    Clone, Default, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash
 )]
-pub struct Amount(i64);
+pub struct Amount<Unit: Hash + Ord + BorshSerialize + BorshDeserialize = AssetType>(BTreeMap<Unit, i64>);
 
 impl memuse::DynamicUsage for Amount {
     #[inline(always)]
@@ -34,287 +41,349 @@ impl memuse::DynamicUsage for Amount {
     }
 }
 
-impl Amount {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> {
     /// Returns a zero-valued Amount.
     pub const fn zero() -> Self {
-        Amount(0)
-    }
-
-    /// Creates an Amount from an i64.
-    ///
-    /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
-    pub fn from_i64(amount: i64) -> Result<Self, ()> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if -MAX_MONEY <= amount && amount <= MAX_MONEY {
-            Ok(Amount(amount))
-        } else {
-            Err(())
-        }
+        Amount(BTreeMap::new())
     }
 
     /// Creates a non-negative Amount from an i64.
     ///
     /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
-    pub fn from_nonnegative_i64(amount: i64) -> Result<Self, ()> {
-        if (0..=MAX_MONEY).contains(&amount) {
-            Ok(Amount(amount))
+    pub fn from_nonnegative<Amt: TryInto<i64>>(
+        atype: Unit,
+        amount: Amt
+    ) -> Result<Self, ()> {
+        let amount = amount.try_into().map_err(|_| ())?;
+        if amount == 0 {
+            Ok(Self::zero())
+        } else if 0 <= amount && amount <= MAX_MONEY {
+            let mut ret = BTreeMap::new();
+            ret.insert(atype, amount);
+            Ok(Amount(ret))
         } else {
             Err(())
         }
     }
-
-    /// Creates an Amount from a u64.
-    ///
-    /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
-    pub fn from_u64(amount: u64) -> Result<Self, ()> {
-        if amount <= MAX_MONEY as u64 {
-            Ok(Amount(amount as i64))
-        } else {
-            Err(())
-        }
-    }
-
-    /// Reads an Amount from a signed 64-bit little-endian integer.
+    /// Creates an Amount from a type convertible to i64.
     ///
     /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
-    pub fn from_i64_le_bytes(bytes: [u8; 8]) -> Result<Self, ()> {
-        let amount = i64::from_le_bytes(bytes);
-        Amount::from_i64(amount)
-    }
-
-    /// Reads a non-negative Amount from a signed 64-bit little-endian integer.
-    ///
-    /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
-    pub fn from_nonnegative_i64_le_bytes(bytes: [u8; 8]) -> Result<Self, ()> {
-        let amount = i64::from_le_bytes(bytes);
-        Amount::from_nonnegative_i64(amount)
-    }
-
-    /// Reads an Amount from an unsigned 64-bit little-endian integer.
-    ///
-    /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
-    pub fn from_u64_le_bytes(bytes: [u8; 8]) -> Result<Self, ()> {
-        let amount = u64::from_le_bytes(bytes);
-        Amount::from_u64(amount)
-    }
-
-    /// Returns the Amount encoded as a signed 64-bit little-endian integer.
-    pub fn to_i64_le_bytes(self) -> [u8; 8] {
-        self.0.to_le_bytes()
-    }
-
-    /// Returns `true` if `self` is positive and `false` if the Amount is zero or
-    /// negative.
-    pub const fn is_positive(self) -> bool {
-        self.0.is_positive()
-    }
-
-    /// Returns `true` if `self` is negative and `false` if the Amount is zero or
-    /// positive.
-    pub const fn is_negative(self) -> bool {
-        self.0.is_negative()
-    }
-
-    pub fn sum<I: IntoIterator<Item = Amount>>(values: I) -> Option<Amount> {
-        let mut result = Amount::zero();
-        for value in values {
-            result = (result + value)?;
+    pub fn from_pair<Amt: TryInto<i64>>(
+        atype: Unit,
+        amount: Amt
+    ) -> Result<Self, ()> {
+        let amount = amount.try_into().map_err(|_| ())?;
+        if amount == 0 {
+            Ok(Self::zero())
+        } else if -MAX_MONEY <= amount && amount <= MAX_MONEY {
+            let mut ret = BTreeMap::new();
+            ret.insert(atype, amount);
+            Ok(Amount(ret))
+        } else {
+            Err(())
         }
-        Some(result)
+    }
+
+    /// Returns an iterator over the amount's non-zero asset-types
+    pub fn asset_types(&self) -> Keys<'_, Unit, i64> {
+        self.0.keys()
+    }
+
+    /// Returns an iterator over the amount's non-zero components
+    pub fn components(&self) -> Iter<'_, Unit, i64> {
+        self.0.iter()
+    }
+
+    /// Returns an iterator over the amount's non-zero components
+    pub fn into_components(self) -> IntoIter<Unit, i64> {
+        self.0.into_iter()
+    }
+
+    /// Filters out everything but the given AssetType from this Amount
+    pub fn project(&self, index: Unit) -> Self {
+        let val = self.0.get(&index).copied().unwrap_or(0);
+        Self::from_pair(index, val).unwrap()
+    }
+
+    /// Filters out the given AssetType from this Amount
+    pub fn reject(&self, index: Unit) -> Self {
+        self.clone() - self.project(index)
     }
 }
 
-impl TryFrom<i64> for Amount {
-    type Error = ();
+impl Amount<AssetType> {
+    /// Deserialize an Amount object from a list of amounts denominated by
+    /// different assets
+    pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        let vec = Vector::read(reader, |reader| {
+            let mut atype = [0; 32];
+            let mut value = [0; 8];
+            reader.read_exact(&mut atype)?;
+            reader.read_exact(&mut value)?;
+            let atype = AssetType::from_identifier(&atype)
+                .ok_or_else(|| std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "invalid asset type"
+                ))?;
+            Ok((atype, i64::from_le_bytes(value)))
+        })?;
+        let mut ret = Self::zero();
+        for (atype, amt) in vec {
+            ret += Self::from_pair(atype, amt)
+                .map_err(|_| std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "amount out of range"
+                ))?;
+        }
+        Ok(ret)
+    }
 
-    fn try_from(value: i64) -> Result<Self, ()> {
-        Amount::from_i64(value)
+    /// Serialize an Amount object into a list of amounts denominated by
+    /// distinct asset types
+    pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let vec: Vec<_> = self.components().collect();
+        Vector::write(writer, vec.as_ref(), |writer, elt| {
+            writer.write_all(elt.0.get_identifier())?;
+            writer.write_all(elt.1.to_le_bytes().as_ref())?;
+            Ok(())
+        })
     }
 }
 
-impl From<Amount> for i64 {
-    fn from(amount: Amount) -> i64 {
-        amount.0
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize> From<Unit> for Amount<Unit> {
+    fn from(atype: Unit) -> Self {
+        let mut ret = BTreeMap::new();
+        ret.insert(atype, 1);
+        Amount(ret)
     }
 }
 
-impl From<&Amount> for i64 {
-    fn from(amount: &Amount) -> i64 {
-        amount.0
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> PartialOrd for Amount<Unit> {
+    /// One Amount is more than or equal to another if each corresponding
+    /// coordinate is more than the other's.
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let mut diff = other.clone();
+        for (atype, amount) in self.components() {
+            let ent = diff[atype] - amount;
+            if ent == 0 {
+                diff.0.remove(atype);
+            } else {
+                diff.0.insert(atype.clone(), ent);
+            }
+        }
+        if diff.0.values().all(|x| *x == 0) {
+            Some(Ordering::Equal)
+        } else if diff.0.values().all(|x| *x >= 0) {
+            Some(Ordering::Less)
+        } else if diff.0.values().all(|x| *x <= 0) {
+            Some(Ordering::Greater)
+        } else {
+            None
+        }
     }
 }
 
-impl From<Amount> for u64 {
-    fn from(amount: Amount) -> u64 {
-        amount.0 as u64
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize> Index<&Unit> for Amount<Unit> {
+    type Output = i64;
+    /// Query how much of the given asset this amount contains
+    fn index(&self, index: &Unit) -> &Self::Output {
+        self.0.get(index).unwrap_or(&0)
     }
 }
 
-impl Add<Amount> for Amount {
-    type Output = Option<Amount>;
-
-    fn add(self, rhs: Amount) -> Option<Amount> {
-        Amount::from_i64(self.0 + rhs.0).ok()
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> MulAssign<i64> for Amount<Unit> {
+    fn mul_assign(&mut self, rhs: i64) {
+        for (_atype, amount) in self.0.iter_mut() {
+            let ent = *amount * rhs;
+            if -MAX_MONEY <= ent && ent <= MAX_MONEY {
+                *amount = ent;
+            } else {
+                panic!("multiplication should remain in range");
+            }
+        }
     }
 }
 
-impl Add<Amount> for Option<Amount> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i64> for Amount<Unit> {
     type Output = Self;
 
-    fn add(self, rhs: Amount) -> Option<Amount> {
-        self.and_then(|lhs| lhs + rhs)
+    fn mul(mut self, rhs: i64) -> Self {
+        self *= rhs;
+        self
     }
 }
 
-impl AddAssign<Amount> for Amount {
-    fn add_assign(&mut self, rhs: Amount) {
-        *self = (*self + rhs).expect("Addition must produce a valid amount value.")
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<&Amount<Unit>> for Amount<Unit> {
+    fn add_assign(&mut self, rhs: &Self) {
+        for (atype, amount) in rhs.components() {
+            let ent = self[atype] + amount;
+            if ent == 0 {
+                self.0.remove(atype);
+            } else if -MAX_MONEY <= ent && ent <= MAX_MONEY {
+                self.0.insert(atype.clone(), ent);
+            } else {
+                panic!("addition should remain in range");
+            }
+        }
     }
 }
 
-impl Sub<Amount> for Amount {
-    type Output = Option<Amount>;
-
-    fn sub(self, rhs: Amount) -> Option<Amount> {
-        Amount::from_i64(self.0 - rhs.0).ok()
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<Amount<Unit>> for Amount<Unit> {
+    fn add_assign(&mut self, rhs: Self) {
+        *self += &rhs
     }
 }
 
-impl Sub<Amount> for Option<Amount> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<&Amount<Unit>> for Amount<Unit> {
     type Output = Self;
 
-    fn sub(self, rhs: Amount) -> Option<Amount> {
-        self.and_then(|lhs| lhs - rhs)
+    fn add(mut self, rhs: &Self) -> Self {
+        self += rhs;
+        self
     }
 }
 
-impl SubAssign<Amount> for Amount {
-    fn sub_assign(&mut self, rhs: Amount) {
-        *self = (*self - rhs).expect("Subtraction must produce a valid amount value.")
-    }
-}
-
-impl Sum<Amount> for Option<Amount> {
-    fn sum<I: Iterator<Item = Amount>>(iter: I) -> Self {
-        iter.fold(Some(Amount::zero()), |acc, a| acc? + a)
-    }
-}
-
-impl<'a> Sum<&'a Amount> for Option<Amount> {
-    fn sum<I: Iterator<Item = &'a Amount>>(iter: I) -> Self {
-        iter.fold(Some(Amount::zero()), |acc, a| acc? + *a)
-    }
-}
-
-impl Neg for Amount {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<Amount<Unit>> for Amount<Unit> {
     type Output = Self;
 
-    fn neg(self) -> Self {
-        Amount(-self.0)
+    fn add(mut self, rhs: Self) -> Self {
+        self += &rhs;
+        self
     }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<&Amount<Unit>> for Amount<Unit> {
+    fn sub_assign(&mut self, rhs: &Self) {
+        for (atype, amount) in rhs.components() {
+            let ent = self[atype] - amount;
+            if ent == 0 {
+                self.0.remove(atype);
+            } else if -MAX_MONEY <= ent && ent <= MAX_MONEY {
+                self.0.insert(atype.clone(), ent);
+            } else {
+                panic!("subtraction should remain in range");
+            }
+        }
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<Amount<Unit>> for Amount<Unit> {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self -= &rhs
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<&Amount<Unit>> for Amount<Unit> {
+    type Output = Self;
+
+    fn sub(mut self, rhs: &Self) -> Self {
+        self -= rhs;
+        self
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<Amount<Unit>> for Amount<Unit> {
+    type Output = Self;
+
+    fn sub(mut self, rhs: Self) -> Self {
+        self -= &rhs;
+        self
+    }
+}
+
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sum for Amount<Unit> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::zero(), Add::add)
+    }
+}
+
+pub fn zec() -> AssetType {
+    AssetType::new(b"ZEC").unwrap()
+}
+
+pub fn default_fee() -> Amount {
+    Amount::from_pair(zec(), 10000).unwrap()
 }
 
 #[cfg(any(test, feature = "test-dependencies"))]
 pub mod testing {
     use proptest::prelude::prop_compose;
 
-    use super::{Amount, MAX_MONEY};
-
-    prop_compose! {
-        pub fn arb_amount()(amt in -MAX_MONEY..MAX_MONEY) -> Amount {
-            Amount::from_i64(amt).unwrap()
-        }
-    }
-
-    prop_compose! {
-        pub fn arb_nonnegative_amount()(amt in 0i64..MAX_MONEY) -> Amount {
-            Amount::from_i64(amt).unwrap()
-        }
-    }
-
-    prop_compose! {
-        pub fn arb_positive_amount()(amt in 1i64..MAX_MONEY) -> Amount {
-            Amount::from_i64(amt).unwrap()
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Amount, MAX_MONEY};
+    use super::{Amount, MAX_MONEY, zec};
 
     #[test]
     fn amount_in_range() {
-        let zero = b"\x00\x00\x00\x00\x00\x00\x00\x00";
-        assert_eq!(Amount::from_u64_le_bytes(*zero).unwrap(), Amount(0));
-        assert_eq!(
-            Amount::from_nonnegative_i64_le_bytes(*zero).unwrap(),
-            Amount(0)
-        );
-        assert_eq!(Amount::from_i64_le_bytes(*zero).unwrap(), Amount(0));
+        let zero = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00\x00\x00\x00\x00";
+        assert_eq!(Amount::read(&mut zero.as_ref()).unwrap(), Amount::zero());
 
-        let neg_one = b"\xff\xff\xff\xff\xff\xff\xff\xff";
-        assert!(Amount::from_u64_le_bytes(*neg_one).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(*neg_one).is_err());
-        assert_eq!(Amount::from_i64_le_bytes(*neg_one).unwrap(), Amount(-1));
-
-        let max_money = b"\xff\xff\xff\xff\xff\xff\xff\x7f";
+        let neg_one = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\xff";
         assert_eq!(
-            Amount::from_u64_le_bytes(*max_money).unwrap(),
-            Amount(MAX_MONEY)
-        );
-        assert_eq!(
-            Amount::from_nonnegative_i64_le_bytes(*max_money).unwrap(),
-            Amount(MAX_MONEY)
-        );
-        assert_eq!(
-            Amount::from_i64_le_bytes(*max_money).unwrap(),
-            Amount(MAX_MONEY)
+            Amount::read(&mut neg_one.as_ref()).unwrap(),
+            Amount::from_pair(zec(), -1).unwrap()
         );
 
-        // max_money_p1 = MAX_MONEY + 1
-        let max_money_p1 = b"\x00\x00\x00\x00\x00\x00\x00\x80";
-        assert!(Amount::from_u64_le_bytes(*max_money_p1).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(*max_money_p1).is_err());
-        assert!(Amount::from_i64_le_bytes(*max_money_p1).is_err());
-
-        let neg_max_money = b"\x01\x00\x00\x00\x00\x00\x00\x80";
-        assert!(Amount::from_u64_le_bytes(*neg_max_money).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(*neg_max_money).is_err());
+        let max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x40\x07\x5a\xf0\x75\x07\x00";
         assert_eq!(
-            Amount::from_i64_le_bytes(*neg_max_money).unwrap(),
-            Amount(-MAX_MONEY)
+            Amount::read(&mut max_money.as_ref()).unwrap(),
+            Amount::from_pair(zec(), MAX_MONEY).unwrap()
         );
 
-        let neg_max_money_m1 = b"\x00\x00\x00\x00\x00\x00\x00\x80";
-        assert!(Amount::from_u64_le_bytes(*neg_max_money_m1).is_err());
-        assert!(Amount::from_nonnegative_i64_le_bytes(*neg_max_money_m1).is_err());
-        assert!(Amount::from_i64_le_bytes(*neg_max_money_m1).is_err());
+        let max_money_p1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x40\x07\x5a\xf0\x75\x07\x00";
+        assert!(Amount::read(&mut max_money_p1.as_ref()).is_err());
+
+        let neg_max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\xc0\xf8\xa5\x0f\x8a\xf8\xff";
+        assert_eq!(
+            Amount::read(&mut neg_max_money.as_ref()).unwrap(),
+            Amount::from_pair(zec(), -MAX_MONEY).unwrap()
+        );
+
+        let neg_max_money_m1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xbf\xf8\xa5\x0f\x8a\xf8\xff";
+        assert!(Amount::read(&mut neg_max_money_m1.as_ref()).is_err());
     }
 
     #[test]
-    fn add_overflow() {
-        let v = Amount(MAX_MONEY);
-        assert_eq!(v + Amount(1), None)
+    #[should_panic]
+    fn add_panics_on_overflow() {
+        let v = Amount::from_pair(zec(), MAX_MONEY).unwrap();
+        let _sum = v + Amount::from_pair(zec(), 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn add_assign_panics_on_overflow() {
-        let mut a = Amount(MAX_MONEY);
-        a += Amount(1);
+        let mut a = Amount::from_pair(zec(), MAX_MONEY).unwrap();
+        a += Amount::from_pair(zec(), 1).unwrap();
     }
 
     #[test]
-    fn sub_underflow() {
-        let v = Amount(-MAX_MONEY);
-        assert_eq!(v - Amount(1), None)
+    #[should_panic]
+    fn sub_panics_on_underflow() {
+        let v = Amount::from_pair(zec(), -MAX_MONEY).unwrap();
+        let _diff = v - Amount::from_pair(zec(), 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn sub_assign_panics_on_underflow() {
-        let mut a = Amount(-MAX_MONEY);
-        a -= Amount(1);
+        let mut a = Amount::from_pair(zec(), -MAX_MONEY).unwrap();
+        a -= Amount::from_pair(zec(), 1).unwrap();
+    }
+
+    prop_compose! {
+        pub fn arb_amount()(amt in -MAX_MONEY..MAX_MONEY) -> Amount {
+            Amount::from_nonnegative(zec(), amt).unwrap()
+        }
+    }
+
+    prop_compose! {
+        pub fn arb_nonnegative_amount()(amt in 0i64..MAX_MONEY) -> Amount {
+            Amount::from_nonnegative(zec(), amt).unwrap()
+        }
+    }
+
+    prop_compose! {
+        pub fn arb_positive_amount()(amt in 1i64..MAX_MONEY) -> Amount {
+            Amount::from_nonnegative(zec(), amt).unwrap()
+        }
     }
 }

@@ -9,6 +9,9 @@ use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use fpe::ff1::{BinaryNumeralString, FF1};
 use std::convert::TryInto;
 use std::ops::AddAssign;
+use std::str::FromStr;
+use std::io::{Error, ErrorKind};
+use std::cmp::Ordering;
 
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
@@ -51,7 +54,7 @@ impl From<&FullViewingKey> for FvkFingerprint {
 }
 
 /// A Sapling full viewing key tag
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct FvkTag([u8; 4]);
 
 impl FvkFingerprint {
@@ -69,7 +72,7 @@ impl FvkTag {
 }
 
 /// A child index for a derived key
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChildIndex {
     NonHardened(u32),
     Hardened(u32), // Hardened(n) == n + (1 << 31) == n' in path notation
@@ -96,7 +99,7 @@ impl ChildIndex {
 }
 
 /// A BIP-32 chain code
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ChainCode([u8; 32]);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -127,7 +130,7 @@ impl DiversifierIndex {
 }
 
 /// A key used to derive diversifiers for a particular child key
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DiversifierKey(pub [u8; 32]);
 
 impl DiversifierKey {
@@ -275,7 +278,7 @@ pub fn sapling_derive_internal_fvk(
 }
 
 /// A Sapling extended spending key
-#[derive(Clone)]
+#[derive(Clone, Eq, Hash, Copy)]
 pub struct ExtendedSpendingKey {
     depth: u8,
     parent_fvk_tag: FvkTag,
@@ -286,7 +289,7 @@ pub struct ExtendedSpendingKey {
 }
 
 // A Sapling extended full viewing key
-#[derive(Clone)]
+#[derive(Clone, Eq, Hash, Copy)]
 pub struct ExtendedFullViewingKey {
     depth: u8,
     parent_fvk_tag: FvkTag,
@@ -514,6 +517,38 @@ impl<'a> From<&'a ExtendedSpendingKey> for ExtendedFullViewingKey {
     }
 }
 
+impl BorshDeserialize for ExtendedFullViewingKey {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf)
+    }
+}
+
+impl BorshSerialize for ExtendedFullViewingKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl PartialOrd for ExtendedFullViewingKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let a = self.try_to_vec()
+            .expect("unable to canonicalize ExtendedFullViewingKey");
+        let b = other.try_to_vec()
+            .expect("unable to canonicalize ExtendedFullViewingKey");
+        a.partial_cmp(&b)
+    }
+}
+
+impl Ord for ExtendedFullViewingKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let a = self.try_to_vec()
+            .expect("unable to canonicalize ExtendedFullViewingKey");
+        let b = other.try_to_vec()
+            .expect("unable to canonicalize ExtendedFullViewingKey");
+        a.cmp(&b)
+    }
+}
+
 impl ExtendedFullViewingKey {
     pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
         let depth = reader.read_u8()?;
@@ -622,6 +657,33 @@ impl ExtendedFullViewingKey {
             fvk: fvk_internal,
             dk: dk_internal,
         }
+    }
+}
+impl FromStr for ExtendedSpendingKey {
+    type Err = std::io::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let vec = hex::decode(s).map_err(|x| Error::new(ErrorKind::InvalidData, x))?;
+        Ok(ExtendedSpendingKey::master(vec.as_ref()))
+    }
+}
+
+impl PartialOrd for ExtendedSpendingKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let a = self.try_to_vec()
+            .expect("unable to canonicalize ExtendedSpendingKey");
+        let b = other.try_to_vec()
+            .expect("unable to canonicalize ExtendedSpendingKey");
+        a.partial_cmp(&b)
+    }
+}
+
+impl Ord for ExtendedSpendingKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let a = self.try_to_vec()
+            .expect("unable to canonicalize ExtendedSpendingKey");
+        let b = other.try_to_vec()
+            .expect("unable to canonicalize ExtendedSpendingKey");
+        a.cmp(&b)
     }
 }
 

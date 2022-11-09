@@ -68,7 +68,7 @@ impl AsRef<[u8]> for OutgoingCipherKey {
 /// Newtype representing the byte encoding of an [`EphemeralPublicKey`].
 ///
 /// [`EphemeralPublicKey`]: Domain::EphemeralPublicKey
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq)]
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EphemeralKeyBytes(pub [u8; 32]);
 
 impl AsRef<[u8]> for EphemeralKeyBytes {
