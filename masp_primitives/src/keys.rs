@@ -6,7 +6,7 @@
 
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
-    primitives::{ProofGenerationKey, ViewingKey},
+    primitives::{ProofGenerationKey, ViewingKey, NullifierDerivingKey},
 };
 use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use ff::PrimeField;
@@ -103,7 +103,7 @@ impl ExpandedSpendingKey {
         }
     }
 
-    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
         let mut ask_repr = [0u8; 32];
         reader.read_exact(ask_repr.as_mut())?;
         let ask = Option::from(jubjub::Fr::from_repr(ask_repr))
@@ -124,7 +124,7 @@ impl ExpandedSpendingKey {
         })
     }
 
-    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(self.ask.to_repr().as_ref())?;
         writer.write_all(self.nsk.to_repr().as_ref())?;
         writer.write_all(&self.ovk.0)?;
@@ -145,13 +145,13 @@ impl FullViewingKey {
         FullViewingKey {
             vk: ViewingKey {
                 ak: SPENDING_KEY_GENERATOR * expsk.ask,
-                nk: PROOF_GENERATION_KEY_GENERATOR * expsk.nsk,
+                nk: NullifierDerivingKey(PROOF_GENERATION_KEY_GENERATOR * expsk.nsk),
             },
             ovk: expsk.ovk,
         }
     }
 
-    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
         let ak = {
             let mut buf = [0u8; 32];
             reader.read_exact(&mut buf)?;
@@ -181,14 +181,14 @@ impl FullViewingKey {
         reader.read_exact(&mut ovk)?;
 
         Ok(FullViewingKey {
-            vk: ViewingKey { ak, nk },
+            vk: ViewingKey { ak, nk : NullifierDerivingKey(nk) },
             ovk: OutgoingViewingKey(ovk),
         })
     }
 
-    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(&self.vk.ak.to_bytes())?;
-        writer.write_all(&self.vk.nk.to_bytes())?;
+        writer.write_all(&self.vk.nk.0.to_bytes())?;
         writer.write_all(&self.ovk.0)?;
 
         Ok(())

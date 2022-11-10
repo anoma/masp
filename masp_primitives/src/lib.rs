@@ -25,7 +25,7 @@ pub mod sapling;
 pub mod transaction;
 pub mod util;
 pub mod zip32;
-pub mod serialize;
+//pub mod serialize;
 
 #[cfg(test)]
 mod test_vectors;

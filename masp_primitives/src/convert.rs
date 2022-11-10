@@ -6,7 +6,11 @@ use crate::{
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use group::{Curve, GroupEncoding};
-use std::{ops::{Add, AddAssign, Sub, SubAssign}, iter::Sum, io::{self, Read, Write}};
+use std::{
+    io::{self, Read, Write},
+    iter::Sum,
+    ops::{Add, AddAssign, Sub, SubAssign},
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AllowedConversion {

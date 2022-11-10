@@ -9,7 +9,7 @@ use masp_primitives::{
     primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
     prover::{TxProver, GROTH_PROOF_SIZE},
     redjubjub::{PublicKey, Signature},
-    sapling::Node,
+    sapling::Node, transaction::amount::Amount,
 };
 
 use crate::{parse_parameters, sapling::SaplingProvingContext};
@@ -246,7 +246,7 @@ impl TxProver for LocalTxProver {
     fn binding_sig(
         &self,
         ctx: &mut Self::SaplingProvingContext,
-        assets_and_values: &[(AssetType, i64)],
+        assets_and_values: &Amount, //&[(AssetType, i64)],
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
         ctx.binding_sig(assets_and_values, sighash)

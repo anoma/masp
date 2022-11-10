@@ -85,6 +85,7 @@ pub mod mock {
         merkle_tree::MerklePath,
         primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
         prover::GROTH_PROOF_SIZE,
+        transaction::amount::Amount,
     };
 
     use super::TxProver;
@@ -167,7 +168,7 @@ pub mod mock {
         fn binding_sig(
             &self,
             _ctx: &mut Self::SaplingProvingContext,
-            _assets_and_values: &[(AssetType, i64)],
+            _value: &Amount,
             _sighash: &[u8; 32],
         ) -> Result<Signature, ()> {
             Err(())

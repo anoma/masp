@@ -16,15 +16,15 @@ edition = "2018"
 all-features = true
 
 [dependencies]
-bellman = { version = "0.11.1", default-features = false, features = ["groth16"] }
+bellman = { version = "0.13.1", default-features = false, features = ["groth16"] }
 blake2b_simd = "1.0.0"
-bls12_381 = "0.6"
+bls12_381 = "0.7"
 byteorder = "1"
 directories = { version = "4.0.1", optional = true }
-ff = "0.11"
-group = "0.11"
+ff = "0.12"
+group = "0.12"
 itertools = "0.10.1"
-jubjub = "0.8"
+jubjub = "0.9"
 lazy_static = "1"
 minreq = { version = "2", features = ["https"], optional = true }
 rand_core = "0.6"
@@ -33,7 +33,7 @@ masp_primitives = { version = "0.5", path = "../masp_primitives" }
 getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.4"
 rand_xorshift = "0.3"
 
 [features]

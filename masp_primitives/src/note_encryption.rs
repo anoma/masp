@@ -22,7 +22,7 @@ use crate::{
     primitives::{Diversifier, Note, PaymentAddress, SaplingIvk},
     transaction::memo::MemoBytes,
     transaction::GrothProofBytes,
-    transaction::{amount::Amount, OutputDescription},
+    transaction::{amount::Amount, builder::sapling::OutputDescription},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 
@@ -100,7 +100,10 @@ where
 
     // The unwraps below are guaranteed to succeed by the assertion above
     let diversifier = Diversifier(plaintext[1..12].try_into().unwrap());
-    let value = Amount::from_u64_le_bytes(plaintext[12..20].try_into().unwrap()).ok()?;
+    let value = u64::from_le_bytes(plaintext[12..20].try_into().unwrap());
+    if value > crate::transaction::amount::MAX_MONEY.try_into().unwrap() {
+        return None;
+    }
     let asset_type = AssetType::from_identifier(plaintext[20..52].try_into().unwrap())?;
     let r: [u8; 32] = plaintext[52..COMPACT_NOTE_SIZE].try_into().unwrap();
 
@@ -469,8 +472,8 @@ pub fn try_sapling_output_recovery<P: consensus::Parameters>(
 #[cfg(test)]
 mod tests {
     use chacha20poly1305::{
-        aead::{AeadInPlace, NewAead},
-        ChaCha20Poly1305,
+        aead::{AeadInPlace},
+        ChaCha20Poly1305, KeyInit,
     };
     use ff::{Field, PrimeField};
     use group::Group;
@@ -500,7 +503,7 @@ mod tests {
         keys::OutgoingViewingKey,
         primitives::{Diversifier, Note, PaymentAddress, SaplingIvk},
         prover::GROTH_PROOF_SIZE,
-        transaction::{CompactOutputDescription, OutputDescription},
+        transaction::builder::sapling::{CompactOutputDescription, OutputDescription},
     };
     use crate::{
         transaction::{memo::MemoBytes, GrothProofBytes},

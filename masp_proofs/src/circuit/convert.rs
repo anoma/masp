@@ -3,6 +3,7 @@
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
 
 use masp_primitives::primitives::ValueCommitment;
+use masp_primitives::transaction::amount::Amount;
 
 use super::pedersen_hash;
 use crate::circuit::sapling::expose_value_commitment;
@@ -152,11 +153,11 @@ fn test_convert_circuit_with_bls12_381() {
         let output_value = i as i64 + 1;
         let mint_value = i as i64 + 1;
 
-        let allowed_conversion: AllowedConversion = (
-            Amount::from_pair(spend_asset, spend_value).unwrap() +
-                Amount::from_pair(output_asset, output_value).unwrap() +
-                Amount::from_pair(mint_asset, mint_value).unwrap()
-        ).into();
+        let allowed_conversion: AllowedConversion = (Amount::from_pair(spend_asset, spend_value)
+            .unwrap()
+            + Amount::from_pair(output_asset, output_value).unwrap()
+            + Amount::from_pair(mint_asset, mint_value).unwrap())
+        .into();
 
         let value = rng.next_u64();
 
@@ -189,11 +190,11 @@ fn test_convert_circuit_with_bls12_381() {
                 cur = jubjub::ExtendedPoint::from(pedersen_hash::pedersen_hash(
                     pedersen_hash::Personalization::MerkleTree(i),
                     lhs.iter()
-                        .by_val()
+                        .by_vals()
                         .take(bls12_381::Scalar::NUM_BITS as usize)
                         .chain(
                             rhs.iter()
-                                .by_val()
+                                .by_vals()
                                 .take(bls12_381::Scalar::NUM_BITS as usize),
                         ),
                 ))

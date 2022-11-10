@@ -1,16 +1,17 @@
-use borsh::{BorshDeserialize, BorshSerialize};
-use std::convert::TryFrom;
-use std::iter::Sum;
-use std::ops::{Add, AddAssign, Neg, Sub, SubAssign, Mul, MulAssign, Index};
 use crate::asset_type::AssetType;
-use std::hash::{Hash, Hasher};
-use std::collections::BTreeMap;
-use std::collections::btree_map::Keys;
-use std::collections::btree_map::{Iter, IntoIter};
+use borsh::{BorshDeserialize, BorshSerialize};
 use std::cmp::Ordering;
+use std::collections::btree_map::Keys;
+use std::collections::btree_map::{IntoIter, Iter};
+use std::collections::BTreeMap;
+use std::convert::TryFrom;
 use std::convert::TryInto;
-use crate::serialize::Vector;
+use std::hash::{Hash, Hasher};
+use std::iter::Sum;
+use std::ops::{Add, AddAssign, Index, Mul, MulAssign, Neg, Sub, SubAssign};
+//use crate::serialize::Vector;
 use std::io::{Read, Write};
+use zcash_encoding::Vector;
 
 pub const MAX_MONEY: i64 = i64::MAX;
 
@@ -24,10 +25,10 @@ pub const MAX_MONEY: i64 = i64::MAX;
 /// particular, a `Transaction` containing serialized invalid Amounts will be rejected
 /// by the network consensus rules.
 ///
-#[derive(
-    Clone, Default, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash
-)]
-pub struct Amount<Unit: Hash + Ord + BorshSerialize + BorshDeserialize = AssetType>(BTreeMap<Unit, i64>);
+#[derive(Clone, Default, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
+pub struct Amount<Unit: Hash + Ord + BorshSerialize + BorshDeserialize = AssetType>(
+    BTreeMap<Unit, i64>,
+);
 
 impl memuse::DynamicUsage for Amount {
     #[inline(always)]
@@ -43,17 +44,14 @@ impl memuse::DynamicUsage for Amount {
 
 impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> {
     /// Returns a zero-valued Amount.
-    pub const fn zero() -> Self {
+    pub fn zero() -> Self {
         Amount(BTreeMap::new())
     }
 
     /// Creates a non-negative Amount from an i64.
     ///
     /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
-    pub fn from_nonnegative<Amt: TryInto<i64>>(
-        atype: Unit,
-        amount: Amt
-    ) -> Result<Self, ()> {
+    pub fn from_nonnegative<Amt: TryInto<i64>>(atype: Unit, amount: Amt) -> Result<Self, ()> {
         let amount = amount.try_into().map_err(|_| ())?;
         if amount == 0 {
             Ok(Self::zero())
@@ -68,10 +66,7 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
     /// Creates an Amount from a type convertible to i64.
     ///
     /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
-    pub fn from_pair<Amt: TryInto<i64>>(
-        atype: Unit,
-        amount: Amt
-    ) -> Result<Self, ()> {
+    pub fn from_pair<Amt: TryInto<i64>>(atype: Unit, amount: Amt) -> Result<Self, ()> {
         let amount = amount.try_into().map_err(|_| ())?;
         if amount == 0 {
             Ok(Self::zero())
@@ -120,20 +115,16 @@ impl Amount<AssetType> {
             let mut value = [0; 8];
             reader.read_exact(&mut atype)?;
             reader.read_exact(&mut value)?;
-            let atype = AssetType::from_identifier(&atype)
-                .ok_or_else(|| std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "invalid asset type"
-                ))?;
+            let atype = AssetType::from_identifier(&atype).ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
+            })?;
             Ok((atype, i64::from_le_bytes(value)))
         })?;
         let mut ret = Self::zero();
         for (atype, amt) in vec {
-            ret += Self::from_pair(atype, amt)
-                .map_err(|_| std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "amount out of range"
-                ))?;
+            ret += Self::from_pair(atype, amt).map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "amount out of range")
+            })?;
         }
         Ok(ret)
     }
@@ -213,7 +204,9 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i64> for 
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<&Amount<Unit>> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<&Amount<Unit>>
+    for Amount<Unit>
+{
     fn add_assign(&mut self, rhs: &Self) {
         for (atype, amount) in rhs.components() {
             let ent = self[atype] + amount;
@@ -228,13 +221,17 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<&Am
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<Amount<Unit>> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> AddAssign<Amount<Unit>>
+    for Amount<Unit>
+{
     fn add_assign(&mut self, rhs: Self) {
         *self += &rhs
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<&Amount<Unit>> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<&Amount<Unit>>
+    for Amount<Unit>
+{
     type Output = Self;
 
     fn add(mut self, rhs: &Self) -> Self {
@@ -243,7 +240,9 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<&Amount<U
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<Amount<Unit>> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<Amount<Unit>>
+    for Amount<Unit>
+{
     type Output = Self;
 
     fn add(mut self, rhs: Self) -> Self {
@@ -252,7 +251,9 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Add<Amount<Un
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<&Amount<Unit>> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<&Amount<Unit>>
+    for Amount<Unit>
+{
     fn sub_assign(&mut self, rhs: &Self) {
         for (atype, amount) in rhs.components() {
             let ent = self[atype] - amount;
@@ -267,13 +268,17 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<&Am
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<Amount<Unit>> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<Amount<Unit>>
+    for Amount<Unit>
+{
     fn sub_assign(&mut self, rhs: Self) {
         *self -= &rhs
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<&Amount<Unit>> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<&Amount<Unit>>
+    for Amount<Unit>
+{
     type Output = Self;
 
     fn sub(mut self, rhs: &Self) -> Self {
@@ -282,7 +287,9 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<&Amount<U
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<Amount<Unit>> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<Amount<Unit>>
+    for Amount<Unit>
+{
     type Output = Self;
 
     fn sub(mut self, rhs: Self) -> Self {
@@ -309,7 +316,7 @@ pub fn default_fee() -> Amount {
 pub mod testing {
     use proptest::prelude::prop_compose;
 
-    use super::{Amount, MAX_MONEY, zec};
+    use super::{zec, Amount, MAX_MONEY};
 
     #[test]
     fn amount_in_range() {
@@ -370,20 +377,20 @@ pub mod testing {
     }
 
     prop_compose! {
-        pub fn arb_amount()(amt in -MAX_MONEY..MAX_MONEY) -> Amount {
-            Amount::from_nonnegative(zec(), amt).unwrap()
+        pub fn arb_amount()(amt in -MAX_MONEY..MAX_MONEY) -> i64 {
+            amt
         }
     }
 
     prop_compose! {
-        pub fn arb_nonnegative_amount()(amt in 0i64..MAX_MONEY) -> Amount {
-            Amount::from_nonnegative(zec(), amt).unwrap()
+        pub fn arb_nonnegative_amount()(amt in 0i64..MAX_MONEY) -> i64 {
+            amt
         }
     }
 
     prop_compose! {
-        pub fn arb_positive_amount()(amt in 1i64..MAX_MONEY) -> Amount {
-            Amount::from_nonnegative(zec(), amt).unwrap()
+        pub fn arb_positive_amount()(amt in 1i64..MAX_MONEY) -> i64 {
+            amt
         }
     }
 }

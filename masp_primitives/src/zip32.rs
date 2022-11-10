@@ -7,15 +7,17 @@ use blake2b_simd::Params as Blake2bParams;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use fpe::ff1::{BinaryNumeralString, FF1};
+use std::cmp::Ordering;
 use std::convert::TryInto;
+use std::io::{Error, ErrorKind};
 use std::ops::AddAssign;
 use std::str::FromStr;
-use std::io::{Error, ErrorKind};
-use std::cmp::Ordering;
+use memuse::DynamicUsage;
 
+use crate::primitives::{SaplingIvk, Nullifier};
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
-    primitives::{Diversifier, PaymentAddress, ViewingKey},
+    primitives::{Diversifier, PaymentAddress, ViewingKey, NullifierDerivingKey},
 };
 use std::io::{self, Read, Write};
 
@@ -140,6 +142,16 @@ impl DiversifierKey {
         DiversifierKey(dk_m)
     }
 
+    /// Constructs the diversifier key from its constituent bytes.
+    pub fn from_bytes(key: [u8; 32]) -> Self {
+        DiversifierKey(key)
+    }
+
+    /// Returns the byte representation of the diversifier key.
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
     fn derive_child(&self, i_l: &[u8]) -> Self {
         let mut dk = [0u8; 32];
         dk.copy_from_slice(&prf_expand_vec(i_l, &[&[0x16], &self.0]).as_bytes()[..32]);
@@ -261,7 +273,7 @@ pub fn sapling_derive_internal_fvk(
     let r = prf_expand(i.as_bytes(), &[0x18]);
     let r = r.as_bytes();
     // PROOF_GENERATION_KEY_GENERATOR = \mathcal{H}^Sapling
-    let nk_internal = PROOF_GENERATION_KEY_GENERATOR * i_nsk + fvk.vk.nk;
+    let nk_internal = PROOF_GENERATION_KEY_GENERATOR * i_nsk + fvk.vk.nk.0;
     let dk_internal = DiversifierKey(r[..32].try_into().unwrap());
     let ovk_internal = OutgoingViewingKey(r[32..].try_into().unwrap());
 
@@ -269,7 +281,7 @@ pub fn sapling_derive_internal_fvk(
         FullViewingKey {
             vk: ViewingKey {
                 ak: fvk.vk.ak,
-                nk: nk_internal,
+                nk: NullifierDerivingKey(nk_internal),
             },
             ovk: ovk_internal,
         },
@@ -490,6 +502,24 @@ impl ExtendedSpendingKey {
             dk: dk_internal,
         }
     }
+    #[deprecated(note = "Use `to_diversifiable_full_viewing_key` instead.")]
+    pub fn to_extended_full_viewing_key(&self) -> ExtendedFullViewingKey {
+        ExtendedFullViewingKey {
+            depth: self.depth,
+            parent_fvk_tag: self.parent_fvk_tag,
+            child_index: self.child_index,
+            chain_code: self.chain_code,
+            fvk: FullViewingKey::from_expanded_spending_key(&self.expsk),
+            dk: self.dk,
+        }
+    }
+
+    pub fn to_diversifiable_full_viewing_key(&self) -> DiversifiableFullViewingKey {
+        DiversifiableFullViewingKey {
+            fvk: FullViewingKey::from_expanded_spending_key(&self.expsk),
+            dk: self.dk,
+        }
+    }
 }
 
 impl BorshDeserialize for ExtendedSpendingKey {
@@ -531,9 +561,11 @@ impl BorshSerialize for ExtendedFullViewingKey {
 
 impl PartialOrd for ExtendedFullViewingKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let a = self.try_to_vec()
+        let a = self
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedFullViewingKey");
-        let b = other.try_to_vec()
+        let b = other
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedFullViewingKey");
         a.partial_cmp(&b)
     }
@@ -541,9 +573,11 @@ impl PartialOrd for ExtendedFullViewingKey {
 
 impl Ord for ExtendedFullViewingKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        let a = self.try_to_vec()
+        let a = self
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedFullViewingKey");
-        let b = other.try_to_vec()
+        let b = other
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedFullViewingKey");
         a.cmp(&b)
     }
@@ -607,10 +641,10 @@ impl ExtendedFullViewingKey {
                 let i_ask = jubjub::Fr::from_bytes_wide(prf_expand(i_l, &[0x13]).as_array());
                 let i_nsk = jubjub::Fr::from_bytes_wide(prf_expand(i_l, &[0x14]).as_array());
                 let ak = (SPENDING_KEY_GENERATOR * i_ask) + self.fvk.vk.ak;
-                let nk = (PROOF_GENERATION_KEY_GENERATOR * i_nsk) + self.fvk.vk.nk;
+                let nk = (PROOF_GENERATION_KEY_GENERATOR * i_nsk) + self.fvk.vk.nk.0;
 
                 FullViewingKey {
-                    vk: ViewingKey { ak, nk },
+                    vk: ViewingKey { ak, nk : NullifierDerivingKey(nk) },
                     ovk: derive_child_ovk(&self.fvk.ovk, i_l),
                 }
             },
@@ -658,7 +692,208 @@ impl ExtendedFullViewingKey {
             dk: dk_internal,
         }
     }
+    pub fn to_diversifiable_full_viewing_key(&self) -> DiversifiableFullViewingKey {
+        DiversifiableFullViewingKey {
+            fvk: self.fvk.clone(),
+            dk: self.dk,
+        }
+    }
 }
+
+/// The scope of a viewing key or address.
+///
+/// A "scope" narrows the visibility or usage to a level below "full".
+///
+/// Consistent usage of `Scope` enables the user to provide consistent views over a wallet
+/// to other people. For example, a user can give an external [SaplingIvk] to a merchant
+/// terminal, enabling it to only detect "real" transactions from customers and not
+/// internal transactions from the wallet.
+///
+/// [SaplingIvk]: crate::sapling::SaplingIvk
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Scope {
+    /// A scope used for wallet-external operations, namely deriving addresses to give to
+    /// other users in order to receive funds.
+    External,
+    /// A scope used for wallet-internal operations, such as creating change notes,
+    /// auto-shielding, and note management.
+    Internal,
+}
+
+memuse::impl_no_dynamic_usage!(Scope);
+
+/// A Sapling key that provides the capability to view incoming and outgoing transactions.
+///
+/// This key is useful anywhere you need to maintain accurate balance, but do not want the
+/// ability to spend funds (such as a view-only wallet).
+///
+/// It comprises the subset of the ZIP 32 extended full viewing key that is used for the
+/// Sapling item in a [ZIP 316 Unified Full Viewing Key][zip-0316-ufvk].
+///
+/// [zip-0316-ufvk]: https://zips.z.cash/zip-0316#encoding-of-unified-full-incoming-viewing-keys
+#[derive(Clone, Debug)]
+pub struct DiversifiableFullViewingKey {
+    fvk: FullViewingKey,
+    dk: DiversifierKey,
+}
+
+impl From<ExtendedFullViewingKey> for DiversifiableFullViewingKey {
+    fn from(extfvk: ExtendedFullViewingKey) -> Self {
+        DiversifiableFullViewingKey {
+            fvk: extfvk.fvk,
+            dk: extfvk.dk,
+        }
+    }
+}
+
+impl From<&ExtendedFullViewingKey> for DiversifiableFullViewingKey {
+    fn from(extfvk: &ExtendedFullViewingKey) -> Self {
+        extfvk.to_diversifiable_full_viewing_key()
+    }
+}
+
+impl DiversifiableFullViewingKey {
+    /// Parses a `DiversifiableFullViewingKey` from its raw byte encoding.
+    ///
+    /// Returns `None` if the bytes do not contain a valid encoding of a diversifiable
+    /// Sapling full viewing key.
+    pub fn from_bytes(bytes: &[u8; 128]) -> Option<Self> {
+        FullViewingKey::read(&bytes[..96]).ok().map(|fvk| Self {
+            fvk,
+            dk: DiversifierKey::from_bytes(bytes[96..].try_into().unwrap()),
+        })
+    }
+
+    /// Returns the raw encoding of this `DiversifiableFullViewingKey`.
+    pub fn to_bytes(&self) -> [u8; 128] {
+        let mut bytes = [0; 128];
+        self.fvk
+            .write(&mut bytes[..96])
+            .expect("slice should be the correct length");
+        bytes[96..].copy_from_slice(&self.dk.as_bytes()[..]);
+        bytes
+    }
+
+    /// Derives the internal `DiversifiableFullViewingKey` corresponding to `self` (which
+    /// is assumed here to be an external DFVK).
+    fn derive_internal(&self) -> Self {
+        let (fvk, dk) = sapling_derive_internal_fvk(&self.fvk, &self.dk);
+        Self { fvk, dk }
+    }
+
+    /// Exposes the external [`FullViewingKey`] component of this diversifiable full viewing key.
+    pub fn fvk(&self) -> &FullViewingKey {
+        &self.fvk
+    }
+
+    /// Derives a nullifier-deriving key for the provided scope.
+    ///
+    /// This API is provided so that nullifiers for change notes can be correctly computed.
+    pub fn to_nk(&self, scope: Scope) -> NullifierDerivingKey {
+        match scope {
+            Scope::External => self.fvk.vk.nk,
+            Scope::Internal => self.derive_internal().fvk.vk.nk,
+        }
+    }
+
+    /// Derives an incoming viewing key corresponding to this full viewing key.
+    pub fn to_ivk(&self, scope: Scope) -> SaplingIvk {
+        match scope {
+            Scope::External => self.fvk.vk.ivk(),
+            Scope::Internal => self.derive_internal().fvk.vk.ivk(),
+        }
+    }
+
+    /// Derives an outgoing viewing key corresponding to this full viewing key.
+    pub fn to_ovk(&self, scope: Scope) -> OutgoingViewingKey {
+        match scope {
+            Scope::External => self.fvk.ovk,
+            Scope::Internal => self.derive_internal().fvk.ovk,
+        }
+    }
+
+    /// Attempts to produce a valid payment address for the given diversifier index.
+    ///
+    /// Returns `None` if the diversifier index does not produce a valid diversifier for
+    /// this `DiversifiableFullViewingKey`.
+    pub fn address(&self, j: DiversifierIndex) -> Option<PaymentAddress> {
+        sapling_address(&self.fvk, &self.dk, j)
+    }
+
+    /// Finds the next valid payment address starting from the given diversifier index.
+    ///
+    /// This searches the diversifier space starting at `j` and incrementing, to find an
+    /// index which will produce a valid diversifier (a 50% probability for each index).
+    ///
+    /// Returns the index at which the valid diversifier was found along with the payment
+    /// address constructed using that diversifier, or `None` if the maximum index was
+    /// reached and no valid diversifier was found.
+    pub fn find_address(&self, j: DiversifierIndex) -> Option<(DiversifierIndex, PaymentAddress)> {
+        sapling_find_address(&self.fvk, &self.dk, j)
+    }
+
+    /// Returns the payment address corresponding to the smallest valid diversifier index,
+    /// along with that index.
+    pub fn default_address(&self) -> (DiversifierIndex, PaymentAddress) {
+        sapling_default_address(&self.fvk, &self.dk)
+    }
+
+    /// Returns the payment address corresponding to the specified diversifier, if any.
+    ///
+    /// In general, it is preferable to use `find_address` instead, but this method is
+    /// useful in some cases for matching keys to existing payment addresses.
+    pub fn diversified_address(&self, diversifier: Diversifier) -> Option<PaymentAddress> {
+        self.fvk.vk.to_payment_address(diversifier)
+    }
+
+    /// Returns the internal address corresponding to the smallest valid diversifier index,
+    /// along with that index.
+    ///
+    /// This address **MUST NOT** be encoded and exposed to end users. User interfaces
+    /// should instead mark these notes as "change notes" or "internal wallet operations".
+    pub fn change_address(&self) -> (DiversifierIndex, PaymentAddress) {
+        let internal_dfvk = self.derive_internal();
+        sapling_default_address(&internal_dfvk.fvk, &internal_dfvk.dk)
+    }
+
+    /// Returns the change address corresponding to the specified diversifier, if any.
+    ///
+    /// In general, it is preferable to use `change_address` instead, but this method is
+    /// useful in some cases for matching keys to existing payment addresses.
+    pub fn diversified_change_address(&self, diversifier: Diversifier) -> Option<PaymentAddress> {
+        self.derive_internal()
+            .fvk
+            .vk
+            .to_payment_address(diversifier)
+    }
+
+    /// Attempts to decrypt the given address's diversifier with this full viewing key.
+    ///
+    /// This method extracts the diversifier from the given address and decrypts it as a
+    /// diversifier index, then verifies that this diversifier index produces the same
+    /// address. Decryption is attempted using both the internal and external parts of the
+    /// full viewing key.
+    ///
+    /// Returns the decrypted diversifier index and its scope, or `None` if the address
+    /// was not generated from this key.
+    pub fn decrypt_diversifier(&self, addr: &PaymentAddress) -> Option<(DiversifierIndex, Scope)> {
+        let j_external = self.dk.diversifier_index(addr.diversifier());
+        if self.address(j_external).as_ref() == Some(addr) {
+            return Some((j_external, Scope::External));
+        }
+
+        let j_internal = self
+            .derive_internal()
+            .dk
+            .diversifier_index(addr.diversifier());
+        if self.address(j_internal).as_ref() == Some(addr) {
+            return Some((j_internal, Scope::Internal));
+        }
+
+        None
+    }
+}
+
 impl FromStr for ExtendedSpendingKey {
     type Err = std::io::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -669,9 +904,11 @@ impl FromStr for ExtendedSpendingKey {
 
 impl PartialOrd for ExtendedSpendingKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let a = self.try_to_vec()
+        let a = self
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedSpendingKey");
-        let b = other.try_to_vec()
+        let b = other
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedSpendingKey");
         a.partial_cmp(&b)
     }
@@ -679,9 +916,11 @@ impl PartialOrd for ExtendedSpendingKey {
 
 impl Ord for ExtendedSpendingKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        let a = self.try_to_vec()
+        let a = self
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedSpendingKey");
-        let b = other.try_to_vec()
+        let b = other
+            .try_to_vec()
             .expect("unable to canonicalize ExtendedSpendingKey");
         a.cmp(&b)
     }
@@ -1590,7 +1829,7 @@ mod tests {
 
         for (xfvk, tv) in xfvks.iter().zip(test_vectors.iter()) {
             assert_eq!(xfvk.fvk.vk.ak.to_bytes(), tv.ak);
-            assert_eq!(xfvk.fvk.vk.nk.to_bytes(), tv.nk);
+            assert_eq!(xfvk.fvk.vk.nk.0.to_bytes(), tv.nk);
 
             assert_eq!(xfvk.fvk.ovk.0, tv.ovk);
             assert_eq!(xfvk.dk.0, tv.dk);
@@ -1633,7 +1872,7 @@ mod tests {
             }
             let internal_xfvk = xfvk.derive_internal();
             assert_eq!(internal_xfvk.fvk.vk.ak.to_bytes(), tv.ak);
-            assert_eq!(internal_xfvk.fvk.vk.nk.to_bytes(), tv.internal_nk);
+            assert_eq!(internal_xfvk.fvk.vk.nk.0.to_bytes(), tv.internal_nk);
 
             assert_eq!(internal_xfvk.fvk.ovk.0, tv.internal_ovk);
             assert_eq!(internal_xfvk.dk.0, tv.internal_dk);

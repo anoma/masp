@@ -11,11 +11,10 @@ use rand_core::RngCore;
 //use serde::{Serialize, Deserialize};
 use crate::util::hash_to_scalar;
 use std::{
+    cmp::Ordering,
     hash::{Hash, Hasher},
     io::{self, Read, Write},
     ops::{AddAssign, MulAssign, Neg},
-    cmp::Ordering,
-    
 };
 
 fn read_scalar<R: Read>(mut reader: R) -> io::Result<jubjub::Fr> {

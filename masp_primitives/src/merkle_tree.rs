@@ -819,11 +819,11 @@ mod tests {
     use crate::sapling::testing::arb_node;
     use crate::sapling::Node;
 
+    use borsh::BorshSerialize;
     use incrementalmerkletree::bridgetree::Frontier;
     use proptest::prelude::*;
     use std::convert::TryInto;
     use std::io::{self, Read, Write};
-    use borsh::BorshSerialize;
 
     use super::{
         testing::arb_commitment_tree, CommitmentTree, FrozenCommitmentTree, Hashable,

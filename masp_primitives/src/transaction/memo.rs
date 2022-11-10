@@ -1,12 +1,12 @@
 //! Structs for handling encrypted memos.
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use std::cmp::Ordering;
 use std::convert::{TryFrom, TryInto};
 use std::error;
 use std::fmt;
 use std::ops::Deref;
 use std::str;
-use borsh::{BorshDeserialize, BorshSerialize};
 
 /// Format a byte array as a colon-delimited hex string.
 ///

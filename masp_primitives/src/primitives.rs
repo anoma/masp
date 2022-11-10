@@ -5,7 +5,7 @@ use crate::{
     constants,
     group_hash::group_hash,
     keys::prf_expand,
-    pedersen_hash::{pedersen_hash, Personalization},
+    pedersen_hash::{pedersen_hash, Personalization}, sapling::Node,
 };
 use blake2s_simd::Params as Blake2sParams;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -48,15 +48,19 @@ impl ProofGenerationKey {
     pub fn to_viewing_key(&self) -> ViewingKey {
         ViewingKey {
             ak: self.ak,
-            nk: constants::PROOF_GENERATION_KEY_GENERATOR * self.nsk,
+            nk: NullifierDerivingKey( constants::PROOF_GENERATION_KEY_GENERATOR * self.nsk),
         }
     }
 }
 
+/// A key used to derive the nullifier for a Sapling note.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct NullifierDerivingKey(pub jubjub::SubgroupPoint);
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct ViewingKey {
     pub ak: jubjub::SubgroupPoint,
-    pub nk: jubjub::SubgroupPoint,
+    pub nk: NullifierDerivingKey,
 }
 
 impl Hash for ViewingKey {
@@ -65,7 +69,7 @@ impl Hash for ViewingKey {
         H: Hasher,
     {
         self.ak.to_bytes().hash(state);
-        self.nk.to_bytes().hash(state);
+        self.nk.0.to_bytes().hash(state);
     }
 }
 
@@ -82,7 +86,7 @@ impl ViewingKey {
                 .personal(constants::CRH_IVK_PERSONALIZATION)
                 .to_state()
                 .update(&self.ak.to_bytes())
-                .update(&self.nk.to_bytes())
+                .update(&self.nk.0.to_bytes())
                 .finalize()
                 .as_bytes(),
         );
@@ -121,12 +125,12 @@ impl ViewingKey {
         let ak = ak.unwrap();
         let nk = nk.unwrap();
 
-        Ok(ViewingKey { ak, nk })
+        Ok(ViewingKey { ak, nk: NullifierDerivingKey(nk) })
     }
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(&self.ak.to_bytes())?;
-        writer.write_all(&self.nk.to_bytes())?;
+        writer.write_all(&self.nk.0.to_bytes())?;
 
         Ok(())
     }
@@ -484,7 +488,7 @@ impl Note {
                 .hash_length(32)
                 .personal(constants::PRF_NF_PERSONALIZATION)
                 .to_state()
-                .update(&viewing_key.nk.to_bytes())
+                .update(&viewing_key.nk.0.to_bytes())
                 .update(&rho.to_bytes())
                 .finalize()
                 .as_bytes(),
@@ -529,6 +533,13 @@ impl Note {
             Rseed::AfterZip212(rseed) => Some(jubjub::Fr::from_bytes_wide(
                 prf_expand(&rseed, &[0x05]).as_array(),
             )),
+        }
+    }
+        /// Returns [`self.cmu`] in the correct representation for inclusion in the Sapling
+    /// note commitment tree.
+    pub fn commitment(&self) -> Node {
+        Node {
+            repr: self.cmu().to_repr(),
         }
     }
 }

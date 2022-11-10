@@ -12,7 +12,7 @@ use masp_primitives::{
     merkle_tree::MerklePath,
     primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed},
     redjubjub::{PrivateKey, PublicKey, Signature},
-    sapling::Node,
+    sapling::Node, transaction::amount::Amount,
 };
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
@@ -283,7 +283,7 @@ impl SaplingProvingContext {
     /// and output_proof() must be completed before calling this function.
     pub fn binding_sig(
         &self,
-        assets_and_values: &[(AssetType, i64)],
+        assets_and_values: &Amount, //&[(AssetType, i64)],
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
         // Initialize secure RNG
@@ -300,7 +300,7 @@ impl SaplingProvingContext {
         // against our derived bvk.
         {
             let final_bvk = assets_and_values
-                .iter()
+                .components()
                 .map(|(asset_type, value_balance)| {
                     // Compute value balance for each asset
                     // Error for bad value balances (-INT64_MAX value)

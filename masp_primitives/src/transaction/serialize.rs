@@ -2,15 +2,15 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use group::GroupEncoding;
 use std::io::Write;
 
-use super::{OutputDescription, SpendDescription};
+use crate::transaction::builder::sapling::{OutputDescription, ConvertDescription, SpendDescription};
 use crate::{
     primitives::Nullifier,
-    transaction::{util::*, Authorization},
+    transaction::{util::*, builder::sapling::Authorization},
 };
 
 impl<A: Authorization + PartialEq + BorshSerialize> BorshSerialize for SpendDescription<A>
 where
-    A::Proof: BorshSerialize,
+    A::Proof: Clone + BorshSerialize,
     A::AuthSig: BorshSerialize,
 {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
@@ -25,7 +25,7 @@ where
 
 impl<A: Authorization + PartialEq + BorshDeserialize> BorshDeserialize for SpendDescription<A>
 where
-    A::Proof: BorshDeserialize,
+    A::Proof: Clone + BorshDeserialize,
     A::AuthSig: BorshDeserialize,
 {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
@@ -47,7 +47,30 @@ where
     }
 }
 
-impl<Proof: BorshDeserialize> BorshDeserialize for OutputDescription<Proof> {
+impl<Proof: Clone + PartialEq + BorshSerialize> BorshSerialize for ConvertDescription<Proof>
+{
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        BorshSerialize::serialize(&self.cv.to_bytes(), writer)?;
+        BorshSerialize::serialize(&self.anchor.to_bytes(), writer)?;
+        BorshSerialize::serialize(&self.zkproof, writer)
+    }
+}
+
+impl<Proof: Clone + PartialEq+ BorshDeserialize> BorshDeserialize for ConvertDescription<Proof>
+{
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        let cv = deserialize_extended_point(buf)?;
+        let anchor = deserialize_scalar(buf)?;
+        let zkproof = BorshDeserialize::deserialize(buf)?;
+        Ok(Self {
+            cv,
+            anchor,
+            zkproof,
+        })
+    }
+}
+
+impl<Proof: Clone + BorshDeserialize> BorshDeserialize for OutputDescription<Proof> {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
         let cv = deserialize_extended_point(buf)?;
         let cmu = deserialize_scalar(buf)?;
@@ -66,7 +89,7 @@ impl<Proof: BorshDeserialize> BorshDeserialize for OutputDescription<Proof> {
     }
 }
 
-impl<Proof: BorshSerialize> BorshSerialize for OutputDescription<Proof> {
+impl<Proof: Clone + BorshSerialize> BorshSerialize for OutputDescription<Proof> {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
         BorshSerialize::serialize(&self.cv.to_bytes(), writer)?;
         BorshSerialize::serialize(&self.cmu.to_bytes(), writer)?;
@@ -82,7 +105,8 @@ impl<Proof: BorshSerialize> BorshSerialize for OutputDescription<Proof> {
 mod tests {
     use crate::transaction::{
         testing::{arb_bundle, arb_output_description, arb_spend_description},
-        Authorized, GrothProofBytes, OutputDescription, SpendDescription,
+        GrothProofBytes, 
+        builder::sapling::{Authorized, OutputDescription, SpendDescription},
     };
     use borsh::{BorshDeserialize, BorshSerialize};
     use proptest::prelude::*;
