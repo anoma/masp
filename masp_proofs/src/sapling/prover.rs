@@ -12,7 +12,8 @@ use masp_primitives::{
     merkle_tree::MerklePath,
     primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed},
     redjubjub::{PrivateKey, PublicKey, Signature},
-    sapling::Node, transaction::amount::Amount,
+    sapling::Node,
+    transaction::amount::Amount,
 };
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};

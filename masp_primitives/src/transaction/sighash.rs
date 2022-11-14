@@ -3,14 +3,18 @@ use std::convert::TryInto;
 use blake2b_simd::Hash as Blake2bHash;
 
 use super::{
-    TransparentAddress, GrothProofBytes,
+    amount::Amount,
+    builder::transparent,
     //components::{
-        sapling::{self, },
-        builder::transparent, amount::Amount,
+    sapling::{self},
     //},
     //sighash_v4::v4_signature_hash,
     sighash_v5::v5_signature_hash,
-    Authorization, TransactionData, TxDigests,
+    Authorization,
+    GrothProofBytes,
+    TransactionData,
+    TransparentAddress,
+    TxDigests,
 };
 
 #[cfg(feature = "zfuture")]
@@ -77,6 +81,5 @@ pub fn signature_hash<
     signable_input: &SignableInput,
     txid_parts: &TxDigests<Blake2bHash>,
 ) -> SignatureHash {
-    SignatureHash( v5_signature_hash(tx, signable_input, txid_parts)
-    )
+    SignatureHash(v5_signature_hash(tx, signable_input, txid_parts))
 }

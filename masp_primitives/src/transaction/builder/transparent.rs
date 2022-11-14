@@ -1,25 +1,24 @@
 //! Types and functions for building transparent transaction components.
 
-use std::{fmt, ops::Sub};
 use secp256k1::PublicKey as TransparentAddress;
+use std::{fmt, ops::Sub};
 
 use crate::{
-    asset_type::AssetType, 
+    asset_type::AssetType,
     //,
     transaction::{
         amount::{Amount, MAX_MONEY},
         //components::{
-            
+
         //    transparent::{self, fees, Authorization, Authorized, Bundle, TxIn, TxOut},
         //},
         //sighash::TransparentAuthorizingContext,
         //OutPoint,
-        builder::sapling::{SpendDescriptionInfo, SaplingOutputInfo, ConvertDescriptionInfo},
-     
+        builder::sapling::{ConvertDescriptionInfo, SaplingOutputInfo, SpendDescriptionInfo},
     },
 };
-use borsh::{BorshDeserialize,BorshSerialize};
-use std::io::{Read, Write, self};
+use borsh::{BorshDeserialize, BorshSerialize};
+use std::io::{self, Read, Write};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
@@ -62,20 +61,15 @@ pub struct Bundle<A: Authorization> {
     pub authorization: A,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-pub struct Unauthorized {
-}
+pub struct Unauthorized {}
 
-impl Authorization for Unauthorized {
-}
+impl Authorization for Unauthorized {}
 
 impl TransparentBuilder {
     /// Constructs a new TransparentBuilder
     pub fn empty() -> Self {
-        TransparentBuilder {
-            vout: vec![],
-        }
+        TransparentBuilder { vout: vec![] }
     }
 
     /// Returns the transparent outputs that will be produced by the transaction being constructed.
@@ -83,13 +77,18 @@ impl TransparentBuilder {
         &self.vout
     }
 
-    pub fn add_output(&mut self, transparent_address: &TransparentAddress, asset_type: AssetType, value: i64) -> Result<(), Error> {
+    pub fn add_output(
+        &mut self,
+        transparent_address: &TransparentAddress,
+        asset_type: AssetType,
+        value: i64,
+    ) -> Result<(), Error> {
         if value < -MAX_MONEY {
             return Err(Error::InvalidAmount);
         }
 
         self.vout.push(TxOut {
-            asset_type, 
+            asset_type,
             value,
             transparent_address: *transparent_address,
         });
@@ -98,20 +97,20 @@ impl TransparentBuilder {
     }
 
     pub fn value_balance(&self) -> Option<Amount> {
-
         //#[cfg(not(feature = "transparent-inputs"))]
         let input_sum = Amount::<AssetType>::zero();
 
-        Some(input_sum -
-             self
-                .vout
-                .iter()
-                .map(|vo| Amount::from_pair(vo.asset_type, vo.value).unwrap())
-                .sum::<Amount>())
+        Some(
+            input_sum
+                - self
+                    .vout
+                    .iter()
+                    .map(|vo| Amount::from_pair(vo.asset_type, vo.value).unwrap())
+                    .sum::<Amount>(),
+        )
     }
 
     pub fn build(self) -> Option<Bundle<Unauthorized>> {
-
         if self.vout.is_empty() {
             None
         } else {
@@ -127,7 +126,6 @@ impl TransparentBuilder {
         }
     }
 }
-
 
 impl Bundle<Unauthorized> {
     pub fn apply_signatures(
@@ -166,7 +164,6 @@ impl Bundle<Unauthorized> {
             });
 
         Bundle {
-        
             vout: self.vout,
             authorization: Authorized,
         }
@@ -195,8 +192,9 @@ impl TxOut {
         };
 
         let mut tmp = [0u8; 33];
-            reader.read_exact(&mut tmp)?;
-        let transparent_address = TransparentAddress::from_slice(&tmp).map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad public key"))?;
+        reader.read_exact(&mut tmp)?;
+        let transparent_address = TransparentAddress::from_slice(&tmp)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad public key"))?;
 
         Ok(TxOut {
             asset_type,

@@ -471,10 +471,7 @@ pub fn try_sapling_output_recovery<P: consensus::Parameters>(
 
 #[cfg(test)]
 mod tests {
-    use chacha20poly1305::{
-        aead::{AeadInPlace},
-        ChaCha20Poly1305, KeyInit,
-    };
+    use chacha20poly1305::{aead::AeadInPlace, ChaCha20Poly1305, KeyInit};
     use ff::{Field, PrimeField};
     use group::Group;
     use group::GroupEncoding;

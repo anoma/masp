@@ -21,24 +21,33 @@ use crate::{
     primitives::Nullifier,
     prover::GROTH_PROOF_SIZE,
     redjubjub::{self, PublicKey, Signature},
-    transaction::{amount::Amount, builder::{transparent, sapling}},
+    transaction::{
+        amount::Amount,
+        builder::{sapling, transparent},
+    },
 };
 
 pub mod amount;
 pub mod builder;
 pub mod memo;
 pub mod serialize;
-pub mod util;
-pub mod txid;
 pub mod sighash;
 pub mod sighash_v5;
+pub mod txid;
+pub mod util;
 
 pub type GrothProofBytes = [u8; GROTH_PROOF_SIZE];
 
 /// Authorization state for a bundle of transaction data.
 pub trait Authorization {
-    type TransparentAuth: builder::transparent::Authorization + PartialEq +BorshDeserialize + BorshSerialize;
-    type SaplingAuth: builder::sapling::Authorization + PartialEq +BorshDeserialize + BorshSerialize;
+    type TransparentAuth: builder::transparent::Authorization
+        + PartialEq
+        + BorshDeserialize
+        + BorshSerialize;
+    type SaplingAuth: builder::sapling::Authorization
+        + PartialEq
+        + BorshDeserialize
+        + BorshSerialize;
 }
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Unproven;
@@ -189,10 +198,12 @@ pub mod testing {
         constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
         primitives::Nullifier,
         redjubjub::{PrivateKey, PublicKey},
-        transaction::{amount::testing::arb_amount, GROTH_PROOF_SIZE, GrothProofBytes},
+        transaction::{amount::testing::arb_amount, GrothProofBytes, GROTH_PROOF_SIZE},
     };
 
-    use crate::transaction::builder::sapling::{Authorized, Bundle,  OutputDescription, ConvertDescription, SpendDescription};
+    use crate::transaction::builder::sapling::{
+        Authorized, Bundle, ConvertDescription, OutputDescription, SpendDescription,
+    };
 
     prop_compose! {
         fn arb_extended_point()(rng_seed in prop::array::uniform32(any::<u8>())) -> jubjub::ExtendedPoint {

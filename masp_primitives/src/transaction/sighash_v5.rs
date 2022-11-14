@@ -11,7 +11,8 @@ use crate::transaction::{
         SIGHASH_NONE, SIGHASH_SINGLE,
     },
     txid::{
-        hash_transparent_txid_data, to_hash, transparent_outputs_hash, ZCASH_TRANSPARENT_HASH_PERSONALIZATION,
+        hash_transparent_txid_data, to_hash, transparent_outputs_hash,
+        ZCASH_TRANSPARENT_HASH_PERSONALIZATION,
     },
     Authorization, TransactionData, TransparentDigests, TxDigests,
 };
@@ -34,7 +35,8 @@ fn hasher(personal: &[u8; 16]) -> State {
 }
 
 /// Implements [ZIP 244 section S.2](https://zips.z.cash/zip-0244#s-2-transparent-sig-digest).
-fn transparent_sig_digest<A: transparent::Authorization>(//<A: TransparentAuthorizingContext>(
+fn transparent_sig_digest<A: transparent::Authorization>(
+    //<A: TransparentAuthorizingContext>(
     tx_data: Option<(&transparent::Bundle<A>, &TransparentDigests<Blake2bHash>)>,
     input: &SignableInput,
 ) -> Blake2bHash {
@@ -44,7 +46,7 @@ fn transparent_sig_digest<A: transparent::Authorization>(//<A: TransparentAuthor
         // No transparent inputs, or coinbase.
         //Some((bundle, txid_digests)) if bundle.is_coinbase() || bundle.vin.is_empty() => {
         //    hash_transparent_txid_data(Some(txid_digests))
-       // }
+        // }
         // Some transparent inputs, and not coinbase.
         Some((bundle, txid_digests)) => {
             let hash_type = input.hash_type();
@@ -79,7 +81,7 @@ fn transparent_sig_digest<A: transparent::Authorization>(//<A: TransparentAuthor
 /// Implements the [Signature Digest section of ZIP 244](https://zips.z.cash/zip-0244#signature-digest)
 pub fn v5_signature_hash<
     //TA: TransparentAuthorizingContext,
-    A: Authorization,//<TransparentAuth = TA>,
+    A: Authorization, //<TransparentAuth = TA>,
 >(
     tx: &TransactionData<A>,
     signable_input: &SignableInput,

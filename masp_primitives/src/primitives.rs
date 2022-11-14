@@ -5,7 +5,8 @@ use crate::{
     constants,
     group_hash::group_hash,
     keys::prf_expand,
-    pedersen_hash::{pedersen_hash, Personalization}, sapling::Node,
+    pedersen_hash::{pedersen_hash, Personalization},
+    sapling::Node,
 };
 use blake2s_simd::Params as Blake2sParams;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -48,7 +49,7 @@ impl ProofGenerationKey {
     pub fn to_viewing_key(&self) -> ViewingKey {
         ViewingKey {
             ak: self.ak,
-            nk: NullifierDerivingKey( constants::PROOF_GENERATION_KEY_GENERATOR * self.nsk),
+            nk: NullifierDerivingKey(constants::PROOF_GENERATION_KEY_GENERATOR * self.nsk),
         }
     }
 }
@@ -125,7 +126,10 @@ impl ViewingKey {
         let ak = ak.unwrap();
         let nk = nk.unwrap();
 
-        Ok(ViewingKey { ak, nk: NullifierDerivingKey(nk) })
+        Ok(ViewingKey {
+            ak,
+            nk: NullifierDerivingKey(nk),
+        })
     }
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
@@ -535,7 +539,7 @@ impl Note {
             )),
         }
     }
-        /// Returns [`self.cmu`] in the correct representation for inclusion in the Sapling
+    /// Returns [`self.cmu`] in the correct representation for inclusion in the Sapling
     /// note commitment tree.
     pub fn commitment(&self) -> Node {
         Node {

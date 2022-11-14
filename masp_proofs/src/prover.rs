@@ -9,7 +9,8 @@ use masp_primitives::{
     primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
     prover::{TxProver, GROTH_PROOF_SIZE},
     redjubjub::{PublicKey, Signature},
-    sapling::Node, transaction::amount::Amount,
+    sapling::Node,
+    transaction::amount::Amount,
 };
 
 use crate::{parse_parameters, sapling::SaplingProvingContext};

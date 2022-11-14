@@ -11,11 +11,10 @@ use group::GroupEncoding;
 use crate::consensus::{BlockHeight, BranchId};
 
 use super::{
-        amount::Amount,
-        builder::sapling::{self, OutputDescription, SpendDescription},
-        builder::transparent::{self, TxOut},
-    
-    Authorization, Authorized, TransactionDigest, TransparentDigests, TxDigests, TxId
+    amount::Amount,
+    builder::sapling::{self, OutputDescription, SpendDescription},
+    builder::transparent::{self, TxOut},
+    Authorization, Authorized, TransactionDigest, TransparentDigests, TxDigests, TxId,
 };
 
 /// TxId tree root personalization
@@ -58,7 +57,6 @@ const ZCASH_TZE_WITNESSES_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxAuthTZE__Hash";
 fn hasher(personal: &[u8; 16]) -> State {
     Params::new().hash_length(32).personal(personal).to_state()
 }
-
 
 /// Sequentially append the full serialized value of each transparent output
 /// to a hash personalized by ZCASH_OUTPUTS_HASH_PERSONALIZATION.
@@ -111,7 +109,9 @@ pub(crate) fn hash_sapling_spends<A: sapling::Authorization + PartialEq>(
 /// * \[(cv, enc_ciphertext\[564..\], out_ciphertext, zkproof)*\] personalized with ZCASH_SAPLING_OUTPUTS_NONCOMPACT_HASH_PERSONALIZATION
 ///
 /// Then, hash these together personalized with ZCASH_SAPLING_OUTPUTS_HASH_PERSONALIZATION
-pub(crate) fn hash_sapling_outputs<Proof: Clone>(shielded_outputs: &[OutputDescription<Proof>]) -> Blake2bHash {
+pub(crate) fn hash_sapling_outputs<Proof: Clone>(
+    shielded_outputs: &[OutputDescription<Proof>],
+) -> Blake2bHash {
     let mut h = hasher(ZCASH_SAPLING_OUTPUTS_HASH_PERSONALIZATION);
     if !shielded_outputs.is_empty() {
         let mut ch = hasher(ZCASH_SAPLING_OUTPUTS_COMPACT_HASH_PERSONALIZATION);
@@ -158,7 +158,11 @@ pub(crate) fn hash_transparent_txid_data(
 }
 
 /// Implements [ZIP 244 section T.3](https://zips.z.cash/zip-0244#t-3-sapling-digest)
-fn hash_sapling_txid_data<A: sapling::Authorization + PartialEq + BorshSerialize + BorshDeserialize>(bundle: &sapling::Bundle<A>) -> Blake2bHash {
+fn hash_sapling_txid_data<
+    A: sapling::Authorization + PartialEq + BorshSerialize + BorshDeserialize,
+>(
+    bundle: &sapling::Bundle<A>,
+) -> Blake2bHash {
     let mut h = hasher(ZCASH_SAPLING_HASH_PERSONALIZATION);
     if !(bundle.shielded_spends.is_empty() && bundle.shielded_outputs.is_empty()) {
         h.write_all(hash_sapling_spends(&bundle.shielded_spends).as_bytes())
@@ -167,7 +171,7 @@ fn hash_sapling_txid_data<A: sapling::Authorization + PartialEq + BorshSerialize
         h.write_all(hash_sapling_outputs(&bundle.shielded_outputs).as_bytes())
             .unwrap();
 
-            bundle.value_balance.serialize(&mut h);
+        bundle.value_balance.serialize(&mut h);
     }
     h.finalize()
 }
@@ -190,7 +194,6 @@ impl<A: Authorization> TransactionDigest<A> for TxIdDigester {
     type SaplingDigest = Option<Blake2bHash>;
 
     type Digest = TxDigests<Blake2bHash>;
-
 
     fn digest_transparent(
         &self,
@@ -237,9 +240,7 @@ pub(crate) fn to_hash(
     h.finalize()
 }
 
-pub fn to_txid(
-    digests: &TxDigests<Blake2bHash>,
-) -> TxId {
+pub fn to_txid(digests: &TxDigests<Blake2bHash>) -> TxId {
     let txid_digest = to_hash(
         hash_transparent_txid_data(digests.transparent_digests.as_ref()),
         digests.sapling_digest,
@@ -259,7 +260,6 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
     /// where it needs to be used for personalization string construction.
     type TransparentDigest = Blake2bHash;
     type SaplingDigest = Blake2bHash;
-
 
     type Digest = Blake2bHash;
 

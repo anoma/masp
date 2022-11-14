@@ -2,10 +2,12 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use group::GroupEncoding;
 use std::io::Write;
 
-use crate::transaction::builder::sapling::{OutputDescription, ConvertDescription, SpendDescription};
+use crate::transaction::builder::sapling::{
+    ConvertDescription, OutputDescription, SpendDescription,
+};
 use crate::{
     primitives::Nullifier,
-    transaction::{util::*, builder::sapling::Authorization},
+    transaction::{builder::sapling::Authorization, util::*},
 };
 
 impl<A: Authorization + PartialEq + BorshSerialize> BorshSerialize for SpendDescription<A>
@@ -47,8 +49,7 @@ where
     }
 }
 
-impl<Proof: Clone + PartialEq + BorshSerialize> BorshSerialize for ConvertDescription<Proof>
-{
+impl<Proof: Clone + PartialEq + BorshSerialize> BorshSerialize for ConvertDescription<Proof> {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
         BorshSerialize::serialize(&self.cv.to_bytes(), writer)?;
         BorshSerialize::serialize(&self.anchor.to_bytes(), writer)?;
@@ -56,8 +57,7 @@ impl<Proof: Clone + PartialEq + BorshSerialize> BorshSerialize for ConvertDescri
     }
 }
 
-impl<Proof: Clone + PartialEq+ BorshDeserialize> BorshDeserialize for ConvertDescription<Proof>
-{
+impl<Proof: Clone + PartialEq + BorshDeserialize> BorshDeserialize for ConvertDescription<Proof> {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
         let cv = deserialize_extended_point(buf)?;
         let anchor = deserialize_scalar(buf)?;
@@ -104,9 +104,9 @@ impl<Proof: Clone + BorshSerialize> BorshSerialize for OutputDescription<Proof> 
 #[cfg(test)]
 mod tests {
     use crate::transaction::{
-        testing::{arb_bundle, arb_output_description, arb_spend_description},
-        GrothProofBytes, 
         builder::sapling::{Authorized, OutputDescription, SpendDescription},
+        testing::{arb_bundle, arb_output_description, arb_spend_description},
+        GrothProofBytes,
     };
     use borsh::{BorshDeserialize, BorshSerialize};
     use proptest::prelude::*;

@@ -1,41 +1,17 @@
 //! Types and functions for building Sapling transaction components.
 
-use core::fmt;
-use std::convert::TryInto;
-use std::fmt::Debug;
-use std::sync::mpsc::Sender;
-use std::io::{Read, Write, self};
-use std::hash::{Hash, Hasher};
-use memuse::DynamicUsage;
-use ff::{Field, PrimeField};
-use group::GroupEncoding;
-use rand::{seq::SliceRandom, RngCore};
-use borsh::{BorshDeserialize,BorshSerialize};
-use masp_note_encryption::{COMPACT_NOTE_SIZE, EphemeralKeyBytes, ShieldedOutput, ENC_CIPHERTEXT_SIZE};
 use crate::{
     asset_type::AssetType,
+    consensus::{self, BlockHeight, H0, MAIN_NETWORK},
     convert::AllowedConversion,
-    consensus::{self, BlockHeight, MAIN_NETWORK, H0},
     keys::OutgoingViewingKey,
-    
     merkle_tree::MerklePath,
-    redjubjub::{self,PublicKey, PrivateKey, Signature},
-    primitives::{Nullifier, Diversifier, Note, PaymentAddress},
-    prover::{GROTH_PROOF_SIZE, TxProver},
     note_encryption::sapling_note_encryption,
-    util::generate_random_rseed_internal,
-    sapling::{
-        
-        
-        spend_sig_internal,
-        
-         Node, 
-    },
+    primitives::{Diversifier, Note, Nullifier, PaymentAddress},
+    prover::{TxProver, GROTH_PROOF_SIZE},
+    redjubjub::{self, PrivateKey, PublicKey, Signature},
+    sapling::{spend_sig_internal, Node},
     transaction::{
-        TransactionData,
-        SaplingDomain,
-        memo::{MemoBytes, },
-           GrothProofBytes,
         //Bundle,
         amount::{Amount, MAX_MONEY},
         builder::Progress,
@@ -46,9 +22,28 @@ use crate::{
         //        SpendDescription,
         //    },
         //},
+        memo::MemoBytes,
+        GrothProofBytes,
+        SaplingDomain,
+        TransactionData,
     },
+    util::generate_random_rseed_internal,
     zip32::ExtendedSpendingKey,
 };
+use borsh::{BorshDeserialize, BorshSerialize};
+use core::fmt;
+use ff::{Field, PrimeField};
+use group::GroupEncoding;
+use masp_note_encryption::{
+    EphemeralKeyBytes, ShieldedOutput, COMPACT_NOTE_SIZE, ENC_CIPHERTEXT_SIZE,
+};
+use memuse::DynamicUsage;
+use rand::{seq::SliceRandom, RngCore};
+use std::convert::TryInto;
+use std::fmt::Debug;
+use std::hash::{Hash, Hasher};
+use std::io::{self, Read, Write};
+use std::sync::mpsc::Sender;
 
 /// If there are any shielded inputs, always have at least two shielded outputs, padding
 /// with dummy outputs if necessary. See <https://github.com/zcash/zcash/issues/3615>.
@@ -61,7 +56,7 @@ pub enum Error {
     InvalidAddress,
     InvalidAmount,
     SpendProof,
-    ConvertProof, 
+    ConvertProof,
 }
 
 impl fmt::Display for Error {
@@ -225,7 +220,6 @@ impl SpendDescription<Authorized> {
     }
 }
 
-
 #[derive(Clone)]
 pub struct SpendDescriptionV5 {
     pub cv: jubjub::ExtendedPoint,
@@ -266,13 +260,18 @@ pub struct ConvertDescription<Proof: PartialEq> {
     pub zkproof: Proof,
 }
 
-impl<Proof: Clone+ PartialOrd> PartialOrd for ConvertDescription<Proof> {
+impl<Proof: Clone + PartialOrd> PartialOrd for ConvertDescription<Proof> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        (self.cv.to_bytes(), self.anchor.to_bytes(), self.zkproof.clone()).partial_cmp(&(
-            other.cv.to_bytes(),
-            other.anchor.to_bytes(),
-            other.zkproof.clone(),
-        ))
+        (
+            self.cv.to_bytes(),
+            self.anchor.to_bytes(),
+            self.zkproof.clone(),
+        )
+            .partial_cmp(&(
+                other.cv.to_bytes(),
+                other.anchor.to_bytes(),
+                other.zkproof.clone(),
+            ))
     }
 }
 
@@ -546,7 +545,7 @@ pub struct SpendDescriptionInfo {
     alpha: jubjub::Fr,
     merkle_path: MerklePath<Node>,
 }
-/* 
+/*
 impl fees::InputView for SpendDescriptionInfo {
     fn value(&self) -> Amount {
         // An existing note to be spent must have a valid
@@ -576,7 +575,7 @@ pub struct SaplingOutputInfo {
 }
 
 impl SaplingOutputInfo {
-    fn new_internal< R: RngCore>(
+    fn new_internal<R: RngCore>(
         rng: &mut R,
         ovk: Option<OutgoingViewingKey>,
         to: PaymentAddress,
@@ -626,7 +625,7 @@ impl SaplingOutputInfo {
             *encryptor.esk(),
             self.to,
             self.note.rcm(),
-            self.note.asset_type, 
+            self.note.asset_type,
             self.note.value,
         );
 
@@ -647,7 +646,7 @@ impl SaplingOutputInfo {
         }
     }
 }
-/* 
+/*
 impl fees::OutputView for SaplingOutputInfo {
     fn value(&self) -> Amount {
         Amount::from_u64(self.note.value).expect("Note values should be checked at construction.")
@@ -692,7 +691,7 @@ impl SaplingMetadata {
     pub fn output_index(&self, n: usize) -> Option<usize> {
         self.output_indices.get(n).copied()
     }
-            /// Returns the index within the transaction of the [`ConvertDescription`] corresponding
+    /// Returns the index within the transaction of the [`ConvertDescription`] corresponding
     /// to the `n`-th call to [`SaplingBuilder::add_convert`].
     ///
     /// Note positions are randomized when building transactions for indistinguishability.
@@ -744,8 +743,8 @@ impl SaplingBuilder {
     /// Returns the list of Sapling inputs that will be consumed by the transaction being
     /// constructed.
     //pub fn inputs(&self) -> &[impl fees::InputView] {
-        pub fn inputs(&self) -> &[SpendDescriptionInfo] {
-            &self.spends
+    pub fn inputs(&self) -> &[SpendDescriptionInfo] {
+        &self.spends
     }
 
     pub fn converts(&self) -> &[ConvertDescriptionInfo] {
@@ -753,7 +752,7 @@ impl SaplingBuilder {
     }
     /// Returns the Sapling outputs that will be produced by the transaction being constructed
     //pub fn outputs(&self) -> &[impl fees::OutputView] {
-        pub fn outputs(&self) -> &[SaplingOutputInfo] {
+    pub fn outputs(&self) -> &[SaplingOutputInfo] {
         &self.outputs
     }
 
@@ -789,7 +788,8 @@ impl SaplingBuilder {
 
         let alpha = jubjub::Fr::random(&mut rng);
 
-        self.value_balance += Amount::from_pair(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?;
+        self.value_balance +=
+            Amount::from_pair(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?;
 
         self.spends.push(SpendDescriptionInfo {
             extsk,
@@ -813,16 +813,10 @@ impl SaplingBuilder {
         value: u64,
         memo: MemoBytes,
     ) -> Result<(), Error> {
-        let output = SaplingOutputInfo::new_internal(
-            &mut rng,
-            ovk,
-            to,
-            asset_type,
-            value,
-            memo,
-        )?;
+        let output = SaplingOutputInfo::new_internal(&mut rng, ovk, to, asset_type, value, memo)?;
 
-        self.value_balance -= Amount::from_pair(asset_type, value).map_err(|_| Error::InvalidAmount)?;
+        self.value_balance -=
+            Amount::from_pair(asset_type, value).map_err(|_| Error::InvalidAmount)?;
 
         self.outputs.push(output);
 
@@ -851,7 +845,9 @@ impl SaplingBuilder {
         // inputs and outputs are shuffled.
         let mut tx_metadata = SaplingMetadata::empty();
         tx_metadata.spend_indices.resize(indexed_spends.len(), 0);
-        tx_metadata.convert_indices.resize(indexed_converts.len(), 0);
+        tx_metadata
+            .convert_indices
+            .resize(indexed_converts.len(), 0);
         tx_metadata.output_indices.resize(indexed_outputs.len(), 0);
 
         // Pad Sapling outputs
@@ -927,49 +923,49 @@ impl SaplingBuilder {
             vec![]
         };
 
-                // Create Sapling ConvertDescriptions
-                let shielded_converts: Vec<ConvertDescription<GrothProofBytes>> = if !indexed_converts.is_empty() {
-                    let anchor = self
-                        .convert_anchor
-                        .expect("Sapling convert_anchor must be set if Sapling converts are present.");
-        
-                    indexed_converts
-                        .into_iter()
-                        .enumerate()
-                        .map(|(i, (pos, convert))| {        
-                            let (zkproof, cv) = prover
-                                .convert_proof(
-                                    ctx,
-                                    convert.allowed.clone(),
-                                    convert.value,
-                                    anchor,
-                                    convert.merkle_path.clone(),
-                               
-                                )
-                                .map_err(|_| Error::ConvertProof)?;
-        
-                            // Record the post-randomized spend location
-                            tx_metadata.convert_indices[pos] = i;
-        
-                            // Update progress and send a notification on the channel
-                            progress += 1;
-                            if let Some(sender) = progress_notifier {
-                                // If the send fails, we should ignore the error, not crash.
-                                sender
-                                    .send(Progress::new(progress, Some(total_progress)))
-                                    .unwrap_or(());
-                            }
-        
-                            Ok(ConvertDescription {
-                                cv,
+        // Create Sapling ConvertDescriptions
+        let shielded_converts: Vec<ConvertDescription<GrothProofBytes>> =
+            if !indexed_converts.is_empty() {
+                let anchor = self
+                    .convert_anchor
+                    .expect("Sapling convert_anchor must be set if Sapling converts are present.");
+
+                indexed_converts
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, (pos, convert))| {
+                        let (zkproof, cv) = prover
+                            .convert_proof(
+                                ctx,
+                                convert.allowed.clone(),
+                                convert.value,
                                 anchor,
-                                zkproof,
-                            })
+                                convert.merkle_path.clone(),
+                            )
+                            .map_err(|_| Error::ConvertProof)?;
+
+                        // Record the post-randomized spend location
+                        tx_metadata.convert_indices[pos] = i;
+
+                        // Update progress and send a notification on the channel
+                        progress += 1;
+                        if let Some(sender) = progress_notifier {
+                            // If the send fails, we should ignore the error, not crash.
+                            sender
+                                .send(Progress::new(progress, Some(total_progress)))
+                                .unwrap_or(());
+                        }
+
+                        Ok(ConvertDescription {
+                            cv,
+                            anchor,
+                            zkproof,
                         })
-                        .collect::<Result<Vec<_>, Error>>()?
-                } else {
-                    vec![]
-                };
+                    })
+                    .collect::<Result<Vec<_>, Error>>()?
+            } else {
+                vec![]
+            };
 
         // Create Sapling OutputDescriptions
         let shielded_outputs: Vec<OutputDescription<GrothProofBytes>> = indexed_outputs
@@ -980,7 +976,9 @@ impl SaplingBuilder {
                     // Record the post-randomized output location
                     tx_metadata.output_indices[pos] = i;
 
-                    output.clone().build::<crate::consensus::MainNetwork, _, _>(prover, ctx, &mut rng)
+                    output
+                        .clone()
+                        .build::<crate::consensus::MainNetwork, _, _>(prover, ctx, &mut rng)
                 } else {
                     // This is a dummy output
                     let (dummy_to, dummy_note) = {
@@ -1006,8 +1004,7 @@ impl SaplingBuilder {
                             }
                         };
 
-                        let rseed =
-                            generate_random_rseed_internal(&params, H0, &mut rng);
+                        let rseed = generate_random_rseed_internal(&params, H0, &mut rng);
 
                         (
                             payment_address,
@@ -1024,12 +1021,18 @@ impl SaplingBuilder {
                     let esk = dummy_note.generate_or_derive_esk_internal(&mut rng);
                     let epk = dummy_note.g_d * esk;
 
-                    let (zkproof, cv) =
-                        prover.output_proof(ctx, esk, dummy_to, dummy_note.rcm(), dummy_note.asset_type,dummy_note.value);
+                    let (zkproof, cv) = prover.output_proof(
+                        ctx,
+                        esk,
+                        dummy_to,
+                        dummy_note.rcm(),
+                        dummy_note.asset_type,
+                        dummy_note.value,
+                    );
 
                     let cmu = dummy_note.cmu();
 
-                    let mut enc_ciphertext = [0u8; 580+32];
+                    let mut enc_ciphertext = [0u8; 580 + 32];
                     let mut out_ciphertext = [0u8; 80];
                     rng.fill_bytes(&mut enc_ciphertext[..]);
                     rng.fill_bytes(&mut out_ciphertext[..]);
@@ -1112,7 +1115,7 @@ impl Bundle<Unauthorized> {
                         ))
                     })
                     .collect(),
-                    shielded_converts: self.shielded_converts,
+                shielded_converts: self.shielded_converts,
                 shielded_outputs: self.shielded_outputs,
                 value_balance: self.value_balance,
                 authorization: Authorized { binding_sig },
@@ -1158,7 +1161,7 @@ impl<A: Authorization + PartialEq + BorshSerialize + BorshDeserialize> Bundle<A>
                     spend_auth_sig: f.map_auth_sig(d.spend_auth_sig),
                 })
                 .collect(),
-                shielded_converts: self
+            shielded_converts: self
                 .shielded_converts
                 .into_iter()
                 .map(|c| ConvertDescription {
@@ -1197,21 +1200,14 @@ pub mod testing {
             TEST_NETWORK,
         },
         merkle_tree::{testing::arb_commitment_tree, IncrementalWitness},
-        prover::mock::MockTxProver,
-        sapling::{
-            
-            testing::{arb_node, arb_note, arb_positive_note_value},
-            
-        },
         primitives::Diversifier,
-        transaction::{
-            amount::MAX_MONEY,
-            
-        },
+        prover::mock::MockTxProver,
+        sapling::testing::{arb_node, arb_note, arb_positive_note_value},
+        transaction::amount::MAX_MONEY,
         zip32::testing::arb_extended_spending_key,
     };
 
-    use super::{SaplingBuilder, Bundle, Authorized};
+    use super::{Authorized, Bundle, SaplingBuilder};
 
     prop_compose! {
         fn arb_bundle()(n_notes in 1..30usize)(

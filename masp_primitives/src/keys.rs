@@ -6,7 +6,7 @@
 
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
-    primitives::{ProofGenerationKey, ViewingKey, NullifierDerivingKey},
+    primitives::{NullifierDerivingKey, ProofGenerationKey, ViewingKey},
 };
 use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use ff::PrimeField;
@@ -181,7 +181,10 @@ impl FullViewingKey {
         reader.read_exact(&mut ovk)?;
 
         Ok(FullViewingKey {
-            vk: ViewingKey { ak, nk : NullifierDerivingKey(nk) },
+            vk: ViewingKey {
+                ak,
+                nk: NullifierDerivingKey(nk),
+            },
             ovk: OutgoingViewingKey(ovk),
         })
     }
