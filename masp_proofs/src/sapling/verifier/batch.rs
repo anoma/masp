@@ -1,12 +1,12 @@
 use bellman::groth16;
 use bls12_381::Bls12;
 use group::GroupEncoding;
-use masp_primitives::transaction::components::sapling::{Authorized, Bundle};
 use rand_core::{CryptoRng, RngCore};
+use masp_primitives::transaction::components::sapling::{Authorized, Bundle};
 
 use super::SaplingVerificationContextInner;
 
-/// Batch validation context for Sapling.
+/// Batch validation context for MASP/Sapling.
 ///
 /// This batch-validates Spend, Convert, and Output proofs, and RedJubjub signatures.
 ///

@@ -909,6 +909,7 @@ mod tests {
     use group::GroupEncoding;
 
     #[test]
+    #[allow(deprecated)]
     fn derive_nonhardened_child() {
         let seed = [0; 32];
         let xsk_m = ExtendedSpendingKey::master(&seed);
@@ -923,6 +924,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn derive_hardened_child() {
         let seed = [0; 32];
         let xsk_m = ExtendedSpendingKey::master(&seed);
@@ -1092,6 +1094,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn read_write() {
         let seed = [0; 32];
         let xsk = ExtendedSpendingKey::master(&seed);
@@ -1109,6 +1112,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_vectors() {
         struct TestVector {
             ask: Option<[u8; 32]>,

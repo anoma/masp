@@ -294,7 +294,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         let balance_after_fees = self.value_balance()? - fee;
 
         if balance_after_fees != Amount::zero() {
-            return Err(Error::ChangeRequired(balance_after_fees));
+            return Err(Error::InsufficientFunds(-balance_after_fees));
         };
 
         let transparent_bundle = self.transparent_builder.build();
