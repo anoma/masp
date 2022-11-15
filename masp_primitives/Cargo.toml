@@ -6,6 +6,8 @@ authors = [
     "Jack Grigg <jack@z.cash>",
     "Kris Nuttycombe <kris@electriccoin.co>",
     "joe <joe@heliax.dev>",
+    "Murisi Tarusenga <murisi@heliax.dev>", 
+    "Heliax AG <hello@heliax.dev>",
 ]
 homepage = "https://github.com/anoma/masp"
 repository = "https://github.com/anoma/masp"
