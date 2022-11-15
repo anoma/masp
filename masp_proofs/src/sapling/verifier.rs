@@ -1,5 +1,5 @@
 #![allow(clippy::new_without_default)]
-use super::masp_compute_value_balance;
+
 use bellman::{
     gadgets::multipack,
     groth16::{verify_proof, PreparedVerifyingKey, Proof},
@@ -12,16 +12,24 @@ use masp_primitives::{
     sapling::redjubjub::{PublicKey, Signature},
 };
 
+use super::masp_compute_value_balance;
+
+mod single;
+pub use single::SaplingVerificationContext;
+
+mod batch;
+pub use batch::BatchValidator;
+
 /// A context object for verifying the Sapling components of a Zcash transaction.
-pub struct SaplingVerificationContext {
+struct SaplingVerificationContextInner {
     // (sum of the Spend value commitments) - (sum of the Output value commitments)
     cv_sum: jubjub::ExtendedPoint,
 }
 
-impl SaplingVerificationContext {
+impl SaplingVerificationContextInner {
     /// Construct a new context to be used with a single transaction.
-    pub fn new() -> Self {
-        SaplingVerificationContext {
+    fn new() -> Self {
+        SaplingVerificationContextInner {
             cv_sum: jubjub::ExtendedPoint::identity(),
         }
     }
@@ -29,7 +37,7 @@ impl SaplingVerificationContext {
     /// Perform consensus checks on a Sapling SpendDescription, while
     /// accumulating its value commitment inside the context for later use.
     #[allow(clippy::too_many_arguments)]
-    pub fn check_spend(
+    fn check_spend<C>(
         &mut self,
         cv: jubjub::ExtendedPoint,
         anchor: bls12_381::Scalar,
@@ -38,7 +46,9 @@ impl SaplingVerificationContext {
         sighash_value: &[u8; 32],
         spend_auth_sig: Signature,
         zkproof: Proof<Bls12>,
-        verifying_key: &PreparedVerifyingKey<Bls12>,
+        verifier_ctx: &mut C,
+        spend_auth_sig_verifier: impl FnOnce(&mut C, PublicKey, [u8; 64], Signature) -> bool,
+        proof_verifier: impl FnOnce(&mut C, Proof<Bls12>, [bls12_381::Scalar; 7]) -> bool,
     ) -> bool {
         if (cv.is_small_order() | rk.0.is_small_order()).into() {
             return false;
@@ -57,12 +67,7 @@ impl SaplingVerificationContext {
 
         // Verify the spend_auth_sig
         let rk_affine = rk.0.to_affine();
-        if !rk.verify_with_zip216(
-            &data_to_be_signed,
-            &spend_auth_sig,
-            SPENDING_KEY_GENERATOR,
-            true, // zip216_enabled = true
-        ) {
+        if !spend_auth_sig_verifier(verifier_ctx, rk, data_to_be_signed, spend_auth_sig) {
             return false;
         }
 
@@ -94,18 +99,50 @@ impl SaplingVerificationContext {
         }
 
         // Verify the proof
-        verify_proof(verifying_key, &zkproof, &public_input[..]).is_ok()
+        proof_verifier(verifier_ctx, zkproof, public_input)
+    }
+
+    /// Perform consensus checks on a Convert SpendDescription, while
+    /// accumulating its value commitment inside the context for later use.
+    #[allow(clippy::too_many_arguments)]
+    fn check_convert<C>(
+        &mut self,
+        cv: jubjub::ExtendedPoint,
+        anchor: bls12_381::Scalar,
+        zkproof: Proof<Bls12>,
+        verifier_ctx: &mut C,
+        proof_verifier: impl FnOnce(&mut C, Proof<Bls12>, [bls12_381::Scalar; 3]) -> bool,
+    ) -> bool {
+        if cv.is_small_order().into() {
+            return false;
+        }
+
+        // Accumulate the value commitment in the context
+        self.cv_sum += cv;
+
+        // Construct public input for circuit
+        let mut public_input = [bls12_381::Scalar::zero(); 3];
+        {
+            let affine = cv.to_affine();
+            let (u, v) = (affine.get_u(), affine.get_v());
+            public_input[0] = u;
+            public_input[1] = v;
+        }
+        public_input[2] = anchor;
+
+        // Verify the proof
+        proof_verifier(verifier_ctx, zkproof, public_input)
     }
 
     /// Perform consensus checks on a Sapling OutputDescription, while
     /// accumulating its value commitment inside the context for later use.
-    pub fn check_output(
+    fn check_output(
         &mut self,
         cv: jubjub::ExtendedPoint,
         cmu: bls12_381::Scalar,
         epk: jubjub::ExtendedPoint,
         zkproof: Proof<Bls12>,
-        verifying_key: &PreparedVerifyingKey<Bls12>,
+        proof_verifier: impl FnOnce(Proof<Bls12>, [bls12_381::Scalar; 5]) -> bool,
     ) -> bool {
         if (cv.is_small_order() | epk.is_small_order()).into() {
             return false;
@@ -131,54 +168,25 @@ impl SaplingVerificationContext {
         public_input[4] = cmu;
 
         // Verify the proof
-        verify_proof(verifying_key, &zkproof, &public_input[..]).is_ok()
-    }
-
-    /// Perform consensus checks on a Sapling ConvertDescription, while
-    /// accumulating its value commitment inside the context for later use.
-    pub fn check_convert(
-        &mut self,
-        cv: jubjub::ExtendedPoint,
-        anchor: bls12_381::Scalar,
-        zkproof: Proof<Bls12>,
-        verifying_key: &PreparedVerifyingKey<Bls12>,
-    ) -> bool {
-        if cv.is_small_order().into() {
-            return false;
-        }
-
-        // Accumulate the value commitment in the context
-        self.cv_sum += cv;
-
-        // Construct public input for circuit
-        let mut public_input = [bls12_381::Scalar::zero(); 3];
-        {
-            let affine = cv.to_affine();
-            let (u, v) = (affine.get_u(), affine.get_v());
-            public_input[0] = u;
-            public_input[1] = v;
-        }
-        public_input[2] = anchor;
-
-        // Verify the proof
-        verify_proof(verifying_key, &zkproof, &public_input[..]).is_ok()
+        proof_verifier(zkproof, public_input)
     }
 
     /// Perform consensus checks on the valueBalance and bindingSig parts of a
     /// Sapling transaction. All SpendDescriptions and OutputDescriptions must
     /// have been checked before calling this function.
-    pub fn final_check(
+    fn final_check<'a>(
         &self,
-        assets_and_values: &[(AssetType, i64)],
+        assets_and_values: &impl IntoIterator<Item=(&'a AssetType, &'a i64)>,
         sighash_value: &[u8; 32],
         binding_sig: Signature,
+        binding_sig_verifier: impl FnOnce(PublicKey, [u8; 64], Signature) -> bool,
     ) -> bool {
         // Obtain current cv_sum from the context
         let mut bvk = PublicKey(self.cv_sum);
 
         // Compute value balance
         let value_balances = assets_and_values
-            .iter()
+            .into_iter()
             .map(|(asset_type, value_balance)| {
                 // Compute value balance for each asset
                 // Error for bad value balances (-INT64_MAX value)
