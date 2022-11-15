@@ -187,8 +187,9 @@ impl std::str::FromStr for AssetType {
         let vec = hex::decode(s).map_err(|x| Self::Err::new(std::io::ErrorKind::InvalidData, x))?;
         Self::from_identifier(
             &vec.try_into()
-                .map_err(|_| Self::Err::from(std::io::ErrorKind::InvalidData))?
-        ).ok_or_else(|| Self::Err::from(std::io::ErrorKind::InvalidData))
+                .map_err(|_| Self::Err::from(std::io::ErrorKind::InvalidData))?,
+        )
+        .ok_or_else(|| Self::Err::from(std::io::ErrorKind::InvalidData))
     }
 }
 
