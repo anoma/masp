@@ -129,8 +129,11 @@ impl Circuit<bls12_381::Scalar> for Convert {
 #[test]
 fn test_convert_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use group::{ff::Field, ff::PrimeFieldBits, ff::PrimeField, Curve};
-    use masp_primitives::{asset_type::AssetType, convert::AllowedConversion, sapling::pedersen_hash, transaction::components::Amount};
+    use group::{ff::Field, ff::PrimeField, ff::PrimeFieldBits, Curve};
+    use masp_primitives::{
+        asset_type::AssetType, convert::AllowedConversion, sapling::pedersen_hash,
+        transaction::components::Amount,
+    };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
 

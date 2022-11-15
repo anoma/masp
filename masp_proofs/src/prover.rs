@@ -2,7 +2,6 @@
 
 use bellman::groth16::{Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
-use std::path::Path;
 use masp_primitives::{
     asset_type::AssetType,
     convert::AllowedConversion,
@@ -14,6 +13,7 @@ use masp_primitives::{
     },
     transaction::components::{Amount, GROTH_PROOF_SIZE},
 };
+use std::path::Path;
 
 use crate::{parse_parameters, sapling::SaplingProvingContext};
 

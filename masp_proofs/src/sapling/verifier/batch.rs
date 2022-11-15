@@ -1,8 +1,8 @@
 use bellman::groth16;
 use bls12_381::Bls12;
 use group::GroupEncoding;
-use rand_core::{CryptoRng, RngCore};
 use masp_primitives::transaction::components::sapling::{Authorized, Bundle};
+use rand_core::{CryptoRng, RngCore};
 
 use super::SaplingVerificationContextInner;
 
@@ -143,7 +143,7 @@ impl BatchValidator {
 
         // Check the whole-bundle consensus rules, and batch the binding signature.
         ctx.final_check(
-            &bundle.value_balance.components(),
+            bundle.value_balance.components(),
             &sighash,
             bundle.authorization.binding_sig,
             |bvk, _, binding_sig| {

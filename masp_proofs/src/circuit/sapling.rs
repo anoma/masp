@@ -12,9 +12,8 @@ use masp_primitives::{
 use super::ecc;
 use super::pedersen_hash;
 use crate::constants::{
-        NOTE_COMMITMENT_RANDOMNESS_GENERATOR, NULLIFIER_POSITION_GENERATOR,
-        PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR,
-        VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
+    NOTE_COMMITMENT_RANDOMNESS_GENERATOR, NULLIFIER_POSITION_GENERATOR,
+    PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
 };
 use bellman::gadgets::{blake2s, boolean, multipack, num, Assignment};
 use itertools::multizip;
@@ -597,13 +596,13 @@ impl Circuit<bls12_381::Scalar> for Output {
 #[test]
 fn test_input_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use group::{ff::Field, Group, ff::PrimeFieldBits};
-    use rand_core::{RngCore, SeedableRng};
-    use rand_xorshift::XorShiftRng;
+    use group::{ff::Field, ff::PrimeFieldBits, Group};
     use masp_primitives::{
         asset_type::AssetType,
         sapling::{pedersen_hash, Diversifier, Note, ProofGenerationKey, Rseed},
     };
+    use rand_core::{RngCore, SeedableRng};
+    use rand_xorshift::XorShiftRng;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -764,14 +763,13 @@ fn test_input_circuit_with_bls12_381() {
 fn test_input_circuit_with_bls12_381_external_test_vectors() {
     use bellman::gadgets::test::*;
     use group::{ff::Field, ff::PrimeField, ff::PrimeFieldBits, Group};
-    use rand_core::{RngCore, SeedableRng};
-    use rand_xorshift::XorShiftRng;
     use masp_primitives::{
         asset_type::AssetType,
         sapling::pedersen_hash,
         sapling::{Diversifier, Note, ProofGenerationKey, Rseed},
     };
-
+    use rand_core::{RngCore, SeedableRng};
+    use rand_xorshift::XorShiftRng;
 
     let mut rng = XorShiftRng::from_seed([
         0x59, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -951,13 +949,12 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
 fn test_output_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
     use group::{ff::Field, Group};
-    use rand_core::{RngCore, SeedableRng};
-    use rand_xorshift::XorShiftRng;
     use masp_primitives::{
         asset_type::AssetType,
         sapling::{Diversifier, ProofGenerationKey, Rseed},
     };
-
+    use rand_core::{RngCore, SeedableRng};
+    use rand_xorshift::XorShiftRng;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,

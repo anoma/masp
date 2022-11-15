@@ -108,9 +108,9 @@ mod test {
     use bellman::gadgets::boolean::{AllocatedBit, Boolean};
     use bellman::gadgets::test::*;
     use group::{ff::PrimeField, Curve};
+    use masp_primitives::sapling::pedersen_hash;
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use masp_primitives::sapling::pedersen_hash;
 
     /// Predict the number of constraints of a Pedersen hash
     fn ph_num_constraints(input_bits: usize) -> usize {

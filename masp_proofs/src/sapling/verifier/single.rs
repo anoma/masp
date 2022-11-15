@@ -37,7 +37,7 @@ impl SaplingVerificationContext {
         zkproof: Proof<Bls12>,
         verifying_key: &PreparedVerifyingKey<Bls12>,
     ) -> bool {
-        let zip216_enabled = self.zip216_enabled;
+        let zip216_enabled = true;
         self.inner.check_spend(
             cv,
             anchor,
@@ -59,6 +59,22 @@ impl SaplingVerificationContext {
                 verify_proof(verifying_key, &proof, &public_inputs[..]).is_ok()
             },
         )
+    }
+
+    /// Perform consensus checks on a Sapling SpendDescription, while
+    /// accumulating its value commitment inside the context for later use.
+    #[allow(clippy::too_many_arguments)]
+    pub fn check_convert(
+        &mut self,
+        cv: jubjub::ExtendedPoint,
+        anchor: bls12_381::Scalar,
+        zkproof: Proof<Bls12>,
+        verifying_key: &PreparedVerifyingKey<Bls12>,
+    ) -> bool {
+        self.inner
+            .check_convert(cv, anchor, zkproof, &mut (), |_, proof, public_inputs| {
+                verify_proof(verifying_key, &proof, &public_inputs[..]).is_ok()
+            })
     }
 
     /// Perform consensus checks on a Sapling OutputDescription, while
@@ -87,7 +103,7 @@ impl SaplingVerificationContext {
         binding_sig: Signature,
     ) -> bool {
         self.inner.final_check(
-            &value_balance.components(),
+            value_balance.components(),
             sighash_value,
             binding_sig,
             |bvk, msg, binding_sig| {

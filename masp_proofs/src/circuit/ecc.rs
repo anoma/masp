@@ -873,7 +873,7 @@ mod test {
                 cs.set("select/v'/num", u0);
                 assert_eq!(cs.which_is_unsatisfied().unwrap(), "select/v' computation");
                 cs.set("select/u'/num", v0);
-            assert_eq!(cs.which_is_unsatisfied().unwrap(), "select/u' computation");
+                assert_eq!(cs.which_is_unsatisfied().unwrap(), "select/u' computation");
             }
         }
     }

@@ -1,14 +1,10 @@
 #![allow(clippy::new_without_default)]
 
-use bellman::{
-    gadgets::multipack,
-    groth16::{verify_proof, PreparedVerifyingKey, Proof},
-};
+use bellman::{gadgets::multipack, groth16::Proof};
 use bls12_381::Bls12;
 use group::{Curve, GroupEncoding};
 use masp_primitives::{
     asset_type::AssetType,
-    constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
     sapling::redjubjub::{PublicKey, Signature},
 };
 
@@ -174,13 +170,16 @@ impl SaplingVerificationContextInner {
     /// Perform consensus checks on the valueBalance and bindingSig parts of a
     /// Sapling transaction. All SpendDescriptions and OutputDescriptions must
     /// have been checked before calling this function.
-    fn final_check<'a>(
+    fn final_check<'a, I>(
         &self,
-        assets_and_values: &impl IntoIterator<Item=(&'a AssetType, &'a i64)>,
+        assets_and_values: I,
         sighash_value: &[u8; 32],
         binding_sig: Signature,
         binding_sig_verifier: impl FnOnce(PublicKey, [u8; 64], Signature) -> bool,
-    ) -> bool {
+    ) -> bool
+    where
+        I: IntoIterator<Item = (&'a AssetType, &'a i64)>,
+    {
         // Obtain current cv_sum from the context
         let mut bvk = PublicKey(self.cv_sum);
 
@@ -208,11 +207,6 @@ impl SaplingVerificationContextInner {
         data_to_be_signed[32..64].copy_from_slice(&sighash_value[..]);
 
         // Verify the binding_sig
-        bvk.verify_with_zip216(
-            &data_to_be_signed,
-            &binding_sig,
-            VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
-            true, // zip216_enabled = true
-        )
+        binding_sig_verifier(bvk, data_to_be_signed, binding_sig)
     }
 }

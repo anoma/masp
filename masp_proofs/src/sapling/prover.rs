@@ -4,8 +4,6 @@ use bellman::{
 };
 use bls12_381::Bls12;
 use group::{ff::Field, Curve, GroupEncoding};
-use rand_core::OsRng;
-use std::ops::{AddAssign, Neg};
 use masp_primitives::{
     asset_type::AssetType,
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
@@ -17,6 +15,8 @@ use masp_primitives::{
     },
     transaction::components::Amount,
 };
+use rand_core::OsRng;
+use std::ops::{AddAssign, Neg};
 
 use super::masp_compute_value_balance;
 use crate::circuit::convert::Convert;

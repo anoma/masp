@@ -47,9 +47,9 @@ const MASP_SPEND_HASH: &str = "5523057113d7daa078714f9859ea03da3c959f4fe3756a0ac
 const MASP_OUTPUT_HASH: &str = "89fe551ad6c0281aebb857eb203dbf35854979503d374c83b12512dcd737e12a255869a34e3ff0f6609b78accc81ea5f5e94202e124a590730494eeeee86e755";
 const MASP_CONVERT_HASH: &str = "7a6b038c45ddd841e500484b1c72fa021d874de5a83bf8bce6c0fd8f3c63d491243495df2661682333728a8b14c439985b63b0d6ed61044286e2f86734d66d9b";
 // Circuit parameter file sizes
-const MASP_SPEND_BYTES: u64 = 47958396;
-const MASP_CONVERT_BYTES: u64 = 47958396;
-const MASP_OUTPUT_BYTES: u64 = 3592860;
+const MASP_SPEND_BYTES: u64 = 48483132;
+const MASP_CONVERT_BYTES: u64 = 21204956;
+const MASP_OUTPUT_BYTES: u64 = 15033180;
 
 #[cfg(feature = "download-params")]
 const DOWNLOAD_URL: &str = "https://github.com/anoma/masp/blob/test_parameters";
@@ -100,7 +100,11 @@ pub fn download_sapling_parameters(
         timeout,
     )?;
 
-    Ok(SaplingParameterPaths { spend, output, convert })
+    Ok(SaplingParameterPaths {
+        spend,
+        output,
+        convert,
+    })
 }
 
 /// Download the specified parameters if needed, and store them in the default location.
@@ -251,38 +255,38 @@ pub fn load_parameters(
     output_path: &Path,
     convert_path: &Path,
 ) -> MASPParameters {
-        // Check the file sizes are correct before hashing large amounts of data.
-        verify_file_size(
-            spend_path,
-            SAPLING_SPEND_BYTES,
-            "masp spend",
-            &spend_path.to_string_lossy(),
-        )
-        .expect(
-            "parameter file size is not correct, \
+    // Check the file sizes are correct before hashing large amounts of data.
+    verify_file_size(
+        spend_path,
+        MASP_SPEND_BYTES,
+        "masp spend",
+        &spend_path.to_string_lossy(),
+    )
+    .expect(
+        "parameter file size is not correct, \
              please clean your MASP parameters directory and re-run `fetch-params`.",
-        );
-    
-        verify_file_size(
-            output_path,
-            SAPLING_OUTPUT_BYTES,
-            "masp output",
-            &output_path.to_string_lossy(),
-        )
-        .expect(
-            "parameter file size is not correct, \
+    );
+
+    verify_file_size(
+        output_path,
+        MASP_OUTPUT_BYTES,
+        "masp output",
+        &output_path.to_string_lossy(),
+    )
+    .expect(
+        "parameter file size is not correct, \
              please clean your MASP parameters directory and re-run `fetch-params`.",
-        );
-        verify_file_size(
-            convert_path,
-            SAPLING_CONVERT_BYTES,
-            "masp convert",
-            &convert_path.to_string_lossy(),
-        )
-        .expect(
-            "parameter file size is not correct, \
+    );
+    verify_file_size(
+        convert_path,
+        MASP_CONVERT_BYTES,
+        "masp convert",
+        &convert_path.to_string_lossy(),
+    )
+    .expect(
+        "parameter file size is not correct, \
              please clean your MASP parameters directory and re-run `fetch-params`.",
-        );
+    );
     // Load from each of the paths
     let spend_fs = File::open(spend_path).expect("couldn't load Sapling spend parameters file");
     let output_fs = File::open(output_path).expect("couldn't load Sapling output parameters file");
@@ -316,24 +320,47 @@ pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R, convert_fs: R) -
     // want to read it, though, so that the BLAKE2b computed afterward is consistent
     // with `b2sum` on the files.
     let mut sink = io::sink();
-    io::copy(&mut spend_fs, &mut sink)
-        .expect("couldn't finish reading MASP spend parameter file");
-    io::copy(&mut output_fs, &mut sink)
-        .expect("couldn't finish reading MASP output parameter file");
-    io::copy(&mut convert_fs, &mut sink)
-    .expect("couldn't finish reading MASP convert parameter file");
 
-    if spend_fs.into_hash() != MASP_SPEND_HASH {
-        panic!("MASP spend parameter file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
-    }
+    // TODO: use the correct paths for Windows and macOS
+    //       use the actual file paths supplied by the caller
+    verify_hash(
+        spend_fs,
+        &mut sink,
+        MASP_SPEND_HASH,
+        MASP_SPEND_BYTES,
+        MASP_SPEND_NAME,
+        "a file",
+    )
+    .expect(
+        "MASP spend parameter file is not correct, \
+         please clean your `~/.masp-params/` and re-run `fetch-params`.",
+    );
 
-    if output_fs.into_hash() != MASP_OUTPUT_HASH {
-        panic!("MASP output parameter file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
-    }
+    verify_hash(
+        output_fs,
+        &mut sink,
+        MASP_OUTPUT_HASH,
+        MASP_OUTPUT_BYTES,
+        MASP_OUTPUT_NAME,
+        "a file",
+    )
+    .expect(
+        "MASP output parameter file is not correct, \
+         please clean your `~/.masp-params/` and re-run `fetch-params`.",
+    );
 
-    if convert_fs.into_hash() != MASP_CONVERT_HASH {
-        panic!("MASP convert file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
-    }
+    verify_hash(
+        convert_fs,
+        &mut sink,
+        MASP_CONVERT_HASH,
+        MASP_CONVERT_BYTES,
+        MASP_CONVERT_NAME,
+        "a file",
+    )
+    .expect(
+        "MASP convert parameter file is not correct, \
+         please clean your `~/.masp-params/` and re-run `fetch-params`.",
+    );
 
     // Prepare verifying keys
     let spend_vk = prepare_verifying_key(&spend_params.vk);
