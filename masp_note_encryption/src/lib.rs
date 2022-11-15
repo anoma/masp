@@ -1,4 +1,14 @@
 //! Note encryption for MASP transactions.
+//!
+//! This crate implements the [in-band secret distribution scheme] for the MASP Sapling
+//! protocol. It provides reusable methods that implement common note encryption
+//! and trial decryption logic, and enforce protocol-agnostic verification requirements.
+//!
+//! Protocol-specific logic is handled via the [`Domain`] trait. Implementations of this
+//! trait are provided in the [`masp_primitives`] (for MASP Sapling) crate;
+//! users with their own existing types can similarly implement the trait themselves.
+//!
+//! [in-band secret distribution scheme]: https://zips.z.cash/protocol/protocol.pdf#saplingandorchardinband
 
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -15,13 +25,11 @@ use alloc::vec::Vec;
 use core::convert::TryInto;
 
 use chacha20::{
-    cipher::{NewCipher, StreamCipher, StreamCipherSeek},
+    cipher::{StreamCipher, StreamCipherSeek},
     ChaCha20,
 };
-use chacha20poly1305::{
-    aead::{AeadInPlace, NewAead},
-    ChaCha20Poly1305,
-};
+use chacha20poly1305::{aead::AeadInPlace, ChaCha20Poly1305, KeyInit};
+use cipher::KeyIvInit;
 
 //use crate::constants::ASSET_IDENTIFIER_LENGTH;
 pub const ASSET_IDENTIFIER_LENGTH: usize = 32;
@@ -107,6 +115,7 @@ enum NoteValidity {
 pub trait Domain {
     type EphemeralSecretKey: ConstantTimeEq;
     type EphemeralPublicKey;
+    type PreparedEphemeralPublicKey;
     type SharedSecret;
     type SymmetricKey: AsRef<[u8]>;
     type Note;
@@ -130,6 +139,9 @@ pub trait Domain {
     /// Extracts the `DiversifiedTransmissionKey` from the note.
     fn get_pk_d(note: &Self::Note) -> Self::DiversifiedTransmissionKey;
 
+    /// Prepare an ephemeral public key for more efficient scalar multiplication.
+    fn prepare_epk(epk: Self::EphemeralPublicKey) -> Self::PreparedEphemeralPublicKey;
+
     /// Derives `EphemeralPublicKey` from `esk` and the note's diversifier.
     fn ka_derive_public(
         note: &Self::Note,
@@ -146,7 +158,7 @@ pub trait Domain {
     /// decryption.
     fn ka_agree_dec(
         ivk: &Self::IncomingViewingKey,
-        epk: &Self::EphemeralPublicKey,
+        epk: &Self::PreparedEphemeralPublicKey,
     ) -> Self::SharedSecret;
 
     /// Derives the `SymmetricKey` used to encrypt the note plaintext.
@@ -300,10 +312,15 @@ pub trait BatchDomain: Domain {
     /// them.
     fn batch_epk(
         ephemeral_keys: impl Iterator<Item = EphemeralKeyBytes>,
-    ) -> Vec<(Option<Self::EphemeralPublicKey>, EphemeralKeyBytes)> {
+    ) -> Vec<(Option<Self::PreparedEphemeralPublicKey>, EphemeralKeyBytes)> {
         // Default implementation: do the non-batched thing.
         ephemeral_keys
-            .map(|ephemeral_key| (Self::epk(&ephemeral_key), ephemeral_key))
+            .map(|ephemeral_key| {
+                (
+                    Self::epk(&ephemeral_key).map(Self::prepare_epk),
+                    ephemeral_key,
+                )
+            })
             .collect()
     }
 }
@@ -332,50 +349,7 @@ pub trait ShieldedOutput<D: Domain, const CIPHERTEXT_SIZE: usize> {
 ///
 /// Implements section 4.19 of the
 /// [Zcash Protocol Specification](https://zips.z.cash/protocol/nu5.pdf#saplingandorchardinband)
-/// NB: the example code is only covering the post-Canopy case.
-///
-/// # Examples
-///
-/// ```
-/// extern crate ff;
-/// extern crate rand_core;
-/// extern crate masp_primitives;
-///
-/// use ff::Field;
-/// use rand_core::OsRng;
-/// use masp_primitives::{
-///     asset_type::AssetType,
-///     keys::{OutgoingViewingKey, prf_expand},
-///     consensus::{TEST_NETWORK, TestNetwork, NetworkUpgrade, Parameters},
-///     transaction::memo::MemoBytes,
-///     note_encryption::sapling_note_encryption,
-///     util::generate_random_rseed,
-///     primitives::{
-///         Diversifier, PaymentAddress, ValueCommitment
-///     },
-/// };
-///
-/// let mut rng = OsRng;
-///
-/// let diversifier = Diversifier([10u8; 11]);
-/// let pk_d = diversifier.g_d().unwrap();
-/// let to = PaymentAddress::from_parts(diversifier, pk_d).unwrap();
-/// let ovk = Some(OutgoingViewingKey([0; 32]));
-///
-/// let value = 1000;
-/// let rcv = jubjub::Fr::random(&mut rng);
-/// let asset_type = AssetType::new(b"note_encryption").unwrap();
-/// let cv = asset_type.value_commitment(1, jubjub::Fr::random(&mut rng));
-///
-/// let height = TEST_NETWORK.activation_height(NetworkUpgrade::Canopy).unwrap();
-/// let rseed = generate_random_rseed(&TEST_NETWORK, height, &mut rng);
-/// let note = to.create_note(asset_type, value, rseed).unwrap();
-/// let cmu = note.cmu();
-///
-/// let mut enc = sapling_note_encryption::<_, TestNetwork>(ovk, note, to, MemoBytes::empty(), &mut rng);
-/// let encCiphertext = enc.encrypt_note_plaintext();
-/// let outCiphertext = enc.encrypt_outgoing_plaintext(&cv.commitment().into(), &cmu, &mut rng);
-/// ```
+
 pub struct NoteEncryption<D: Domain> {
     epk: D::EphemeralPublicKey,
     esk: D::EphemeralSecretKey,
@@ -508,11 +482,11 @@ pub fn try_note_decryption<D: Domain, Output: ShieldedOutput<D, ENC_CIPHERTEXT_S
 ) -> Option<(D::Note, D::Recipient, D::Memo)> {
     let ephemeral_key = output.ephemeral_key();
 
-    let epk = D::epk(&ephemeral_key)?;
+    let epk = D::prepare_epk(D::epk(&ephemeral_key)?);
     let shared_secret = D::ka_agree_dec(ivk, &epk);
     let key = D::kdf(shared_secret, &ephemeral_key);
 
-    try_note_decryption_inner(domain, ivk, &ephemeral_key, output, key)
+    try_note_decryption_inner(domain, ivk, &ephemeral_key, output, &key)
 }
 
 fn try_note_decryption_inner<D: Domain, Output: ShieldedOutput<D, ENC_CIPHERTEXT_SIZE>>(
@@ -520,7 +494,7 @@ fn try_note_decryption_inner<D: Domain, Output: ShieldedOutput<D, ENC_CIPHERTEXT
     ivk: &D::IncomingViewingKey,
     ephemeral_key: &EphemeralKeyBytes,
     output: &Output,
-    key: D::SymmetricKey,
+    key: &D::SymmetricKey,
 ) -> Option<(D::Note, D::Recipient, D::Memo)> {
     let enc_ciphertext = output.enc_ciphertext();
 
@@ -605,11 +579,11 @@ pub fn try_compact_note_decryption<D: Domain, Output: ShieldedOutput<D, COMPACT_
 ) -> Option<(D::Note, D::Recipient)> {
     let ephemeral_key = output.ephemeral_key();
 
-    let epk = D::epk(&ephemeral_key)?;
+    let epk = D::prepare_epk(D::epk(&ephemeral_key)?);
     let shared_secret = D::ka_agree_dec(ivk, &epk);
     let key = D::kdf(shared_secret, &ephemeral_key);
 
-    try_compact_note_decryption_inner(domain, ivk, &ephemeral_key, output, key)
+    try_compact_note_decryption_inner(domain, ivk, &ephemeral_key, output, &key)
 }
 
 fn try_compact_note_decryption_inner<D: Domain, Output: ShieldedOutput<D, COMPACT_NOTE_SIZE>>(
@@ -617,7 +591,7 @@ fn try_compact_note_decryption_inner<D: Domain, Output: ShieldedOutput<D, COMPAC
     ivk: &D::IncomingViewingKey,
     ephemeral_key: &EphemeralKeyBytes,
     output: &Output,
-    key: D::SymmetricKey,
+    key: &D::SymmetricKey,
 ) -> Option<(D::Note, D::Recipient)> {
     // Start from block 1 to skip over Poly1305 keying output
     let mut plaintext = [0; COMPACT_NOTE_SIZE];
