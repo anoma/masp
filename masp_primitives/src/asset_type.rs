@@ -17,6 +17,7 @@ use std::{
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
+    #[borsh_skip]
     nonce: Option<u8>,
 }
 
@@ -176,6 +177,18 @@ impl PartialOrd for AssetType {
 impl Ord for AssetType {
     fn cmp(&self, other: &Self) -> Ordering {
         self.get_identifier().cmp(other.get_identifier())
+    }
+}
+
+impl std::str::FromStr for AssetType {
+    type Err = std::io::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let vec = hex::decode(s).map_err(|x| Self::Err::new(std::io::ErrorKind::InvalidData, x))?;
+        Self::from_identifier(
+            &vec.try_into()
+                .map_err(|_| Self::Err::from(std::io::ErrorKind::InvalidData))?
+        ).ok_or_else(|| Self::Err::from(std::io::ErrorKind::InvalidData))
     }
 }
 
