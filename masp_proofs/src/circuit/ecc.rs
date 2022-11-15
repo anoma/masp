@@ -1,12 +1,18 @@
 //! Gadgets implementing Jubjub elliptic curve operations.
 
-use bellman::gadgets::boolean::Boolean;
-use bellman::gadgets::lookup::lookup3_xy;
-use bellman::gadgets::num::{AllocatedNum, Num};
-use bellman::gadgets::Assignment;
-use bellman::{ConstraintSystem, SynthesisError};
-use group::Curve;
 use std::ops::{AddAssign, MulAssign, Neg, SubAssign};
+
+use bellman::{ConstraintSystem, SynthesisError};
+
+use bellman::gadgets::Assignment;
+
+use bellman::gadgets::num::{AllocatedNum, Num};
+
+use bellman::gadgets::lookup::lookup3_xy;
+
+use bellman::gadgets::boolean::Boolean;
+
+use group::Curve;
 
 use crate::constants::{FixedGenerator, EDWARDS_D, MONTGOMERY_A, MONTGOMERY_SCALE};
 
@@ -614,8 +620,10 @@ impl MontgomeryPoint {
 #[cfg(test)]
 mod test {
     use bellman::ConstraintSystem;
-    use ff::{Field, PrimeField, PrimeFieldBits};
-    use group::{Curve, Group};
+    use group::{
+        ff::{Field, PrimeField, PrimeFieldBits},
+        Curve, Group,
+    };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
 
@@ -849,6 +857,7 @@ mod test {
 
             assert!(cs.is_satisfied());
 
+            #[allow(clippy::branches_sharing_code)]
             if should_we_select {
                 assert_eq!(q.u.get_value().unwrap(), u0);
                 assert_eq!(q.v.get_value().unwrap(), v0);
@@ -856,6 +865,7 @@ mod test {
                 cs.set("select/v'/num", bls12_381::Scalar::one());
                 assert_eq!(cs.which_is_unsatisfied().unwrap(), "select/v' computation");
                 cs.set("select/u'/num", bls12_381::Scalar::zero());
+                assert_eq!(cs.which_is_unsatisfied().unwrap(), "select/u' computation");
             } else {
                 assert_eq!(q.u.get_value().unwrap(), bls12_381::Scalar::zero());
                 assert_eq!(q.v.get_value().unwrap(), bls12_381::Scalar::one());
@@ -863,8 +873,8 @@ mod test {
                 cs.set("select/v'/num", u0);
                 assert_eq!(cs.which_is_unsatisfied().unwrap(), "select/v' computation");
                 cs.set("select/u'/num", v0);
-            }
             assert_eq!(cs.which_is_unsatisfied().unwrap(), "select/u' computation");
+            }
         }
     }
 

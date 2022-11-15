@@ -9,7 +9,7 @@ use group::{Curve, GroupEncoding};
 use masp_primitives::{
     asset_type::AssetType,
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
-    redjubjub::{PublicKey, Signature},
+    sapling::redjubjub::{PublicKey, Signature},
 };
 
 /// A context object for verifying the Sapling components of a Zcash transaction.
@@ -53,9 +53,10 @@ impl SaplingVerificationContext {
         // Compute the signature's message for rk/spend_auth_sig
         let mut data_to_be_signed = [0u8; 64];
         data_to_be_signed[0..32].copy_from_slice(&rk.0.to_bytes());
-        (&mut data_to_be_signed[32..64]).copy_from_slice(&sighash_value[..]);
+        data_to_be_signed[32..64].copy_from_slice(&sighash_value[..]);
 
         // Verify the spend_auth_sig
+        let rk_affine = rk.0.to_affine();
         if !rk.verify_with_zip216(
             &data_to_be_signed,
             &spend_auth_sig,
@@ -68,7 +69,7 @@ impl SaplingVerificationContext {
         // Construct public input for circuit
         let mut public_input = [bls12_381::Scalar::zero(); 7];
         {
-            let affine = rk.0.to_affine();
+            let affine = rk_affine;
             let (u, v) = (affine.get_u(), affine.get_v());
             public_input[0] = u;
             public_input[1] = v;
@@ -196,7 +197,7 @@ impl SaplingVerificationContext {
         // Compute the signature's message for bvk/binding_sig
         let mut data_to_be_signed = [0u8; 64];
         data_to_be_signed[0..32].copy_from_slice(&bvk.0.to_bytes());
-        (&mut data_to_be_signed[32..64]).copy_from_slice(&sighash_value[..]);
+        data_to_be_signed[32..64].copy_from_slice(&sighash_value[..]);
 
         // Verify the binding_sig
         bvk.verify_with_zip216(

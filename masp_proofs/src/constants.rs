@@ -1,8 +1,7 @@
 //! Various constants used for the MASP proofs.
 
 use bls12_381::Scalar;
-use ff::Field;
-use group::{Curve, Group};
+use group::{ff::Field, Curve, Group};
 use jubjub::ExtendedPoint;
 use lazy_static::lazy_static;
 use masp_primitives::constants::{PEDERSEN_HASH_CHUNKS_PER_GENERATOR, PEDERSEN_HASH_GENERATORS};
@@ -22,6 +21,7 @@ pub(crate) const MONTGOMERY_A: Scalar = Scalar::from_raw([
     0x0000_0000_0000_0000,
     0x0000_0000_0000_0000,
 ]);
+
 /// The scaling factor used for conversion to and from the Montgomery form.
 pub(crate) const MONTGOMERY_SCALE: Scalar = Scalar::from_raw([
     0x8f45_35f7_cf82_b8d9,

@@ -3,20 +3,20 @@ use bellman::{
     groth16::{create_random_proof, verify_proof, Parameters, PreparedVerifyingKey, Proof},
 };
 use bls12_381::Bls12;
-use ff::Field;
-use group::{Curve, GroupEncoding};
+use group::{ff::Field, Curve, GroupEncoding};
+use rand_core::OsRng;
+use std::ops::{AddAssign, Neg};
 use masp_primitives::{
     asset_type::AssetType,
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
     convert::AllowedConversion,
     merkle_tree::MerklePath,
-    primitives::{Diversifier, Note, PaymentAddress, ProofGenerationKey, Rseed},
-    redjubjub::{PrivateKey, PublicKey, Signature},
-    sapling::Node,
-    transaction::amount::Amount,
+    sapling::{
+        redjubjub::{PrivateKey, PublicKey, Signature},
+        Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed,
+    },
+    transaction::components::Amount,
 };
-use rand_core::OsRng;
-use std::ops::{AddAssign, Neg};
 
 use super::masp_compute_value_balance;
 use crate::circuit::convert::Convert;
@@ -97,7 +97,7 @@ impl SaplingProvingContext {
             rseed,
         };
 
-        let nullifier = note.nf(&viewing_key, merkle_path.position);
+        let nullifier = note.nf(&viewing_key.nk, merkle_path.position);
 
         // We now have the full witness for our circuit
         let instance = Spend {
@@ -284,7 +284,7 @@ impl SaplingProvingContext {
     /// and output_proof() must be completed before calling this function.
     pub fn binding_sig(
         &self,
-        assets_and_values: &Amount, //&[(AssetType, i64)],
+        assets_and_values: &Amount,
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
         // Initialize secure RNG
@@ -321,7 +321,7 @@ impl SaplingProvingContext {
         // Construct signature message
         let mut data_to_be_signed = [0u8; 64];
         data_to_be_signed[0..32].copy_from_slice(&bvk.0.to_bytes());
-        (&mut data_to_be_signed[32..64]).copy_from_slice(&sighash[..]);
+        data_to_be_signed[32..64].copy_from_slice(&sighash[..]);
 
         // Sign
         Ok(bsk.sign(

@@ -2,8 +2,7 @@
 
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
 
-use masp_primitives::primitives::ValueCommitment;
-use masp_primitives::transaction::amount::Amount;
+use masp_primitives::sapling::ValueCommitment;
 
 use super::pedersen_hash;
 use crate::circuit::sapling::expose_value_commitment;
@@ -130,9 +129,8 @@ impl Circuit<bls12_381::Scalar> for Convert {
 #[test]
 fn test_convert_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use ff::{Field, PrimeField, PrimeFieldBits};
-    use group::Curve;
-    use masp_primitives::{asset_type::AssetType, convert::AllowedConversion, pedersen_hash};
+    use group::{ff::Field, ff::PrimeFieldBits, ff::PrimeField, Curve};
+    use masp_primitives::{asset_type::AssetType, convert::AllowedConversion, sapling::pedersen_hash, transaction::components::Amount};
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
 

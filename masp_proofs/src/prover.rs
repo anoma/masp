@@ -2,15 +2,17 @@
 
 use bellman::groth16::{Parameters, PreparedVerifyingKey};
 use bls12_381::Bls12;
+use std::path::Path;
 use masp_primitives::{
     asset_type::AssetType,
     convert::AllowedConversion,
     merkle_tree::MerklePath,
-    primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
-    prover::{TxProver, GROTH_PROOF_SIZE},
-    redjubjub::{PublicKey, Signature},
-    sapling::Node,
-    transaction::amount::Amount,
+    sapling::{
+        prover::TxProver,
+        redjubjub::{PublicKey, Signature},
+        Diversifier, Node, PaymentAddress, ProofGenerationKey, Rseed,
+    },
+    transaction::components::{Amount, GROTH_PROOF_SIZE},
 };
 
 use crate::{parse_parameters, sapling::SaplingProvingContext};
@@ -19,8 +21,6 @@ use crate::{parse_parameters, sapling::SaplingProvingContext};
 use crate::{
     default_params_folder, load_parameters, MASP_CONVERT_NAME, MASP_OUTPUT_NAME, MASP_SPEND_NAME,
 };
-#[cfg(feature = "local-prover")]
-use std::path::Path;
 
 /// An implementation of [`TxProver`] using Sapling Spend and Output parameters from
 /// locally-accessible paths.
