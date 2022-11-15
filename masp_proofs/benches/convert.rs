@@ -4,8 +4,10 @@ extern crate criterion;
 use bellman::groth16::*;
 use bls12_381::Bls12;
 use criterion::Criterion;
-use ff::Field;
-use masp_primitives::{asset_type::AssetType, convert::AllowedConversion};
+use group::ff::Field;
+use masp_primitives::{
+    asset_type::AssetType, convert::AllowedConversion, transaction::components::Amount,
+};
 use masp_proofs::circuit::convert::{Convert, TREE_DEPTH};
 use rand_core::{RngCore, SeedableRng};
 use rand_xorshift::XorShiftRng;
@@ -36,13 +38,11 @@ fn criterion_benchmark(c: &mut Criterion) {
         let output_value = i as i64 + 1;
         let mint_value = i as i64 + 1;
 
-        let allowed_conversion = AllowedConversion {
-            assets: vec![
-                (spend_asset, spend_value),
-                (output_asset, output_value),
-                (mint_asset, mint_value),
-            ],
-        };
+        let allowed_conversion: AllowedConversion = (Amount::from_pair(spend_asset, spend_value)
+            .unwrap()
+            + Amount::from_pair(output_asset, output_value).unwrap()
+            + Amount::from_pair(mint_asset, mint_value).unwrap())
+        .into();
 
         let value = rng.next_u64();
 

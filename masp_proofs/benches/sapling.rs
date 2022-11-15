@@ -4,11 +4,10 @@ extern crate criterion;
 use bellman::groth16::*;
 use bls12_381::Bls12;
 use criterion::Criterion;
-use ff::Field;
-use group::Group;
+use group::{ff::Field, Group};
 use masp_primitives::{
     asset_type::AssetType,
-    primitives::{Diversifier, ProofGenerationKey},
+    sapling::{Diversifier, ProofGenerationKey},
 };
 use masp_proofs::circuit::sapling::Spend;
 use rand_core::{RngCore, SeedableRng};
