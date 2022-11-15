@@ -3,18 +3,12 @@ use std::convert::TryInto;
 use blake2b_simd::Hash as Blake2bHash;
 
 use super::{
-    amount::Amount,
-    builder::transparent,
-    //components::{
-    sapling::{self},
-    //},
-    //sighash_v4::v4_signature_hash,
+    components::{
+        sapling::{self, GrothProofBytes},
+        transparent, Amount,
+    },
     sighash_v5::v5_signature_hash,
-    Authorization,
-    GrothProofBytes,
-    TransactionData,
-    TransparentAddress,
-    TxDigests,
+    Authorization, TransactionData, TxDigests, TxVersion,
 };
 
 #[cfg(feature = "zfuture")]
@@ -54,32 +48,22 @@ impl AsRef<[u8; 32]> for SignatureHash {
 
 /// Additional context that is needed to compute signature hashes
 /// for transactions that include transparent inputs or outputs.
-pub trait TransparentAuthorizingContext: transparent::Authorization {
-    /// Returns the list of all transparent input amounts, provided
-    /// so that wallets can commit to the transparent input breakdown
-    /// without requiring the full data of the previous transactions
-    /// providing these inputs.
-    fn input_amounts(&self) -> Vec<Amount>;
-    /// Returns the list of all transparent input scriptPubKeys, provided
-    /// so that wallets can commit to the transparent input breakdown
-    /// without requiring the full data of the previous transactions
-    /// providing these inputs.
-    fn input_scriptpubkeys(&self) -> Vec<TransparentAddress>;
-}
+pub trait TransparentAuthorizingContext: transparent::Authorization {}
 
 /// Computes the signature hash for an input to a transaction, given
 /// the full data of the transaction, the input being signed, and the
 /// set of precomputed hashes produced in the construction of the
 /// transaction ID.
 pub fn signature_hash<
-    'a,
-    //TA: TransparentAuthorizingContext,
+    TA: TransparentAuthorizingContext,
     SA: sapling::Authorization<Proof = GrothProofBytes>,
-    A: Authorization<SaplingAuth = SA>, //TransparentAuth = TA>,
+    A: Authorization<SaplingAuth = SA, TransparentAuth = TA>,
 >(
     tx: &TransactionData<A>,
     signable_input: &SignableInput,
     txid_parts: &TxDigests<Blake2bHash>,
 ) -> SignatureHash {
-    SignatureHash(v5_signature_hash(tx, signable_input, txid_parts))
+    SignatureHash(match tx.version {
+        TxVersion::MASPv5 => v5_signature_hash(tx, signable_input, txid_parts),
+    })
 }

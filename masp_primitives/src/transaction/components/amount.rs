@@ -4,16 +4,17 @@ use std::cmp::Ordering;
 use std::collections::btree_map::Keys;
 use std::collections::btree_map::{IntoIter, Iter};
 use std::collections::BTreeMap;
-use std::convert::TryFrom;
 use std::convert::TryInto;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
+use std::io::{Read, Write};
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Index, Mul, MulAssign, Neg, Sub, SubAssign};
-//use crate::serialize::Vector;
-use std::io::{Read, Write};
 use zcash_encoding::Vector;
 
 pub const MAX_MONEY: i64 = i64::MAX;
+lazy_static::lazy_static! {
+pub static ref DEFAULT_FEE: Amount = Amount::from_pair(zec(), 1000).unwrap();
+}
 /// A type-safe representation of some quantity of Zcash.
 ///
 /// An Amount can only be constructed from an integer that is within the valid monetary
@@ -29,6 +30,7 @@ pub struct Amount<Unit: Hash + Ord + BorshSerialize + BorshDeserialize = AssetTy
     pub BTreeMap<Unit, i64>,
 );
 
+// TODO
 impl memuse::DynamicUsage for Amount {
     #[inline(always)]
     fn dynamic_usage(&self) -> usize {
@@ -275,6 +277,18 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<Amo
     }
 }
 
+impl Neg for Amount {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        let mut neg = self.clone();
+        for (_, amount) in neg.0.iter_mut() {
+            *amount = -*amount;
+        }
+        neg
+    }
+}
+
 impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sub<&Amount<Unit>>
     for Amount<Unit>
 {
@@ -303,6 +317,31 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Sum for Amoun
     }
 }
 
+/// A type for balance violations in amount addition and subtraction
+/// (overflow and underflow of allowed ranges)
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum BalanceError {
+    Overflow,
+    Underflow,
+}
+
+impl std::fmt::Display for BalanceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match &self {
+            BalanceError::Overflow => {
+                write!(
+                    f,
+                    "Amount addition resulted in a value outside the valid range."
+                )
+            }
+            BalanceError::Underflow => write!(
+                f,
+                "Amount subtraction resulted in a value outside the valid range."
+            ),
+        }
+    }
+}
+
 pub fn zec() -> AssetType {
     AssetType::new(b"ZEC").unwrap()
 }
@@ -315,6 +354,30 @@ pub fn default_fee() -> Amount {
 pub mod testing {
     use proptest::prelude::prop_compose;
 
+    use super::{Amount, MAX_MONEY};
+    use crate::asset_type::testing::arb_asset_type;
+
+    prop_compose! {
+        pub fn arb_amount()(asset_type in arb_asset_type(), amt in -MAX_MONEY..MAX_MONEY) -> Amount {
+            Amount::from_pair(asset_type, amt).unwrap()
+        }
+    }
+
+    prop_compose! {
+        pub fn arb_nonnegative_amount()(asset_type in arb_asset_type(), amt in 0i64..MAX_MONEY) -> Amount {
+            Amount::from_pair(asset_type, amt).unwrap()
+        }
+    }
+
+    prop_compose! {
+        pub fn arb_positive_amount()(asset_type in arb_asset_type(), amt in 1i64..MAX_MONEY) -> Amount {
+            Amount::from_pair(asset_type, amt).unwrap()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
     use super::{zec, Amount, MAX_MONEY};
 
     #[test]
@@ -380,23 +443,5 @@ pub mod testing {
     fn sub_assign_panics_on_underflow() {
         let mut a = Amount::from_pair(zec(), -MAX_MONEY).unwrap();
         a -= Amount::from_pair(zec(), 1).unwrap();
-    }
-
-    prop_compose! {
-        pub fn arb_amount()(amt in -MAX_MONEY..MAX_MONEY) -> i64 {
-            amt
-        }
-    }
-
-    prop_compose! {
-        pub fn arb_nonnegative_amount()(amt in 0i64..MAX_MONEY) -> i64 {
-            amt
-        }
-    }
-
-    prop_compose! {
-        pub fn arb_positive_amount()(amt in 1i64..MAX_MONEY) -> i64 {
-            amt
-        }
     }
 }

@@ -2,8 +2,9 @@
 use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
 use byteorder::{LittleEndian, WriteBytesExt};
 use ff::PrimeField;
-use group::{cofactor::CofactorGroup, GroupEncoding};
+use group::{cofactor::CofactorGroup, GroupEncoding, WnafBase, WnafScalar};
 use jubjub::{AffinePoint, ExtendedPoint};
+use memuse::DynamicUsage;
 use rand_core::RngCore;
 use std::convert::TryInto;
 
@@ -16,29 +17,58 @@ use masp_note_encryption::{
 };
 
 use crate::{
-    consensus::{self, BlockHeight, NetworkUpgrade::Canopy, ZIP212_GRACE_PERIOD},
-    keys::OutgoingViewingKey,
-    primitives::Rseed,
-    primitives::{Diversifier, Note, PaymentAddress, SaplingIvk},
-    transaction::memo::MemoBytes,
-    transaction::GrothProofBytes,
-    transaction::{amount::Amount, builder::sapling::OutputDescription},
+    consensus::{self, BlockHeight, NetworkUpgrade::MASP, ZIP212_GRACE_PERIOD},
+    memo::MemoBytes,
+    sapling::{keys::OutgoingViewingKey, Diversifier, Note, PaymentAddress, Rseed, SaplingIvk},
+    transaction::{components::sapling::OutputDescription, GrothProofBytes},
 };
-use borsh::{BorshDeserialize, BorshSerialize};
 
 pub const KDF_SAPLING_PERSONALIZATION: &[u8; 16] = b"MASP__SaplingKDF";
 pub const PRF_OCK_PERSONALIZATION: &[u8; 16] = b"MASP__Derive_ock";
+
+const PREPARED_WINDOW_SIZE: usize = 4;
+type PreparedBase = WnafBase<jubjub::ExtendedPoint, PREPARED_WINDOW_SIZE>;
+type PreparedBaseSubgroup = WnafBase<jubjub::SubgroupPoint, PREPARED_WINDOW_SIZE>;
+type PreparedScalar = WnafScalar<jubjub::Scalar, PREPARED_WINDOW_SIZE>;
+
+/// A Sapling incoming viewing key that has been precomputed for trial decryption.
+#[derive(Clone, Debug)]
+pub struct PreparedIncomingViewingKey(PreparedScalar);
+
+impl DynamicUsage for PreparedIncomingViewingKey {
+    fn dynamic_usage(&self) -> usize {
+        self.0.dynamic_usage()
+    }
+
+    fn dynamic_usage_bounds(&self) -> (usize, Option<usize>) {
+        self.0.dynamic_usage_bounds()
+    }
+}
+
+impl PreparedIncomingViewingKey {
+    /// Performs the necessary precomputations to use a `SaplingIvk` for note decryption.
+    pub fn new(ivk: &SaplingIvk) -> Self {
+        Self(PreparedScalar::new(&ivk.0))
+    }
+}
+
+/// A Sapling ephemeral public key that has been precomputed for trial decryption.
+#[derive(Clone, Debug)]
+pub struct PreparedEphemeralPublicKey(PreparedBase);
 
 /// Sapling key agreement for note encryption.
 ///
 /// Implements section 5.4.4.3 of the Zcash Protocol Specification.
 pub fn sapling_ka_agree(esk: &jubjub::Fr, pk_d: &jubjub::ExtendedPoint) -> jubjub::SubgroupPoint {
+    sapling_ka_agree_prepared(&PreparedScalar::new(esk), &PreparedBase::new(*pk_d))
+}
+
+fn sapling_ka_agree_prepared(esk: &PreparedScalar, pk_d: &PreparedBase) -> jubjub::SubgroupPoint {
     // [8 esk] pk_d
     // <ExtendedPoint as CofactorGroup>::clear_cofactor is implemented using
     // ExtendedPoint::mul_by_cofactor in the jubjub crate.
 
-    let mut wnaf = group::Wnaf::new();
-    wnaf.scalar(esk).base(*pk_d).clear_cofactor()
+    (pk_d * esk).clear_cofactor()
 }
 
 /// Sapling KDF for note encryption.
@@ -101,9 +131,6 @@ where
     // The unwraps below are guaranteed to succeed by the assertion above
     let diversifier = Diversifier(plaintext[1..12].try_into().unwrap());
     let value = u64::from_le_bytes(plaintext[12..20].try_into().unwrap());
-    if value > crate::transaction::amount::MAX_MONEY.try_into().unwrap() {
-        return None;
-    }
     let asset_type = AssetType::from_identifier(plaintext[20..52].try_into().unwrap())?;
     let r: [u8; 32] = plaintext[52..COMPACT_NOTE_SIZE].try_into().unwrap();
 
@@ -126,6 +153,21 @@ pub struct SaplingDomain<P: consensus::Parameters> {
     height: BlockHeight,
 }
 
+impl<P: consensus::Parameters + DynamicUsage> DynamicUsage for SaplingDomain<P> {
+    fn dynamic_usage(&self) -> usize {
+        self.params.dynamic_usage() + self.height.dynamic_usage()
+    }
+
+    fn dynamic_usage_bounds(&self) -> (usize, Option<usize>) {
+        let (params_lower, params_upper) = self.params.dynamic_usage_bounds();
+        let (height_lower, height_upper) = self.height.dynamic_usage_bounds();
+        (
+            params_lower + height_lower,
+            params_upper.zip(height_upper).map(|(a, b)| a + b),
+        )
+    }
+}
+
 impl<P: consensus::Parameters> SaplingDomain<P> {
     pub fn for_height(params: P, height: BlockHeight) -> Self {
         Self { params, height }
@@ -138,12 +180,13 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
     // points must not be small-order, and all points with non-canonical serialization
     // are small-order.
     type EphemeralPublicKey = jubjub::ExtendedPoint;
+    type PreparedEphemeralPublicKey = PreparedEphemeralPublicKey;
     type SharedSecret = jubjub::SubgroupPoint;
     type SymmetricKey = Blake2bHash;
     type Note = Note;
     type Recipient = PaymentAddress;
     type DiversifiedTransmissionKey = jubjub::SubgroupPoint;
-    type IncomingViewingKey = SaplingIvk;
+    type IncomingViewingKey = PreparedIncomingViewingKey;
     type OutgoingViewingKey = OutgoingViewingKey;
     type ValueCommitment = jubjub::ExtendedPoint;
     type ExtractedCommitment = bls12_381::Scalar;
@@ -156,6 +199,10 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
 
     fn get_pk_d(note: &Self::Note) -> Self::DiversifiedTransmissionKey {
         note.pk_d
+    }
+
+    fn prepare_epk(epk: Self::EphemeralPublicKey) -> Self::PreparedEphemeralPublicKey {
+        PreparedEphemeralPublicKey(PreparedBase::new(epk))
     }
 
     fn ka_derive_public(
@@ -179,9 +226,9 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
 
     fn ka_agree_dec(
         ivk: &Self::IncomingViewingKey,
-        epk: &Self::EphemeralPublicKey,
+        epk: &Self::PreparedEphemeralPublicKey,
     ) -> Self::SharedSecret {
-        sapling_ka_agree(&ivk.0, epk)
+        sapling_ka_agree_prepared(&ivk.0, &epk.0)
     }
 
     /// Sapling KDF for note encryption.
@@ -260,7 +307,7 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
         plaintext: &[u8],
     ) -> Option<(Self::Note, Self::Recipient)> {
         sapling_parse_note_plaintext_without_memo(self, plaintext, |diversifier| {
-            Some(diversifier.g_d()? * ivk.0)
+            Some(&PreparedBaseSubgroup::new(diversifier.g_d()?) * &ivk.0)
         })
     }
 
@@ -339,13 +386,18 @@ impl<P: consensus::Parameters> BatchDomain for SaplingDomain<P> {
 
     fn batch_epk(
         ephemeral_keys: impl Iterator<Item = EphemeralKeyBytes>,
-    ) -> Vec<(Option<Self::EphemeralPublicKey>, EphemeralKeyBytes)> {
+    ) -> Vec<(Option<Self::PreparedEphemeralPublicKey>, EphemeralKeyBytes)> {
         let ephemeral_keys: Vec<_> = ephemeral_keys.collect();
         let epks = jubjub::AffinePoint::batch_from_bytes(ephemeral_keys.iter().map(|b| b.0));
         epks.into_iter()
             .zip(ephemeral_keys.into_iter())
             .map(|(epk, ephemeral_key)| {
-                (epk.map(jubjub::ExtendedPoint::from).into(), ephemeral_key)
+                (
+                    epk.map(jubjub::ExtendedPoint::from)
+                        .map(Self::prepare_epk)
+                        .into(),
+                    ephemeral_key,
+                )
             })
             .collect()
     }
@@ -355,6 +407,47 @@ impl<P: consensus::Parameters> BatchDomain for SaplingDomain<P> {
 ///
 /// Setting `ovk` to `None` represents the `ovk = ⊥` case, where the note cannot be
 /// recovered by the sender.
+///
+/// NB: the example code here only covers the post-MASP case.
+///
+/// # Examples
+///
+/// ```
+/// use ff::Field;
+/// use rand_core::OsRng;
+/// use masp_primitives::{
+///     asset_type::AssetType,
+///     keys::{OutgoingViewingKey, prf_expand},
+///     consensus::{TEST_NETWORK, TestNetwork, NetworkUpgrade, Parameters},
+///     memo::MemoBytes,
+///     sapling::{
+///         note_encryption::sapling_note_encryption,
+///         util::generate_random_rseed,
+///         Diversifier, PaymentAddress, Rseed, ValueCommitment
+///     },
+/// };
+///
+/// let mut rng = OsRng;
+///
+/// let diversifier = Diversifier([10u8; 11]);
+/// let pk_d = diversifier.g_d().unwrap();
+/// let to = PaymentAddress::from_parts(diversifier, pk_d).unwrap();
+/// let ovk = Some(OutgoingViewingKey([0; 32]));
+///
+/// let value = 1000;
+/// let rcv = jubjub::Fr::random(&mut rng);
+/// let asset_type = AssetType::new(b"note_encryption").unwrap();
+/// let cv = asset_type.value_commitment(1, jubjub::Fr::random(&mut rng));
+///
+/// let height = TEST_NETWORK.activation_height(NetworkUpgrade::MASP).unwrap();
+/// let rseed = generate_random_rseed(&TEST_NETWORK, height, &mut rng);
+/// let note = to.create_note(asset_type, value, rseed).unwrap();
+/// let cmu = note.cmu();
+///
+/// let mut enc = sapling_note_encryption::<_, TestNetwork>(ovk, note, to, MemoBytes::empty(), &mut rng);
+/// let encCiphertext = enc.encrypt_note_plaintext();
+/// let outCiphertext = enc.encrypt_outgoing_plaintext(&cv.commitment().into(), &cmu, &mut rng);
+/// ```
 pub fn sapling_note_encryption<R: RngCore, P: consensus::Parameters>(
     ovk: Option<OutgoingViewingKey>,
     note: Note,
@@ -373,21 +466,20 @@ pub fn plaintext_version_is_valid<P: consensus::Parameters>(
     height: BlockHeight,
     leadbyte: u8,
 ) -> bool {
-    if params.is_nu_active(Canopy, height) {
-        let grace_period_end_height =
-            params.activation_height(Canopy).unwrap() + ZIP212_GRACE_PERIOD;
+    if params.is_nu_active(MASP, height) {
+        let grace_period_end_height = params.activation_height(MASP).unwrap() + ZIP212_GRACE_PERIOD;
 
         if height < grace_period_end_height && leadbyte != 0x01 && leadbyte != 0x02 {
-            // non-{0x01,0x02} received after Canopy activation and before grace period has elapsed
+            // non-{0x01,0x02} received after MASP activation and before grace period has elapsed
             false
         } else if height >= grace_period_end_height && leadbyte != 0x02 {
-            // non-0x02 received past (Canopy activation height + grace period)
+            // non-0x02 received past (MASP activation height + grace period)
             false
         } else {
             true
         }
     } else {
-        // return false if non-0x01 received when Canopy is not active
+        // return false if non-0x01 received when MASP is not active
         leadbyte == 0x01
     }
 }
@@ -398,7 +490,7 @@ pub fn try_sapling_note_decryption<
 >(
     params: &P,
     height: BlockHeight,
-    ivk: &SaplingIvk,
+    ivk: &PreparedIncomingViewingKey,
     output: &Output,
 ) -> Option<(Note, PaymentAddress, MemoBytes)> {
     let domain = SaplingDomain {
@@ -414,7 +506,7 @@ pub fn try_sapling_compact_note_decryption<
 >(
     params: &P,
     height: BlockHeight,
-    ivk: &SaplingIvk,
+    ivk: &PreparedIncomingViewingKey,
     output: &Output,
 ) -> Option<(Note, PaymentAddress)> {
     let domain = SaplingDomain {
@@ -471,17 +563,20 @@ pub fn try_sapling_output_recovery<P: consensus::Parameters>(
 
 #[cfg(test)]
 mod tests {
-    use chacha20poly1305::{aead::AeadInPlace, ChaCha20Poly1305, KeyInit};
+    use chacha20poly1305::{
+        aead::{AeadInPlace, KeyInit},
+        ChaCha20Poly1305,
+    };
     use ff::{Field, PrimeField};
     use group::Group;
-    use group::GroupEncoding;
+    use group::{cofactor::CofactorGroup, GroupEncoding};
     use rand_core::OsRng;
     use rand_core::{CryptoRng, RngCore};
     use std::convert::TryInto;
 
     use masp_note_encryption::{
-        EphemeralKeyBytes, OutgoingCipherKey, ENC_CIPHERTEXT_SIZE, NOTE_PLAINTEXT_SIZE,
-        OUT_CIPHERTEXT_SIZE, OUT_PLAINTEXT_SIZE,
+        batch, EphemeralKeyBytes, NoteEncryption, OutgoingCipherKey, ENC_CIPHERTEXT_SIZE,
+        NOTE_PLAINTEXT_SIZE, OUT_CIPHERTEXT_SIZE, OUT_PLAINTEXT_SIZE,
     };
 
     use super::{
@@ -489,22 +584,24 @@ mod tests {
         try_sapling_compact_note_decryption, try_sapling_note_decryption,
         try_sapling_output_recovery, try_sapling_output_recovery_with_ock, SaplingDomain,
     };
-    use crate::note_encryption::AssetType;
-
-    use crate::consensus::{
-        BlockHeight, NetworkUpgrade::Canopy, Parameters, TestNetwork, TEST_NETWORK,
-        ZIP212_GRACE_PERIOD,
-    };
 
     use crate::{
+        consensus::{
+            BlockHeight, NetworkUpgrade::MASP, Parameters, TestNetwork, TEST_NETWORK,
+            ZIP212_GRACE_PERIOD,
+        },
         keys::OutgoingViewingKey,
-        primitives::{Diversifier, Note, PaymentAddress, SaplingIvk},
-        prover::GROTH_PROOF_SIZE,
-        transaction::builder::sapling::{CompactOutputDescription, OutputDescription},
-    };
-    use crate::{
-        transaction::{memo::MemoBytes, GrothProofBytes},
-        util::generate_random_rseed,
+        memo::MemoBytes,
+        sapling::{
+            note_encryption::{AssetType, PreparedIncomingViewingKey},
+            util::generate_random_rseed,
+        },
+        sapling::{Diversifier, PaymentAddress, Rseed, SaplingIvk},
+        transaction::components::{
+            amount::zec,
+            sapling::{self, CompactOutputDescription, OutputDescription},
+            GROTH_PROOF_SIZE,
+        },
     };
 
     fn random_enc_ciphertext<R: RngCore + CryptoRng>(
@@ -513,18 +610,21 @@ mod tests {
     ) -> (
         OutgoingViewingKey,
         OutgoingCipherKey,
-        SaplingIvk,
-        OutputDescription<GrothProofBytes>,
+        PreparedIncomingViewingKey,
+        OutputDescription<sapling::GrothProofBytes>,
     ) {
         let ivk = SaplingIvk(jubjub::Fr::random(&mut rng));
+        let prepared_ivk = PreparedIncomingViewingKey::new(&ivk);
 
-        let (ovk, ock, output, _, _, _) = random_enc_ciphertext_with(height, &ivk, rng);
+        let (ovk, ock, output) = random_enc_ciphertext_with(height, &ivk, rng);
 
-        assert!(try_sapling_note_decryption(&TEST_NETWORK, height, &ivk, &output).is_some());
+        assert!(
+            try_sapling_note_decryption(&TEST_NETWORK, height, &prepared_ivk, &output).is_some()
+        );
         assert!(try_sapling_compact_note_decryption(
             &TEST_NETWORK,
             height,
-            &ivk,
+            &prepared_ivk,
             &CompactOutputDescription::from(output.clone()),
         )
         .is_some());
@@ -537,7 +637,7 @@ mod tests {
         assert!(ock_output_recovery.is_some());
         assert_eq!(ovk_output_recovery, ock_output_recovery);
 
-        (ovk, ock, ivk, output)
+        (ovk, ock, prepared_ivk, output)
     }
 
     fn random_enc_ciphertext_with<R: RngCore + CryptoRng>(
@@ -547,17 +647,14 @@ mod tests {
     ) -> (
         OutgoingViewingKey,
         OutgoingCipherKey,
-        OutputDescription<GrothProofBytes>,
-        Note,
-        PaymentAddress,
-        MemoBytes,
+        OutputDescription<sapling::GrothProofBytes>,
     ) {
         let diversifier = Diversifier([10u8; 11]);
         let pk_d = diversifier.g_d().unwrap() * ivk.0;
         let pa = PaymentAddress::from_parts_unchecked(diversifier, pk_d);
 
         // Construct the value commitment for the proof instance
-        let value = 100; // TODO Amount::from_u64(100).unwrap();
+        let value = 100u64;
 
         let asset_type = AssetType::new("BTC".as_bytes()).unwrap();
         let value_commitment = asset_type.value_commitment(value, jubjub::Fr::random(&mut rng));
@@ -570,12 +667,11 @@ mod tests {
         let cmu = note.cmu();
 
         let ovk = OutgoingViewingKey([0; 32]);
-        let memo = MemoBytes::empty();
         let ne = sapling_note_encryption::<_, TestNetwork>(
             Some(ovk),
-            note.clone(),
-            pa.clone(),
-            memo.clone(),
+            note,
+            pa,
+            MemoBytes::empty(),
             &mut rng,
         );
         let epk = *ne.epk();
@@ -590,7 +686,7 @@ mod tests {
             zkproof: [0u8; GROTH_PROOF_SIZE],
         };
 
-        (ovk, ock, output, note, pa, memo)
+        (ovk, ock, output)
     }
 
     fn reencrypt_enc_ciphertext(
@@ -682,7 +778,7 @@ mod tests {
     #[test]
     fn decryption_with_invalid_ivk() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (_, _, _, output) = random_enc_ciphertext(height, &mut rng);
@@ -691,7 +787,7 @@ mod tests {
                 try_sapling_note_decryption(
                     &TEST_NETWORK,
                     height,
-                    &SaplingIvk(jubjub::Fr::random(&mut rng)),
+                    &PreparedIncomingViewingKey::new(&SaplingIvk(jubjub::Fr::random(&mut rng))),
                     &output
                 ),
                 None
@@ -702,7 +798,7 @@ mod tests {
     #[test]
     fn decryption_with_invalid_epk() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (_, _, ivk, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -719,7 +815,7 @@ mod tests {
     #[test]
     fn decryption_with_invalid_cmu() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (_, _, ivk, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -735,7 +831,7 @@ mod tests {
     #[test]
     fn decryption_with_invalid_tag() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (_, _, ivk, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -751,9 +847,8 @@ mod tests {
     #[test]
     fn decryption_with_invalid_version_byte() {
         let mut rng = OsRng;
-        let canopy_activation_height = TEST_NETWORK.activation_height(Canopy).unwrap();
+        let canopy_activation_height = TEST_NETWORK.activation_height(MASP).unwrap();
         let heights = [
-            // canopy_activation_height - 1,
             canopy_activation_height,
             canopy_activation_height + ZIP212_GRACE_PERIOD,
         ];
@@ -781,7 +876,7 @@ mod tests {
     #[test]
     fn decryption_with_invalid_diversifier() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (ovk, _, ivk, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -805,7 +900,7 @@ mod tests {
     #[test]
     fn decryption_with_incorrect_diversifier() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (ovk, _, ivk, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -830,7 +925,7 @@ mod tests {
     #[test]
     fn compact_decryption_with_invalid_ivk() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (_, _, _, output) = random_enc_ciphertext(height, &mut rng);
@@ -839,7 +934,7 @@ mod tests {
                 try_sapling_compact_note_decryption(
                     &TEST_NETWORK,
                     height,
-                    &SaplingIvk(jubjub::Fr::random(&mut rng)),
+                    &PreparedIncomingViewingKey::new(&SaplingIvk(jubjub::Fr::random(&mut rng))),
                     &CompactOutputDescription::from(output)
                 ),
                 None
@@ -850,7 +945,7 @@ mod tests {
     #[test]
     fn compact_decryption_with_invalid_epk() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (_, _, ivk, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -871,7 +966,7 @@ mod tests {
     #[test]
     fn compact_decryption_with_invalid_cmu() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (_, _, ivk, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -892,9 +987,8 @@ mod tests {
     #[test]
     fn compact_decryption_with_invalid_version_byte() {
         let mut rng = OsRng;
-        let canopy_activation_height = TEST_NETWORK.activation_height(Canopy).unwrap();
+        let canopy_activation_height = TEST_NETWORK.activation_height(MASP).unwrap();
         let heights = [
-            // canopy_activation_height - 1,
             canopy_activation_height,
             canopy_activation_height + ZIP212_GRACE_PERIOD,
         ];
@@ -927,7 +1021,7 @@ mod tests {
     #[test]
     fn compact_decryption_with_invalid_diversifier() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (ovk, _, ivk, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -956,7 +1050,7 @@ mod tests {
     #[test]
     fn compact_decryption_with_incorrect_diversifier() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (ovk, _, ivk, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -985,7 +1079,7 @@ mod tests {
     #[test]
     fn recovery_with_invalid_ovk() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (mut ovk, _, _, output) = random_enc_ciphertext(height, &mut rng);
@@ -1001,7 +1095,7 @@ mod tests {
     #[test]
     fn recovery_with_invalid_ock() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (_, _, _, output) = random_enc_ciphertext(height, &mut rng);
@@ -1021,7 +1115,7 @@ mod tests {
     #[test]
     fn recovery_with_invalid_cv() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (ovk, _, _, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -1037,7 +1131,7 @@ mod tests {
     #[test]
     fn recovery_with_invalid_cmu() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (ovk, ock, _, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -1058,7 +1152,7 @@ mod tests {
     #[test]
     fn recovery_with_invalid_epk() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (ovk, ock, _, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -1079,7 +1173,7 @@ mod tests {
     #[test]
     fn recovery_with_invalid_enc_tag() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (ovk, ock, _, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -1099,7 +1193,7 @@ mod tests {
     #[test]
     fn recovery_with_invalid_out_tag() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (ovk, ock, _, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -1119,9 +1213,8 @@ mod tests {
     #[test]
     fn recovery_with_invalid_version_byte() {
         let mut rng = OsRng;
-        let canopy_activation_height = TEST_NETWORK.activation_height(Canopy).unwrap();
+        let canopy_activation_height = TEST_NETWORK.activation_height(MASP).unwrap();
         let heights = [
-            // canopy_activation_height - 1,
             canopy_activation_height,
             canopy_activation_height + ZIP212_GRACE_PERIOD,
         ];
@@ -1153,7 +1246,7 @@ mod tests {
     #[test]
     fn recovery_with_invalid_diversifier() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (ovk, ock, _, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -1181,7 +1274,7 @@ mod tests {
     #[test]
     fn recovery_with_incorrect_diversifier() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let (ovk, ock, _, mut output) = random_enc_ciphertext(height, &mut rng);
@@ -1209,11 +1302,11 @@ mod tests {
     #[test]
     fn recovery_with_invalid_pk_d() {
         let mut rng = OsRng;
-        let heights = [TEST_NETWORK.activation_height(Canopy).unwrap()];
+        let heights = [TEST_NETWORK.activation_height(MASP).unwrap()];
 
         for &height in heights.iter() {
             let ivk = SaplingIvk(jubjub::Fr::zero());
-            let (ovk, ock, output, _, _, _) = random_enc_ciphertext_with(height, &ivk, &mut rng);
+            let (ovk, ock, output) = random_enc_ciphertext_with(height, &ivk, &mut rng);
 
             assert_eq!(
                 try_sapling_output_recovery(&TEST_NETWORK, height, &ovk, &output,),
@@ -1227,62 +1320,186 @@ mod tests {
     }
 
     #[test]
-    fn test_note_encryption() {
-        // Encryption
-        let mut rng = OsRng;
-        let height = TEST_NETWORK.activation_height(Canopy).unwrap();
-        let ivk = SaplingIvk(jubjub::Fr::random(rng));
-        let (ovk, ock, output, note, to, memo) = random_enc_ciphertext_with(height, &ivk, &mut rng);
+    /*     fn test_note_encryption() {
+            // Encryption
+            let mut rng = OsRng;
+            let height = TEST_NETWORK.activation_height(MASP).unwrap();
+            let ivk = SaplingIvk(jubjub::Fr::random(rng));
+            let (ovk, ock, output, note, to, memo) = random_enc_ciphertext_with(height, &ivk, &mut rng);
+    */
+    fn test_vectors() {
+        let test_vectors = crate::test_vectors::note_encryption::make_test_vectors();
 
-        // Decryption
-        match try_sapling_note_decryption(&TEST_NETWORK, height, &ivk, &output) {
-            Some((decrypted_note, decrypted_to, decrypted_memo)) => {
-                assert_eq!(decrypted_note, note);
-                assert_eq!(decrypted_to, to);
-                assert_eq!(decrypted_memo, memo);
-            }
-            None => panic!("Note decryption failed"),
+        macro_rules! read_bls12_381_scalar {
+            ($field:expr) => {{
+                bls12_381::Scalar::from_repr($field[..].try_into().unwrap()).unwrap()
+            }};
         }
 
-        match try_sapling_compact_note_decryption(
-            &TEST_NETWORK,
-            height,
-            &ivk,
-            &CompactOutputDescription::from(output.clone()),
-        ) {
-            Some((decrypted_note, decrypted_to)) => {
-                assert_eq!(decrypted_note, note);
-                assert_eq!(decrypted_to, to);
-            }
-            None => panic!("Compact note decryption failed"),
+        macro_rules! read_jubjub_scalar {
+            ($field:expr) => {{
+                jubjub::Fr::from_repr($field[..].try_into().unwrap()).unwrap()
+            }};
         }
 
-        match try_sapling_output_recovery(&TEST_NETWORK, height, &ovk, &output) {
-            Some((decrypted_note, decrypted_to, decrypted_memo)) => {
-                assert_eq!(decrypted_note, note);
-                assert_eq!(decrypted_to, to);
-                assert_eq!(decrypted_memo, memo);
-            }
-            None => panic!("Output recovery failed"),
+        macro_rules! read_point {
+            ($field:expr) => {
+                jubjub::ExtendedPoint::from_bytes(&$field).unwrap()
+            };
         }
 
-        match try_sapling_output_recovery_with_ock(&TEST_NETWORK, height, &ock, &output) {
-            Some((decrypted_note, decrypted_to, decrypted_memo)) => {
-                assert_eq!(decrypted_note, note);
-                assert_eq!(decrypted_to, to);
-                assert_eq!(decrypted_memo, memo);
+        let height = TEST_NETWORK.activation_height(MASP).unwrap();
+
+        for tv in test_vectors {
+            //
+            // Load the test vector components
+            //
+
+            let ivk = PreparedIncomingViewingKey::new(&SaplingIvk(read_jubjub_scalar!(tv.ivk)));
+            let pk_d = read_point!(tv.default_pk_d).into_subgroup().unwrap();
+            let rcm = read_jubjub_scalar!(tv.rcm);
+            let cv = read_point!(tv.cv);
+            let cmu = read_bls12_381_scalar!(tv.cmu);
+            let esk = read_jubjub_scalar!(tv.esk);
+            let ephemeral_key = EphemeralKeyBytes(tv.epk);
+
+            //
+            // Test the individual components
+            //
+
+            let shared_secret = sapling_ka_agree(&esk, &pk_d.into());
+            assert_eq!(shared_secret.to_bytes(), tv.shared_secret);
+
+            let k_enc = kdf_sapling(shared_secret, &ephemeral_key);
+            assert_eq!(k_enc.as_bytes(), tv.k_enc);
+
+            let ovk = OutgoingViewingKey(tv.ovk);
+            let ock = prf_ock(&ovk, &cv, &cmu.to_repr(), &ephemeral_key);
+            assert_eq!(ock.as_ref(), tv.ock);
+
+            let asset_type = zec();
+            let to = PaymentAddress::from_parts(Diversifier(tv.default_d), pk_d).unwrap();
+            let note = to
+                .create_note(asset_type, tv.v, Rseed::BeforeZip212(rcm))
+                .unwrap();
+            assert_eq!(note.cmu(), cmu);
+
+            let tmp_cenc = [0u8; 612]; //TODO
+
+            let output = OutputDescription {
+                cv,
+                cmu,
+                ephemeral_key,
+                enc_ciphertext: tmp_cenc, //tv.c_enc,
+                out_ciphertext: tv.c_out,
+                zkproof: [0u8; GROTH_PROOF_SIZE],
+            };
+
+            //
+            // Test decryption
+            // (Tested first because it only requires immutable references.)
+            //
+
+            match try_sapling_note_decryption(&TEST_NETWORK, height, &ivk, &output) {
+                Some((decrypted_note, decrypted_to, decrypted_memo)) => {
+                    assert_eq!(decrypted_note, note);
+                    assert_eq!(decrypted_to, to);
+                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
+                }
+                None => panic!("Note decryption failed"),
             }
-            None => panic!("Output recovery with ock failed"),
+
+            match try_sapling_compact_note_decryption(
+                &TEST_NETWORK,
+                height,
+                &ivk,
+                &CompactOutputDescription::from(output.clone()),
+            ) {
+                Some((decrypted_note, decrypted_to)) => {
+                    assert_eq!(decrypted_note, note);
+                    assert_eq!(decrypted_to, to);
+                }
+                None => panic!("Compact note decryption failed"),
+            }
+
+            match try_sapling_output_recovery(&TEST_NETWORK, height, &ovk, &output) {
+                Some((decrypted_note, decrypted_to, decrypted_memo)) => {
+                    assert_eq!(decrypted_note, note);
+                    assert_eq!(decrypted_to, to);
+                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
+                }
+                None => panic!("Output recovery failed"),
+            }
+
+            match &batch::try_note_decryption(
+                &[ivk.clone()],
+                &[(
+                    SaplingDomain::for_height(TEST_NETWORK, height),
+                    output.clone(),
+                )],
+            )[..]
+            {
+                [Some(((decrypted_note, decrypted_to, decrypted_memo), i))] => {
+                    assert_eq!(decrypted_note, &note);
+                    assert_eq!(decrypted_to, &to);
+                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
+                    assert_eq!(*i, 0);
+                }
+                _ => panic!("Note decryption failed"),
+            }
+
+            match &batch::try_compact_note_decryption(
+                &[ivk.clone()],
+                &[(
+                    SaplingDomain::for_height(TEST_NETWORK, height),
+                    CompactOutputDescription::from(output.clone()),
+                )],
+            )[..]
+            {
+                [Some(((decrypted_note, decrypted_to), i))] => {
+                    assert_eq!(decrypted_note, &note);
+                    assert_eq!(decrypted_to, &to);
+                    assert_eq!(*i, 0);
+                }
+                _ => panic!("Note decryption failed"),
+            }
+
+            match try_sapling_output_recovery_with_ock(&TEST_NETWORK, height, &ock, &output) {
+                Some((decrypted_note, decrypted_to, decrypted_memo)) => {
+                    assert_eq!(decrypted_note, note);
+                    assert_eq!(decrypted_to, to);
+                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
+                }
+                None => panic!("Output recovery with ock failed"),
+            }
+
+            //
+            // Test encryption
+            //
+
+            let ne = NoteEncryption::<SaplingDomain<TestNetwork>>::new_with_esk(
+                esk,
+                Some(ovk),
+                note,
+                to,
+                MemoBytes::from_bytes(&tv.memo).unwrap(),
+            );
+
+            assert_eq!(ne.encrypt_note_plaintext().as_ref(), &tv.c_enc[..]);
+            assert_eq!(
+                &ne.encrypt_outgoing_plaintext(&cv, &cmu, &mut OsRng)[..],
+                &tv.c_out[..]
+            );
         }
     }
 
     #[test]
     fn batching() {
         let mut rng = OsRng;
-        let height = TEST_NETWORK.activation_height(Canopy).unwrap();
+        let height = TEST_NETWORK.activation_height(MASP).unwrap();
 
         // Test batch trial-decryption with multiple IVKs and outputs.
-        let invalid_ivk = SaplingIvk(jubjub::Fr::random(rng));
+        let invalid_ivk = PreparedIncomingViewingKey::new(&SaplingIvk(jubjub::Fr::random(rng)));
         let valid_ivk = SaplingIvk(jubjub::Fr::random(rng));
         let outputs: Vec<_> = (0..10)
             .map(|_| {
@@ -1292,26 +1509,24 @@ mod tests {
                 )
             })
             .collect();
+        let valid_ivk = PreparedIncomingViewingKey::new(&valid_ivk);
 
-        let res = masp_note_encryption::batch::try_note_decryption(
-            &[invalid_ivk.clone(), valid_ivk.clone()],
-            &outputs,
-        );
-        assert_eq!(res.len(), 20);
-        // The batched trial decryptions with invalid_ivk failed.
-        assert_eq!(&res[..10], &vec![None; 10][..]);
-        for (result, (_, output)) in res[10..].iter().zip(outputs.iter()) {
-            // Confirm that the outputs should indeed have failed with invalid_ivk
-            assert_eq!(
-                try_sapling_note_decryption(&TEST_NETWORK, height, &invalid_ivk, output),
-                None
-            );
+        // Check that batched trial decryptions with invalid_ivk fails.
+        let res = batch::try_note_decryption(&[invalid_ivk.clone()], &outputs);
+        assert_eq!(res.len(), 10);
+        assert_eq!(&res[..], &vec![None; 10][..]);
 
+        // Check that batched trial decryptions with valid_ivk succeeds.
+        let res = batch::try_note_decryption(&[invalid_ivk, valid_ivk.clone()], &outputs);
+        assert_eq!(res.len(), 10);
+        for (result, (_, output)) in res.iter().zip(outputs.iter()) {
             // Confirm the successful batched trial decryptions gave the same result.
+            // In all cases, the index of the valid ivk is returned.
             assert!(result.is_some());
             assert_eq!(
                 result,
                 &try_sapling_note_decryption(&TEST_NETWORK, height, &valid_ivk, output)
+                    .map(|r| (r, 1))
             );
         }
     }

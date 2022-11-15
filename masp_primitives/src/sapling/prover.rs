@@ -4,12 +4,14 @@ use crate::{
     asset_type::AssetType,
     convert::AllowedConversion,
     merkle_tree::MerklePath,
-    primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
-    redjubjub::{PublicKey, Signature},
-    sapling::Node,
-    transaction::amount::Amount,
+    sapling::{
+        redjubjub::{PublicKey, Signature},
+        Node,
+    },
+    transaction::components::{Amount, GROTH_PROOF_SIZE},
 };
-pub const GROTH_PROOF_SIZE: usize = 48 + 96 + 48;
+
+use super::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed};
 
 /// Interface for creating zero-knowledge proofs for shielded transactions.
 pub trait TxProver {
@@ -20,9 +22,10 @@ pub trait TxProver {
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext;
 
     /// Create the value commitment, re-randomized key, and proof for a MASP
-    /// SpendDescription, while accumulating its value commitment randomness inside
+    /// [`SpendDescription`], while accumulating its value commitment randomness inside
     /// the context for later use.
-    ///
+    ///    
+    /// [`SpendDescription`]: crate::transaction::components::SpendDescription
     #[allow(clippy::too_many_arguments)]
     fn spend_proof(
         &self,
@@ -74,6 +77,7 @@ pub trait TxProver {
         sighash: &[u8; 32],
     ) -> Result<Signature, ()>;
 }
+
 #[cfg(any(test, feature = "test-dependencies"))]
 pub mod mock {
     use ff::Field;
@@ -82,21 +86,18 @@ pub mod mock {
     use crate::{
         asset_type::AssetType,
         constants::SPENDING_KEY_GENERATOR,
+        convert::AllowedConversion,
         merkle_tree::MerklePath,
-        primitives::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed},
-        prover::GROTH_PROOF_SIZE,
-        transaction::amount::Amount,
+        sapling::{
+            redjubjub::{PublicKey, Signature},
+            Diversifier, Node, PaymentAddress, ProofGenerationKey, Rseed,
+        },
+        transaction::components::{Amount, GROTH_PROOF_SIZE},
     };
 
     use super::TxProver;
-    use crate::{
-        redjubjub::{PublicKey, Signature},
-        sapling::Node,
-    };
 
     pub struct MockTxProver;
-
-    use crate::convert::AllowedConversion;
 
     impl TxProver for MockTxProver {
         type SaplingProvingContext = ();

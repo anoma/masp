@@ -1,13 +1,14 @@
 use crate::{
-    asset_type::AssetType,
-    pedersen_hash::{pedersen_hash, Personalization},
-    primitives::ValueCommitment,
-    transaction::amount::Amount,
+    sapling::{
+        pedersen_hash::{pedersen_hash, Personalization},
+        ValueCommitment,
+    },
+    transaction::components::amount::Amount,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use group::{Curve, GroupEncoding};
 use std::{
-    io::{self, Read, Write},
+    io::{self, Write},
     iter::Sum,
     ops::{Add, AddAssign, Sub, SubAssign},
 };
@@ -172,7 +173,7 @@ impl Sum for AllowedConversion {
 mod tests {
     use crate::asset_type::AssetType;
     use crate::convert::AllowedConversion;
-    use crate::transaction::amount::Amount;
+    use crate::transaction::components::amount::Amount;
 
     /// Generate ZEC asset type
     fn zec() -> AssetType {

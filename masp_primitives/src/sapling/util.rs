@@ -2,10 +2,9 @@ use blake2b_simd::Params;
 use ff::Field;
 use rand_core::{CryptoRng, RngCore};
 
-use crate::{
-    consensus::{self, BlockHeight, NetworkUpgrade},
-    primitives::Rseed,
-};
+use crate::consensus::{self, BlockHeight, NetworkUpgrade};
+
+use super::Rseed;
 
 pub fn hash_to_scalar(persona: &[u8], a: &[u8], b: &[u8]) -> jubjub::Fr {
     let mut hasher = Params::new().hash_length(64).personal(persona).to_state();
@@ -28,7 +27,7 @@ pub(crate) fn generate_random_rseed_internal<P: consensus::Parameters, R: RngCor
     height: BlockHeight,
     rng: &mut R,
 ) -> Rseed {
-    if params.is_nu_active(NetworkUpgrade::Canopy, height) {
+    if params.is_nu_active(NetworkUpgrade::MASP, height) {
         let mut buffer = [0u8; 32];
         rng.fill_bytes(&mut buffer);
         Rseed::AfterZip212(buffer)

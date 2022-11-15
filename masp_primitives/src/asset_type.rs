@@ -3,14 +3,16 @@ use crate::{
         ASSET_IDENTIFIER_LENGTH, ASSET_IDENTIFIER_PERSONALIZATION, GH_FIRST_BLOCK,
         VALUE_COMMITMENT_GENERATOR_PERSONALIZATION,
     },
-    primitives::ValueCommitment,
+    sapling::ValueCommitment,
 };
 use blake2s_simd::Params as Blake2sParams;
 use borsh::{BorshDeserialize, BorshSerialize};
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
-use std::cmp::Ordering;
-use std::fmt::{Display, Formatter};
-use std::hash::{Hash, Hasher};
+use std::{
+    cmp::Ordering,
+    fmt::{Display, Formatter},
+    hash::{Hash, Hasher},
+};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq)]
 pub struct AssetType {

@@ -10,15 +10,15 @@ use super::{
 };
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
-    keys::{prf_expand, prf_expand_vec, ExpandedSpendingKey, FullViewingKey, OutgoingViewingKey},
-    primitives::SaplingIvk,
+    keys::{prf_expand, prf_expand_vec},
+    sapling::keys::{DecodingError, ExpandedSpendingKey, FullViewingKey, OutgoingViewingKey},
+    sapling::SaplingIvk,
 };
 use aes::Aes256;
 use blake2b_simd::Params as Blake2bParams;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use fpe::ff1::{BinaryNumeralString, FF1};
-use memuse::DynamicUsage;
 use std::{
     cmp::Ordering,
     convert::TryInto,
@@ -289,6 +289,45 @@ impl ExtendedSpendingKey {
         }
     }
 
+    /// Decodes the extended spending key from its serialized representation as defined in
+    /// [ZIP 32](https://zips.z.cash/zip-0032)
+    pub fn from_bytes(b: &[u8]) -> Result<Self, DecodingError> {
+        if b.len() != 169 {
+            return Err(DecodingError::LengthInvalid {
+                expected: 169,
+                actual: b.len(),
+            });
+        }
+
+        let depth = b[0];
+
+        let mut parent_fvk_tag = FvkTag([0; 4]);
+        parent_fvk_tag.0[..].copy_from_slice(&b[1..5]);
+
+        let mut ci_bytes = [0u8; 4];
+        ci_bytes[..].copy_from_slice(&b[5..9]);
+        let child_index = ChildIndex::from_index(u32::from_le_bytes(ci_bytes));
+
+        let mut chain_code = ChainCode([0u8; 32]);
+        chain_code.0[..].copy_from_slice(&b[9..41]);
+
+        let expsk = ExpandedSpendingKey::from_bytes(&b[41..137])?;
+
+        let mut dk = DiversifierKey([0u8; 32]);
+        dk.0[..].copy_from_slice(&b[137..169]);
+
+        Ok(ExtendedSpendingKey {
+            depth,
+            parent_fvk_tag,
+            child_index,
+            chain_code,
+            expsk,
+            dk,
+        })
+    }
+
+    /// Reads and decodes the encoded form of the extended spending key as define in
+    /// [ZIP 32](https://zips.z.cash/zip-0032) from the provided reader.
     pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
         let depth = reader.read_u8()?;
         let mut tag = [0; 4];
@@ -310,15 +349,23 @@ impl ExtendedSpendingKey {
         })
     }
 
-    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        writer.write_u8(self.depth)?;
-        writer.write_all(&self.parent_fvk_tag.0)?;
-        writer.write_u32::<LittleEndian>(self.child_index.value())?;
-        writer.write_all(&self.chain_code.0)?;
-        writer.write_all(&self.expsk.to_bytes())?;
-        writer.write_all(&self.dk.0)?;
+    /// Encodes the extended spending key to the its seralized representation as defined in
+    /// [ZIP 32](https://zips.z.cash/zip-0032)
+    pub fn to_bytes(&self) -> [u8; 169] {
+        let mut result = [0u8; 169];
+        result[0] = self.depth;
+        result[1..5].copy_from_slice(&self.parent_fvk_tag.as_bytes()[..]);
+        result[5..9].copy_from_slice(&self.child_index.value().to_le_bytes()[..]);
+        result[9..41].copy_from_slice(&self.chain_code.as_bytes()[..]);
+        result[41..137].copy_from_slice(&self.expsk.to_bytes()[..]);
+        result[137..169].copy_from_slice(&self.dk.as_bytes()[..]);
+        result
+    }
 
-        Ok(())
+    /// Writes the encoded form of the extended spending key as defined in
+    /// [ZIP 32](https://zips.z.cash/zip-0032) to the provided writer.
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        writer.write_all(&self.to_bytes())
     }
 
     /// Returns the child key corresponding to the path derived from the master key
@@ -857,6 +904,7 @@ impl Ord for ExtendedSpendingKey {
 mod tests {
     use super::*;
 
+    use super::{DiversifiableFullViewingKey, ExtendedSpendingKey};
     use ff::PrimeField;
     use group::GroupEncoding;
 
@@ -864,14 +912,14 @@ mod tests {
     fn derive_nonhardened_child() {
         let seed = [0; 32];
         let xsk_m = ExtendedSpendingKey::master(&seed);
-        let xfvk_m = ExtendedFullViewingKey::from(&xsk_m);
+        let xfvk_m = xsk_m.to_extended_full_viewing_key();
 
         let i_5 = ChildIndex::NonHardened(5);
         let xsk_5 = xsk_m.derive_child(i_5);
         let xfvk_5 = xfvk_m.derive_child(i_5);
 
         assert!(xfvk_5.is_ok());
-        assert_eq!(ExtendedFullViewingKey::from(&xsk_5), xfvk_5.unwrap());
+        assert_eq!(xsk_5.to_extended_full_viewing_key(), xfvk_5.unwrap());
     }
 
     #[test]
@@ -947,6 +995,20 @@ mod tests {
     }
 
     #[test]
+    fn diversifier_index_from() {
+        let di32: u32 = 0xa0b0c0d0;
+        assert_eq!(
+            DiversifierIndex::from(di32),
+            DiversifierIndex([0xd0, 0xc0, 0xb0, 0xa0, 0, 0, 0, 0, 0, 0, 0])
+        );
+        let di64: u64 = 0x0102030405060708;
+        assert_eq!(
+            DiversifierIndex::from(di64),
+            DiversifierIndex([8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0])
+        );
+    }
+
+    #[test]
     fn find_diversifier() {
         let dk = DiversifierKey([0; 32]);
         let j_0 = DiversifierIndex::new();
@@ -976,6 +1038,27 @@ mod tests {
         let (j, d_j) = dk.find_diversifier(j_3).unwrap();
         assert_eq!(j, j_3);
         assert_eq!(d_j.0, d_3);
+    }
+
+    #[test]
+    fn dfvk_round_trip() {
+        let dfvk = {
+            let extsk = ExtendedSpendingKey::master(&[]);
+            #[allow(deprecated)]
+            let extfvk = extsk.to_extended_full_viewing_key();
+            DiversifiableFullViewingKey::from(extfvk)
+        };
+
+        // Check value -> bytes -> parsed round trip.
+        let dfvk_bytes = dfvk.to_bytes();
+        let dfvk_parsed = DiversifiableFullViewingKey::from_bytes(&dfvk_bytes).unwrap();
+        assert_eq!(dfvk_parsed.fvk.vk.ak, dfvk.fvk.vk.ak);
+        assert_eq!(dfvk_parsed.fvk.vk.nk, dfvk.fvk.vk.nk);
+        assert_eq!(dfvk_parsed.fvk.ovk, dfvk.fvk.ovk);
+        assert_eq!(dfvk_parsed.dk, dfvk.dk);
+
+        // Check bytes -> parsed -> bytes round trip.
+        assert_eq!(dfvk_parsed.to_bytes(), dfvk_bytes);
     }
 
     #[test]
@@ -1822,13 +1905,14 @@ mod tests {
 
 #[cfg(any(test, feature = "test-dependencies"))]
 pub mod testing {
-    use proptest::prelude::*;
+    use proptest::collection::vec;
+    use proptest::prelude::{any, prop_compose};
 
     use super::ExtendedSpendingKey;
 
     prop_compose! {
-        pub fn arb_extended_spending_key()(seed in prop::array::uniform32(prop::num::u8::ANY)) -> ExtendedSpendingKey {
-            ExtendedSpendingKey::master(&seed)
+        pub fn arb_extended_spending_key()(v in vec(any::<u8>(), 32..252)) -> ExtendedSpendingKey {
+            ExtendedSpendingKey::master(&v)
         }
     }
 }

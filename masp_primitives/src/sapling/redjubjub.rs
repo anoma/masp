@@ -3,13 +3,12 @@
 //!
 //! [RedJubjub]: https://zips.z.cash/protocol/protocol.pdf#concretereddsa
 
+use super::util::hash_to_scalar;
 use borsh::{BorshDeserialize, BorshSerialize};
 use ff::{Field, PrimeField};
 use group::GroupEncoding;
 use jubjub::{AffinePoint, ExtendedPoint, SubgroupPoint};
 use rand_core::RngCore;
-//use serde::{Serialize, Deserialize};
-use crate::util::hash_to_scalar;
 use std::{
     cmp::Ordering,
     hash::{Hash, Hasher},
@@ -33,9 +32,7 @@ fn h_star(a: &[u8], b: &[u8]) -> jubjub::Fr {
     hash_to_scalar(b"MASP__RedJubjubH", a, b)
 }
 
-#[derive(
-    Copy, Clone, Debug, /*  Serialize, Deserialize,*/ PartialOrd, PartialEq, Ord, Eq, Hash,
-)]
+#[derive(Copy, Clone, Debug, PartialOrd, PartialEq, Ord, Eq, Hash)]
 pub struct Signature {
     rbar: [u8; 32],
     sbar: [u8; 32],
@@ -43,12 +40,8 @@ pub struct Signature {
 
 pub struct PrivateKey(pub jubjub::Fr);
 
-#[derive(Debug, /*Serialize, Deserialize,*/ Clone, PartialEq, Eq, Copy)]
-pub struct PublicKey(
-    //#[serde(serialize_with = "sserialize_extended_point")]
-    //#[serde(deserialize_with = "sdeserialize_extended_point")]
-    pub ExtendedPoint,
-);
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub struct PublicKey(pub ExtendedPoint);
 
 impl PartialOrd for PublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
