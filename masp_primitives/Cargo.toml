@@ -44,7 +44,6 @@ group = { version = "0.12.1", features = ["wnaf-memuse"] }
 incrementalmerkletree = "0.3"
 jubjub = "0.9"
 nonempty = "0.7"
-orchard = "0.3"
 
 # - Static constants
 lazy_static = "1"
