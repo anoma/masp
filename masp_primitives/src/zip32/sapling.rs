@@ -370,7 +370,7 @@ impl ExtendedSpendingKey {
 
     /// Returns the child key corresponding to the path derived from the master key
     pub fn from_path(master: &ExtendedSpendingKey, path: &[ChildIndex]) -> Self {
-        let mut xsk = master.clone();
+        let mut xsk = *master;
         for &i in path.iter() {
             xsk = xsk.derive_child(i);
         }

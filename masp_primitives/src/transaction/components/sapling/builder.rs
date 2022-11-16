@@ -119,7 +119,7 @@ impl SaplingOutputInfo {
         let note = Note {
             g_d,
             pk_d: *to.pk_d(),
-            value: value.into(),
+            value,
             rseed,
             asset_type,
         };
@@ -138,13 +138,8 @@ impl SaplingOutputInfo {
         ctx: &mut Pr::SaplingProvingContext,
         rng: &mut R,
     ) -> OutputDescription<GrothProofBytes> {
-        let encryptor = sapling_note_encryption::<R, P>(
-            self.ovk,
-            self.note.clone(),
-            self.to.clone(),
-            self.memo,
-            rng,
-        );
+        let encryptor =
+            sapling_note_encryption::<P>(self.ovk, self.note.clone(), self.to, self.memo);
 
         let (zkproof, cv) = prover.output_proof(
             ctx,
@@ -479,7 +474,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                                 convert.allowed.clone(),
                                 convert.value,
                                 anchor,
-                                convert.merkle_path.clone(),
+                                convert.merkle_path,
                             )
                             .map_err(|_| Error::ConvertProof)?;
 
@@ -620,7 +615,7 @@ impl SpendDescription<Unauthorized> {
             cv: self.cv,
             anchor: self.anchor,
             nullifier: self.nullifier,
-            rk: self.rk.clone(),
+            rk: self.rk,
             zkproof: self.zkproof,
             spend_auth_sig,
         }

@@ -5,7 +5,6 @@ use ff::PrimeField;
 use group::{cofactor::CofactorGroup, GroupEncoding, WnafBase, WnafScalar};
 use jubjub::{AffinePoint, ExtendedPoint};
 use memuse::DynamicUsage;
-use rand_core::RngCore;
 use std::convert::TryInto;
 
 use crate::asset_type::AssetType;
@@ -17,7 +16,7 @@ use masp_note_encryption::{
 };
 
 use crate::{
-    consensus::{self, BlockHeight, NetworkUpgrade::MASP, ZIP212_GRACE_PERIOD},
+    consensus::{self, BlockHeight, NetworkUpgrade::MASP},
     memo::MemoBytes,
     sapling::{keys::OutgoingViewingKey, Diversifier, Note, PaymentAddress, Rseed, SaplingIvk},
     transaction::{components::sapling::OutputDescription, GrothProofBytes},
@@ -144,7 +143,7 @@ where
     let pk_d = get_validated_pk_d(&diversifier)?;
 
     let to = PaymentAddress::from_parts(diversifier, pk_d)?;
-    let note = to.create_note(asset_type, value.into(), rseed)?;
+    let note = to.create_note(asset_type, value, rseed)?;
     Some((note, to))
 }
 
@@ -444,19 +443,17 @@ impl<P: consensus::Parameters> BatchDomain for SaplingDomain<P> {
 /// let note = to.create_note(asset_type, value, rseed).unwrap();
 /// let cmu = note.cmu();
 ///
-/// let mut enc = sapling_note_encryption::<_, TestNetwork>(ovk, note, to, MemoBytes::empty(), &mut rng);
+/// let mut enc = sapling_note_encryption::<TestNetwork>(ovk, note, to, MemoBytes::empty());
 /// let encCiphertext = enc.encrypt_note_plaintext();
 /// let outCiphertext = enc.encrypt_outgoing_plaintext(&cv.commitment().into(), &cmu, &mut rng);
 /// ```
-pub fn sapling_note_encryption<R: RngCore, P: consensus::Parameters>(
+pub fn sapling_note_encryption<P: consensus::Parameters>(
     ovk: Option<OutgoingViewingKey>,
     note: Note,
     to: PaymentAddress,
     memo: MemoBytes,
-    rng: &mut R,
 ) -> NoteEncryption<SaplingDomain<P>> {
-    let esk = note.generate_or_derive_esk_internal(rng);
-    NoteEncryption::new_with_esk(esk, ovk, note, to, memo)
+    NoteEncryption::new(ovk, note, to, memo)
 }
 
 #[allow(clippy::if_same_then_else)]
@@ -467,19 +464,10 @@ pub fn plaintext_version_is_valid<P: consensus::Parameters>(
     leadbyte: u8,
 ) -> bool {
     if params.is_nu_active(MASP, height) {
-        let grace_period_end_height = params.activation_height(MASP).unwrap() + ZIP212_GRACE_PERIOD;
-
-        if height < grace_period_end_height && leadbyte != 0x01 && leadbyte != 0x02 {
-            // non-{0x01,0x02} received after MASP activation and before grace period has elapsed
-            false
-        } else if height >= grace_period_end_height && leadbyte != 0x02 {
-            // non-0x02 received past (MASP activation height + grace period)
-            false
-        } else {
-            true
-        }
+        // return false if non-0x02 received when MASP is active
+        leadbyte == 0x02
     } else {
-        // return false if non-0x01 received when MASP is not active
+        // Pre-ZIP 212 testnet
         leadbyte == 0x01
     }
 }
@@ -598,7 +586,6 @@ mod tests {
         },
         sapling::{Diversifier, PaymentAddress, Rseed, SaplingIvk},
         transaction::components::{
-            amount::zec,
             sapling::{self, CompactOutputDescription, OutputDescription},
             GROTH_PROOF_SIZE,
         },
@@ -667,13 +654,7 @@ mod tests {
         let cmu = note.cmu();
 
         let ovk = OutgoingViewingKey([0; 32]);
-        let ne = sapling_note_encryption::<_, TestNetwork>(
-            Some(ovk),
-            note,
-            pa,
-            MemoBytes::empty(),
-            &mut rng,
-        );
+        let ne = sapling_note_encryption::<TestNetwork>(Some(ovk), note, pa, MemoBytes::empty());
         let epk = *ne.epk();
         let ock = prf_ock(&ovk, &cv, &cmu.to_repr(), &epk_bytes(&epk));
 
@@ -1348,7 +1329,9 @@ mod tests {
             };
         }
 
-        let height = TEST_NETWORK.activation_height(MASP).unwrap();
+        let height = crate::consensus::H0;
+
+        let asset_type = AssetType::from_identifier(b"testtesttesttesttesttesttesttest").unwrap();
 
         for tv in test_vectors {
             //
@@ -1377,20 +1360,17 @@ mod tests {
             let ock = prf_ock(&ovk, &cv, &cmu.to_repr(), &ephemeral_key);
             assert_eq!(ock.as_ref(), tv.ock);
 
-            let asset_type = zec();
             let to = PaymentAddress::from_parts(Diversifier(tv.default_d), pk_d).unwrap();
             let note = to
                 .create_note(asset_type, tv.v, Rseed::BeforeZip212(rcm))
                 .unwrap();
             assert_eq!(note.cmu(), cmu);
 
-            let tmp_cenc = [0u8; 612]; //TODO
-
             let output = OutputDescription {
                 cv,
                 cmu,
                 ephemeral_key,
-                enc_ciphertext: tmp_cenc, //tv.c_enc,
+                enc_ciphertext: tv.c_enc,
                 out_ciphertext: tv.c_out,
                 zkproof: [0u8; GROTH_PROOF_SIZE],
             };

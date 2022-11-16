@@ -280,12 +280,11 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> SubAssign<Amo
 impl Neg for Amount {
     type Output = Self;
 
-    fn neg(self) -> Self {
-        let mut neg = self.clone();
-        for (_, amount) in neg.0.iter_mut() {
+    fn neg(mut self) -> Self {
+        for (_, amount) in self.0.iter_mut() {
             *amount = -*amount;
         }
-        neg
+        self
     }
 }
 

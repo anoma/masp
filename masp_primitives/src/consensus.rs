@@ -164,7 +164,7 @@ pub const TEST_NETWORK: TestNetwork = TestNetwork;
 impl Parameters for TestNetwork {
     fn activation_height(&self, nu: NetworkUpgrade) -> Option<BlockHeight> {
         match nu {
-            NetworkUpgrade::MASP => Some(H0),
+            NetworkUpgrade::MASP => Some(BlockHeight(1)), // Activate MASP at height 1 so pre-ZIP 212 tests work at height 0
         }
     }
 }
