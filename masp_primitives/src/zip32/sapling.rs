@@ -690,7 +690,7 @@ impl ExtendedFullViewingKey {
 
     pub fn to_diversifiable_full_viewing_key(&self) -> DiversifiableFullViewingKey {
         DiversifiableFullViewingKey {
-            fvk: self.fvk.clone(),
+            fvk: self.fvk,
             dk: self.dk,
         }
     }

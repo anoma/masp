@@ -6,7 +6,7 @@ mod prover;
 mod verifier;
 
 pub use self::prover::SaplingProvingContext;
-pub use self::verifier::SaplingVerificationContext;
+pub use self::verifier::{BatchValidator, SaplingVerificationContext};
 
 // This function computes `value` in the exponent of the value commitment base
 fn masp_compute_value_balance(asset_type: AssetType, value: i64) -> Option<jubjub::ExtendedPoint> {
