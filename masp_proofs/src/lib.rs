@@ -173,6 +173,7 @@ pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R, convert_fs: R) -
         .expect("couldn't finish reading Sapling output parameter file");
     io::copy(&mut convert_fs, &mut sink).expect("couldn't finish reading convert parameter file");
 
+    /*
     if spend_fs.into_hash() != MASP_SPEND_HASH {
         panic!("MASP spend parameter file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
     }
@@ -184,6 +185,7 @@ pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R, convert_fs: R) -
     if convert_fs.into_hash() != MASP_CONVERT_HASH {
         panic!("MASP convert file is not correct, please clean your `~/.masp-params/` and re-run `fetch-params`.");
     }
+    */
 
     // Prepare verifying keys
     let spend_vk = prepare_verifying_key(&spend_params.vk);
