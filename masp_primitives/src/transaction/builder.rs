@@ -176,13 +176,12 @@ impl SaplingOutput {
 #[cfg(feature = "transparent-inputs")]
 struct TransparentInputInfo {
     sk: libsecp256k1::SecretKey,
-    pubkey: [u8; libsecp256k1::constants::PUBLIC_KEY_SIZE],
+    pubkey: [u8; libsecp256k1::util::COMPRESSED_PUBLIC_KEY_SIZE],
     coin: TxOut,
 }
 
 #[cfg(feature = "transparent-inputs")]
 struct TransparentInputs {
-    secp: libsecp256k1::Secp256k1<libsecp256k1::SignOnly>,
     inputs: Vec<TransparentInputInfo>,
 }
 
@@ -190,7 +189,6 @@ struct TransparentInputs {
 impl Default for TransparentInputs {
     fn default() -> Self {
         TransparentInputs {
-            secp: libsecp256k1::Secp256k1::gen_new(),
             inputs: Default::default(),
         }
     }
@@ -209,7 +207,7 @@ impl TransparentInputs {
         utxo: OutPoint,
         coin: TxOut,
     ) -> Result<(), Error> {
-        let pubkey = libsecp256k1::PublicKey::from_secret_key(&self.secp, &sk).serialize();
+        let pubkey = libsecp256k1::PublicKey::from_secret_key(&sk).serialize_compressed();
         match coin.script_pubkey.address() {
             Some(TransparentAddress::PublicKey(hash)) => {
                 use ripemd160::Ripemd160;
@@ -258,11 +256,11 @@ impl TransparentInputs {
                 Some((i, &info.coin.script_pubkey, info.coin.asset_type, info.coin.value)),
             ));
 
-            let msg = libsecp256k1::Message::from_slice(&sighash).expect("32 bytes");
-            let sig = self.secp.sign(&msg, &info.sk);
+            let msg = libsecp256k1::Message::parse_slice(&sighash).expect("32 bytes");
+            let (sig, _recovery) = libsecp256k1::sign(&msg, &info.sk);
 
             // Signature has to have "SIGHASH_ALL" appended to it
-            let mut sig_bytes: Vec<u8> = sig.serialize_der()[..].to_vec();
+            let mut sig_bytes: Vec<u8> = sig.serialize_der().as_ref().to_vec();
             sig_bytes.extend(&[SIGHASH_ALL as u8]);
 
             // P2PKH scriptSig
