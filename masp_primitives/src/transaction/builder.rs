@@ -11,7 +11,7 @@ use std::convert::TryInto;
 use crate::transaction::AssetType;
 use crate::transaction::components::amount::zec;
 #[cfg(feature = "transparent-inputs")]
-pub use secp256k1;
+pub use libsecp256k1;
 #[cfg(feature = "transparent-inputs")]
 pub use ripemd160;
 
@@ -175,14 +175,14 @@ impl SaplingOutput {
 
 #[cfg(feature = "transparent-inputs")]
 struct TransparentInputInfo {
-    sk: secp256k1::SecretKey,
-    pubkey: [u8; secp256k1::constants::PUBLIC_KEY_SIZE],
+    sk: libsecp256k1::SecretKey,
+    pubkey: [u8; libsecp256k1::constants::PUBLIC_KEY_SIZE],
     coin: TxOut,
 }
 
 #[cfg(feature = "transparent-inputs")]
 struct TransparentInputs {
-    secp: secp256k1::Secp256k1<secp256k1::SignOnly>,
+    secp: libsecp256k1::Secp256k1<libsecp256k1::SignOnly>,
     inputs: Vec<TransparentInputInfo>,
 }
 
@@ -190,7 +190,7 @@ struct TransparentInputs {
 impl Default for TransparentInputs {
     fn default() -> Self {
         TransparentInputs {
-            secp: secp256k1::Secp256k1::gen_new(),
+            secp: libsecp256k1::Secp256k1::gen_new(),
             inputs: Default::default(),
         }
     }
@@ -205,11 +205,11 @@ impl TransparentInputs {
     fn push(
         &mut self,
         mtx: &mut TransactionData,
-        sk: secp256k1::SecretKey,
+        sk: libsecp256k1::SecretKey,
         utxo: OutPoint,
         coin: TxOut,
     ) -> Result<(), Error> {
-        let pubkey = secp256k1::PublicKey::from_secret_key(&self.secp, &sk).serialize();
+        let pubkey = libsecp256k1::PublicKey::from_secret_key(&self.secp, &sk).serialize();
         match coin.script_pubkey.address() {
             Some(TransparentAddress::PublicKey(hash)) => {
                 use ripemd160::Ripemd160;
@@ -258,7 +258,7 @@ impl TransparentInputs {
                 Some((i, &info.coin.script_pubkey, info.coin.asset_type, info.coin.value)),
             ));
 
-            let msg = secp256k1::Message::from_slice(&sighash).expect("32 bytes");
+            let msg = libsecp256k1::Message::from_slice(&sighash).expect("32 bytes");
             let sig = self.secp.sign(&msg, &info.sk);
 
             // Signature has to have "SIGHASH_ALL" appended to it
@@ -489,7 +489,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
     #[cfg_attr(docsrs, doc(cfg(feature = "transparent-inputs")))]
     pub fn add_transparent_input(
         &mut self,
-        sk: secp256k1::SecretKey,
+        sk: libsecp256k1::SecretKey,
         utxo: OutPoint,
         coin: TxOut,
     ) -> Result<(), Error> {
