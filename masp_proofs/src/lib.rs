@@ -34,6 +34,10 @@ pub mod sapling;
 )]
 pub mod prover;
 
+#[cfg(feature = "download-params")]
+#[cfg_attr(docsrs, doc(cfg(feature = "download-params")))]
+mod downloadreader;
+
 // Circuit names
 #[cfg(feature = "local-prover")]
 const MASP_SPEND_NAME: &str = "masp-spend.params";
@@ -43,16 +47,32 @@ const MASP_OUTPUT_NAME: &str = "masp-output.params";
 const MASP_CONVERT_NAME: &str = "masp-convert.params";
 
 // Circuit hashes
-const MASP_SPEND_HASH: &str = "5523057113d7daa078714f9859ea03da3c959f4fe3756a0ace4eb25f7cf41d1e21099dac768c2e0045400fee03c1f8bc14eeac2190c3f282e0092419d3b967e5";
-const MASP_OUTPUT_HASH: &str = "89fe551ad6c0281aebb857eb203dbf35854979503d374c83b12512dcd737e12a255869a34e3ff0f6609b78accc81ea5f5e94202e124a590730494eeeee86e755";
-const MASP_CONVERT_HASH: &str = "7a6b038c45ddd841e500484b1c72fa021d874de5a83bf8bce6c0fd8f3c63d491243495df2661682333728a8b14c439985b63b0d6ed61044286e2f86734d66d9b";
+const MASP_SPEND_HASH: &str = "196e7c717f25e16653431559ce2c8816e750a4490f98696e3c031efca37e25e0647182b7b013660806db11eb2b1e365fb2d6a0f24dbbd9a4a8314fef10a7cba2";
+const MASP_OUTPUT_HASH: &str = "eafc3b1746cccc8b9eed2b69395692c5892f6aca83552a07dceb2dcbaa64dcd0e22434260b3aa3b049b633a08b008988cbe0d31effc77e2bc09bfab690a23724";
+const MASP_CONVERT_HASH: &str = "dc4aaf3c3ce056ab448b6c4a7f43c1d68502c2902ea89ab8769b1524a2e8ace9a5369621a73ee1daa52aec826907a19974a37874391cf8f11bbe0b0420de1ab7";
 // Circuit parameter file sizes
-const MASP_SPEND_BYTES: u64 = 48483132;
-const MASP_CONVERT_BYTES: u64 = 21204956;
-const MASP_OUTPUT_BYTES: u64 = 15033180;
+const MASP_SPEND_BYTES: u64 = 49848572;
+const MASP_CONVERT_BYTES: u64 = 22570940;
+const MASP_OUTPUT_BYTES: u64 = 16398620;
 
 #[cfg(feature = "download-params")]
-const DOWNLOAD_URL: &str = "https://github.com/anoma/masp/blob/test_parameters";
+const DOWNLOAD_URL: &str =
+    "https://github.com/anoma/masp-mpc/releases/download/namada-trusted-setup/";
+
+/// The paths to the Sapling parameter files.
+#[cfg(feature = "download-params")]
+#[cfg_attr(docsrs, doc(cfg(feature = "download-params")))]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MASPParameterPaths {
+    /// The path to the MASP spend parameter file.
+    pub spend: PathBuf,
+
+    /// The path to the MASP output parameter file.
+    pub output: PathBuf,
+
+    /// The path to the MASP convert parameter file.
+    pub convert: PathBuf,
+}
 
 /// Returns the default folder that the MASP proving parameters are located in.
 #[cfg(feature = "directories")]
@@ -67,7 +87,7 @@ pub fn default_params_folder() -> Option<PathBuf> {
     })
 }
 
-/// Download the MASP Sapling parameters, storing them in the default location.
+/// Download the MASP parameters if needed, and store them in the default location.
 /// Always checks the sizes and hashes of the files, even if they didn't need to be downloaded.
 ///
 /// This mirrors the behaviour of the `fetch-params.sh` script from `zcashd`.
@@ -78,29 +98,22 @@ pub fn default_params_folder() -> Option<PathBuf> {
 /// Returns the paths to the downloaded files.
 #[cfg(feature = "download-params")]
 #[cfg_attr(docsrs, doc(cfg(feature = "download-params")))]
-pub fn download_sapling_parameters(
-    timeout: Option<u64>,
-) -> Result<SaplingParameterPaths, minreq::Error> {
-    let spend = fetch_params(
-        SAPLING_SPEND_NAME,
-        SAPLING_SPEND_HASH,
-        SAPLING_SPEND_BYTES,
-        timeout,
-    )?;
+pub fn download_masp_parameters(timeout: Option<u64>) -> Result<MASPParameterPaths, minreq::Error> {
+    let spend = fetch_params(MASP_SPEND_NAME, MASP_SPEND_HASH, MASP_SPEND_BYTES, timeout)?;
     let output = fetch_params(
-        SAPLING_OUTPUT_NAME,
-        SAPLING_OUTPUT_HASH,
-        SAPLING_OUTPUT_BYTES,
+        MASP_OUTPUT_NAME,
+        MASP_OUTPUT_HASH,
+        MASP_OUTPUT_BYTES,
         timeout,
     )?;
     let convert = fetch_params(
-        SAPLING_CONVERT_NAME,
-        SAPLING_CONVERT_HASH,
-        SAPLING_CONVERT_BYTES,
+        MASP_CONVERT_NAME,
+        MASP_CONVERT_HASH,
+        MASP_CONVERT_BYTES,
         timeout,
     )?;
 
-    Ok(SaplingParameterPaths {
+    Ok(MASPParameterPaths {
         spend,
         output,
         convert,
@@ -200,26 +213,26 @@ fn stream_params_downloads_to_disk(
     // It's necessary for us to host these files in two parts,
     // because of CloudFlare's maximum cached file size limit of 512 MB.
     // The files must fit in the cache to prevent "denial of wallet" attacks.
-    let params_url_1 = format!("{}/{}.part.1", DOWNLOAD_URL, name);
+    let params_url_1 = format!("{}/{}", DOWNLOAD_URL, name);
     // TODO: skip empty part.2 files when downloading sapling spend and sapling output
-    let params_url_2 = format!("{}/{}.part.2", DOWNLOAD_URL, name);
+    //let params_url_2 = format!("{}/{}.part.2", DOWNLOAD_URL, name);
 
     let mut params_download_1 = minreq::get(&params_url_1);
-    let mut params_download_2 = minreq::get(&params_url_2);
+    //let mut params_download_2 = minreq::get(&params_url_2);
     if let Some(timeout) = timeout {
         params_download_1 = params_download_1.with_timeout(timeout);
-        params_download_2 = params_download_2.with_timeout(timeout);
+        //params_download_2 = params_download_2.with_timeout(timeout);
     }
 
     // Download the responses and write them to a new file,
     // verifying the hash as bytes are read.
     let params_download_1 = ResponseLazyReader::from(params_download_1);
-    let params_download_2 = ResponseLazyReader::from(params_download_2);
+    //let params_download_2 = ResponseLazyReader::from(params_download_2);
 
     // Limit the download size to avoid DoS.
     // This also avoids launching the second request, if the first request provides enough bytes.
     let params_download = params_download_1
-        .chain(params_download_2)
+        //.chain(params_download_2)
         .take(expected_bytes);
     let params_download = BufReader::with_capacity(1024 * 1024, params_download);
     let params_download = hashreader::HashReader::new(params_download);
@@ -230,7 +243,7 @@ fn stream_params_downloads_to_disk(
         expected_hash,
         expected_bytes,
         name,
-        &format!("{} + {}", params_url_1, params_url_2),
+        &format!("{}", params_url_1),
     )?;
 
     Ok(())
@@ -288,9 +301,9 @@ pub fn load_parameters(
              please clean your MASP parameters directory and re-run `fetch-params`.",
     );
     // Load from each of the paths
-    let spend_fs = File::open(spend_path).expect("couldn't load Sapling spend parameters file");
-    let output_fs = File::open(output_path).expect("couldn't load Sapling output parameters file");
-    let convert_fs = File::open(convert_path).expect("couldn't load convert parameters file");
+    let spend_fs = File::open(spend_path).expect("couldn't load MASP spend parameters file");
+    let output_fs = File::open(output_path).expect("couldn't load MASP output parameters file");
+    let convert_fs = File::open(convert_path).expect("couldn't load MASP convert parameters file");
 
     parse_parameters(
         BufReader::with_capacity(1024 * 1024, spend_fs),
