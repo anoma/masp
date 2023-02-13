@@ -131,7 +131,7 @@ pub struct TxIn {
 }
 
 impl TxIn {
-    pub fn read<R: Read>( reader: &mut R) -> io::Result<Self> {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let asset_type = {
             let mut tmp = [0u8; 32];
             reader.read_exact(&mut tmp)?;

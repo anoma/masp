@@ -252,10 +252,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         asset_type: AssetType,
         value: i64,
     ) -> Result<(), transparent::builder::Error> {
-        if value > MAX_MONEY {
-            return Err(transparent::builder::Error::InvalidAmount);
-        }
-        if value < 0 {
+        if value < 0 || value > MAX_MONEY {
             return Err(transparent::builder::Error::InvalidAmount);
         }
 
@@ -436,8 +433,9 @@ mod tests {
         merkle_tree::{CommitmentTree, IncrementalWitness},
         sapling::Rseed,
         transaction::{
-            components::amount::{Amount, DEFAULT_FEE},
+            components::amount::{Amount, DEFAULT_FEE, MAX_MONEY},
             sapling::builder::{self as build_s},
+            transparent::builder::{self as build_t},
         },
         zip32::ExtendedSpendingKey,
     };
@@ -445,25 +443,26 @@ mod tests {
     use super::{Builder, Error};
 
     #[test]
-    fn fails_on_negative_output() {
+    fn fails_on_overflow_output() {
         let extsk = ExtendedSpendingKey::master(&[]);
         let dfvk = extsk.to_diversifiable_full_viewing_key();
         let ovk = dfvk.fvk().ovk;
         let to = dfvk.default_address().1;
 
-        let sapling_activation_height = TEST_NETWORK
-            .activation_height(NetworkUpgrade::Sapling)
+        let masp_activation_height = TEST_NETWORK
+            .activation_height(NetworkUpgrade::MASP)
             .unwrap();
 
-        let mut builder = Builder::new();
+        let mut builder = Builder::new(TEST_NETWORK, masp_activation_height);
         assert_eq!(
             builder.add_sapling_output(
                 Some(ovk),
                 to,
-                Amount::from_i64(-1).unwrap(),
+                zec(),
+                MAX_MONEY as u64 + 1,
                 MemoBytes::empty()
             ),
-            Err(Error::SaplingBuild(build_s::Error::InvalidAmount))
+            Err(build_s::Error::InvalidAmount)
         );
     }
 
@@ -516,22 +515,21 @@ mod tests {
         );
     }
 
-    /*#[test]
+    #[test]
     fn fails_on_negative_transparent_output() {
-        let transparent_address = &TransparentAddress::from_slice(&[0; 33]).unwrap();
+        let secret_key =
+            secp256k1::SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let transparent_address =
+            secp256k1::PublicKey::from_secret_key(&secp256k1::Secp256k1::new(), &secret_key);
         let tx_height = TEST_NETWORK
-            .activation_height(NetworkUpgrade::Canopy)
+            .activation_height(NetworkUpgrade::MASP)
             .unwrap();
-        let mut builder = Builder::new();
+        let mut builder = Builder::new(TEST_NETWORK, tx_height);
         assert_eq!(
-            builder.add_transparent_output(
-                transparent_address,
-                zec(),
-                Amount::from_i64(-1).unwrap(),
-            ),
-            Err(Error::TransparentBuild(transparent::Error::InvalidAmount))
+            builder.add_transparent_output(&transparent_address, zec(), -1,),
+            Err(build_t::Error::InvalidAmount)
         );
-    }*/
+    }
 
     #[test]
     fn fails_on_negative_change() {

@@ -103,17 +103,12 @@ impl TransparentBuilder {
 
     /// Adds a coin (the output of a previous transaction) to be spent to the transaction.
     #[cfg(feature = "transparent-inputs")]
-    pub fn add_input(
-        &mut self,
-        coin: TxOut,
-    ) -> Result<(), Error> {
+    pub fn add_input(&mut self, coin: TxOut) -> Result<(), Error> {
         if coin.value.is_negative() {
             return Err(Error::InvalidAmount);
         }
 
-        self.inputs.push(TransparentInputInfo {
-            coin,
-        });
+        self.inputs.push(TransparentInputInfo { coin });
 
         Ok(())
     }
@@ -177,7 +172,10 @@ impl TransparentBuilder {
         let vin: Vec<TxIn> = self
             .inputs
             .iter()
-            .map(|i| TxIn { asset_type: i.coin.asset_type, value: i.coin.value } )
+            .map(|i| TxIn {
+                asset_type: i.coin.asset_type,
+                value: i.coin.value,
+            })
             .collect();
 
         #[cfg(not(feature = "transparent-inputs"))]
@@ -208,9 +206,12 @@ impl TransparentAuthorizingContext for Unauthorized {
 #[cfg(feature = "transparent-inputs")]
 impl TransparentAuthorizingContext for Unauthorized {
     fn input_amounts(&self) -> Vec<Result<Amount, ()>> {
-        return self.inputs.iter().map(|txin| Amount::from_pair(txin.coin.asset_type, txin.coin.value)).collect();
+        return self
+            .inputs
+            .iter()
+            .map(|txin| Amount::from_pair(txin.coin.asset_type, txin.coin.value))
+            .collect();
     }
-
 }
 
 impl Bundle<Unauthorized> {
