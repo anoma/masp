@@ -586,7 +586,7 @@ pub struct ConvertDescriptionV5 {
 }
 
 impl ConvertDescriptionV5 {
-    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+    pub fn read<R: Read>(mut reader: &mut R) -> io::Result<Self> {
         // Consensus rules (§4.4) & (§4.5):
         // - Canonical encoding is enforced here.
         // - "Not small order" is enforced in SaplingVerificationContext::(check_spend()/check_output())

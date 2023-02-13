@@ -1,6 +1,7 @@
 //! Structs representing the components within Zcash transactions.
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use secp256k1::PublicKey as TransparentAddress;
 use std::fmt::{self, Debug};
 use std::io::{self, Read, Write};
@@ -29,6 +30,7 @@ pub trait MapAuth<A: Authorization, B: Authorization> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bundle<A: Authorization> {
+    pub vin: Vec<TxIn>,
     pub vout: Vec<TxOut>,
     pub authorization: A,
 }
@@ -36,6 +38,7 @@ pub struct Bundle<A: Authorization> {
 impl<A: Authorization> Bundle<A> {
     pub fn map_authorization<B: Authorization, F: MapAuth<A, B>>(self, f: F) -> Bundle<B> {
         Bundle {
+            vin: self.vin,
             vout: self.vout,
             authorization: f.map_authorization(self.authorization),
         }
@@ -50,13 +53,109 @@ impl<A: Authorization> Bundle<A> {
     where
         E: From<BalanceError>,
     {
+        let input_sum = self
+            .vin
+            .iter()
+            .map(|p| {
+                if p.value > 0 {
+                    Amount::from_pair(p.asset_type, p.value)
+                } else {
+                    Err(())
+                }
+            })
+            .sum::<Result<Amount, ()>>()
+            .map_err(|_| BalanceError::Overflow.into())?;
+
         let output_sum = self
             .vout
             .iter()
-            .map(|p| Amount::from_pair(p.asset_type, -p.value))
-            .sum::<Result<Amount, _>>();
+            .map(|p| {
+                if p.value > 0 {
+                    Amount::from_pair(p.asset_type, p.value)
+                } else {
+                    Err(())
+                }
+            })
+            .sum::<Result<Amount, ()>>()
+            .map_err(|_| BalanceError::Overflow.into())?;
 
-        output_sum.map_err(|_| BalanceError::Underflow.into())
+        // Cannot panic when subtracting two positive i64
+        Ok(input_sum - output_sum)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct OutPoint {
+    hash: [u8; 32],
+    n: u32,
+}
+
+impl OutPoint {
+    pub fn new(hash: [u8; 32], n: u32) -> Self {
+        OutPoint { hash, n }
+    }
+
+    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
+        let mut hash = [0u8; 32];
+        reader.read_exact(&mut hash)?;
+        let n = reader.read_u32::<LittleEndian>()?;
+        Ok(OutPoint { hash, n })
+    }
+
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        writer.write_all(&self.hash)?;
+        writer.write_u32::<LittleEndian>(self.n)
+    }
+
+    /// Returns `true` if this `OutPoint` is "null" in the Bitcoin sense: it points to the
+    /// `u32::MAX`th output of the transaction with the all-zeroes txid.
+    fn is_null(&self) -> bool {
+        // From `BaseOutPoint::IsNull()` in zcashd:
+        //   return (hash.IsNull() && n == (uint32_t) -1);
+        self.hash == [0; 32] && self.n == u32::MAX
+    }
+
+    pub fn n(&self) -> u32 {
+        self.n
+    }
+
+    pub fn hash(&self) -> &[u8; 32] {
+        &self.hash
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TxIn {
+    pub asset_type: AssetType,
+    pub value: i64,
+}
+
+impl TxIn {
+    pub fn read<R: Read>( reader: &mut R) -> io::Result<Self> {
+        let asset_type = {
+            let mut tmp = [0u8; 32];
+            reader.read_exact(&mut tmp)?;
+            AssetType::from_identifier(&tmp)
+        }
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid asset identifier"))?;
+        let value = {
+            let mut tmp = [0u8; 8];
+            reader.read_exact(&mut tmp)?;
+            i64::from_le_bytes(tmp)
+        };
+        if value < 0 || value > MAX_MONEY {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "value out of range",
+            ));
+        }
+
+        Ok(TxIn { asset_type, value })
+    }
+
+    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        writer.write_all(self.asset_type.get_identifier())?;
+        writer.write_all(&self.value.to_le_bytes())
     }
 }
 
@@ -80,7 +179,7 @@ impl TxOut {
             reader.read_exact(&mut tmp)?;
             i64::from_le_bytes(tmp)
         };
-        if value < -MAX_MONEY || value > MAX_MONEY {
+        if value < 0 || value > MAX_MONEY {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "value out of range",
@@ -129,7 +228,14 @@ pub mod testing {
 
     use crate::transaction::components::amount::testing::arb_nonnegative_amount;
 
-    use super::{Authorized, Bundle, TxOut};
+    use super::{Authorized, Bundle, TxIn, TxOut};
+
+    prop_compose! {
+        pub fn arb_txin()(amt in arb_nonnegative_amount()) -> TxIn {
+            let (asset_type, value) = amt.components().next().unwrap();
+            TxIn { asset_type: *asset_type, value: *value }
+        }
+    }
 
     prop_compose! {
         pub fn arb_txout()(amt in arb_nonnegative_amount()) -> TxOut {
@@ -143,12 +249,13 @@ pub mod testing {
 
     prop_compose! {
         pub fn arb_bundle()(
+            vin in vec(arb_txin(), 0..10),
             vout in vec(arb_txout(), 0..10),
         ) -> Option<Bundle<Authorized>> {
             if vout.is_empty() {
                 None
             } else {
-                Some(Bundle {vout, authorization: Authorized })
+                Some(Bundle {vin, vout, authorization: Authorized })
             }
         }
     }

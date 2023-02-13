@@ -11,6 +11,7 @@ use super::{
     Authorization, TransactionData, TxDigests, TxVersion,
 };
 
+use crate::asset_type::AssetType;
 #[cfg(feature = "zfuture")]
 use crate::extensions::transparent::Precondition;
 
@@ -25,7 +26,8 @@ pub enum SignableInput {
     Transparent {
         hash_type: u8,
         index: usize,
-        value: Amount,
+        value: u64,
+        asset_type: AssetType,
     },
 }
 
@@ -48,7 +50,13 @@ impl AsRef<[u8; 32]> for SignatureHash {
 
 /// Additional context that is needed to compute signature hashes
 /// for transactions that include transparent inputs or outputs.
-pub trait TransparentAuthorizingContext: transparent::Authorization {}
+pub trait TransparentAuthorizingContext: transparent::Authorization {
+    /// Returns the list of all transparent input amounts, provided
+    /// so that wallets can commit to the transparent input breakdown
+    /// without requiring the full data of the previous transactions
+    /// providing these inputs.
+    fn input_amounts(&self) -> Vec<Result<Amount, ()>>;
+}
 
 /// Computes the signature hash for an input to a transaction, given
 /// the full data of the transaction, the input being signed, and the

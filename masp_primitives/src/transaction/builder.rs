@@ -33,6 +33,10 @@ use crate::{
     zip32::ExtendedSpendingKey,
 };
 
+#[cfg(feature = "transparent-inputs")]
+use crate::transaction::components::transparent::TxOut;
+
+const DEFAULT_TX_EXPIRY_DELTA: u32 = 20;
 /// Errors that can occur during transaction construction.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error<FeeError> {
@@ -115,6 +119,7 @@ pub struct Builder<P, R> {
     params: P,
     rng: R,
     target_height: BlockHeight,
+    expiry_height: BlockHeight,
     transparent_builder: TransparentBuilder,
     sapling_builder: SaplingBuilder<P>,
     progress_notifier: Option<Sender<Progress>>,
@@ -124,6 +129,17 @@ impl<P, R> Builder<P, R> {
     /// Returns the network parameters that the builder has been configured for.
     pub fn params(&self) -> &P {
         &self.params
+    }
+
+    /// Returns the target height of the transaction under construction.
+    pub fn target_height(&self) -> BlockHeight {
+        self.target_height
+    }
+
+    /// Returns the set of transparent inputs currently committed to be consumed
+    /// by the transaction.
+    pub fn transparent_inputs(&self) -> &[impl transparent::fees::InputView] {
+        self.transparent_builder.inputs()
     }
 
     /// Returns the set of transparent outputs currently set to be produced by
@@ -181,6 +197,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
             params: params.clone(),
             rng,
             target_height,
+            expiry_height: target_height + DEFAULT_TX_EXPIRY_DELTA,
             transparent_builder: TransparentBuilder::empty(),
             sapling_builder: SaplingBuilder::new(params, target_height),
             progress_notifier: None,
@@ -218,6 +235,16 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
             .add_output(&mut self.rng, ovk, to, asset_type, value, memo)
     }
 
+    /// Adds a transparent coin to be spent in this transaction.
+    #[cfg(feature = "transparent-inputs")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "transparent-inputs")))]
+    pub fn add_transparent_input(
+        &mut self,
+        coin: TxOut,
+    ) -> Result<(), transparent::builder::Error> {
+        self.transparent_builder.add_input(coin)
+    }
+
     /// Adds a transparent address to send funds to.
     pub fn add_transparent_output(
         &mut self,
@@ -228,7 +255,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         if value > MAX_MONEY {
             return Err(transparent::builder::Error::InvalidAmount);
         }
-        if value < -MAX_MONEY {
+        if value < 0 {
             return Err(transparent::builder::Error::InvalidAmount);
         }
 
@@ -315,6 +342,8 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         let unauthed_tx: TransactionData<Unauthorized> = TransactionData {
             version,
             consensus_branch_id: BranchId::for_height(&self.params, self.target_height),
+            lock_time: 0,
+            expiry_height: self.expiry_height,
             transparent_bundle,
             sapling_bundle,
         };
@@ -350,6 +379,8 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         let authorized_tx = TransactionData {
             version: unauthed_tx.version,
             consensus_branch_id: unauthed_tx.consensus_branch_id,
+            lock_time: unauthed_tx.lock_time,
+            expiry_height: unauthed_tx.expiry_height,
             transparent_bundle,
             sapling_bundle,
         };
@@ -412,7 +443,7 @@ mod tests {
     };
 
     use super::{Builder, Error};
-    /*
+
     #[test]
     fn fails_on_negative_output() {
         let extsk = ExtendedSpendingKey::master(&[]);
@@ -434,7 +465,7 @@ mod tests {
             ),
             Err(Error::SaplingBuild(build_s::Error::InvalidAmount))
         );
-    }*/
+    }
 
     /// Generate ZEC asset type
     fn zec() -> AssetType {

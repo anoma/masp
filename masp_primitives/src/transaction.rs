@@ -21,13 +21,19 @@ use std::{
 };
 use zcash_encoding::{Array, CompactSize, Vector};
 
-use crate::{consensus::BranchId, sapling::redjubjub};
+use crate::{
+    consensus::{BlockHeight, BranchId},
+    sapling::redjubjub,
+};
 
 use self::{
     components::{
         amount::Amount,
-        sapling::{self, OutputDescriptionV5, SpendDescription, SpendDescriptionV5},
-        transparent::{self, TxOut},
+        sapling::{
+            self, ConvertDescriptionV5, OutputDescriptionV5, SpendDescription, SpendDescriptionV5,
+        },
+        transparent::{self, TxIn, TxOut},
+        OutPoint,
     },
     txid::{to_txid, BlockTxCommitmentDigester, TxIdDigester},
 };
@@ -182,6 +188,8 @@ impl PartialEq for Transaction {
 pub struct TransactionData<A: Authorization> {
     version: TxVersion,
     consensus_branch_id: BranchId,
+    lock_time: u32,
+    expiry_height: BlockHeight,
     transparent_bundle: Option<transparent::Bundle<A::TransparentAuth>>,
     sapling_bundle: Option<sapling::Bundle<A::SaplingAuth>>,
 }
@@ -190,12 +198,16 @@ impl<A: Authorization> TransactionData<A> {
     pub fn from_parts(
         version: TxVersion,
         consensus_branch_id: BranchId,
+        lock_time: u32,
+        expiry_height: BlockHeight,
         transparent_bundle: Option<transparent::Bundle<A::TransparentAuth>>,
         sapling_bundle: Option<sapling::Bundle<A::SaplingAuth>>,
     ) -> Self {
         TransactionData {
             version,
             consensus_branch_id,
+            lock_time,
+            expiry_height,
             transparent_bundle,
             sapling_bundle,
         }
@@ -209,6 +221,14 @@ impl<A: Authorization> TransactionData<A> {
         self.consensus_branch_id
     }
 
+    pub fn lock_time(&self) -> u32 {
+        self.lock_time
+    }
+
+    pub fn expiry_height(&self) -> BlockHeight {
+        self.expiry_height
+    }
+
     pub fn transparent_bundle(&self) -> Option<&transparent::Bundle<A::TransparentAuth>> {
         self.transparent_bundle.as_ref()
     }
@@ -218,7 +238,12 @@ impl<A: Authorization> TransactionData<A> {
     }
     pub fn digest<D: TransactionDigest<A>>(&self, digester: D) -> D::Digest {
         digester.combine(
-            digester.digest_header(self.version, self.consensus_branch_id),
+            digester.digest_header(
+                self.version,
+                self.consensus_branch_id,
+                self.lock_time,
+                self.expiry_height,
+            ),
             digester.digest_transparent(self.transparent_bundle.as_ref()),
             digester.digest_sapling(self.sapling_bundle.as_ref()),
         )
@@ -232,6 +257,8 @@ impl<A: Authorization> TransactionData<A> {
         TransactionData {
             version: self.version,
             consensus_branch_id: self.consensus_branch_id,
+            lock_time: self.lock_time,
+            expiry_height: self.expiry_height,
             transparent_bundle: self
                 .transparent_bundle
                 .map(|b| b.map_authorization(f_transparent)),
@@ -284,14 +311,17 @@ impl Transaction {
             TxVersion::MASPv5 => Self::read_v5(reader, version),
         }
     }
+
     fn read_transparent<R: Read>(
         mut reader: R,
     ) -> io::Result<Option<transparent::Bundle<transparent::Authorized>>> {
+        let vin = Vector::read(&mut reader, TxIn::read)?;
         let vout = Vector::read(&mut reader, TxOut::read)?;
-        Ok(if vout.is_empty() {
+        Ok(if vin.is_empty() && vout.is_empty() {
             None
         } else {
             Some(transparent::Bundle {
+                vin,
                 vout,
                 authorization: transparent::Authorized,
             })
@@ -299,33 +329,33 @@ impl Transaction {
     }
 
     fn read_amount<R: Read>(mut reader: R) -> io::Result<Amount> {
-        Amount::read(&mut reader)
-            //let mut tmp = [0; 8];
-            //reader.read_exact(&mut tmp)?;
-            //Amount::from_i64_le_bytes(tmp)
-            .map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Amount valueBalance out of range",
-                )
-            })
+        Amount::read(&mut reader).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Amount valueBalance out of range",
+            )
+        })
     }
 
     fn read_v5<R: Read>(mut reader: R, version: TxVersion) -> io::Result<Self> {
-        let consensus_branch_id = Self::read_v5_header_fragment(&mut reader)?;
+        let (consensus_branch_id, lock_time, expiry_height) =
+            Self::read_v5_header_fragment(&mut reader)?;
         let transparent_bundle = Self::read_transparent(&mut reader)?;
         let sapling_bundle = Self::read_v5_sapling(&mut reader)?;
 
         let data = TransactionData {
             version,
             consensus_branch_id,
+            lock_time,
+            expiry_height,
             transparent_bundle,
             sapling_bundle,
         };
 
         Ok(Self::from_data_v5(data))
     }
-    fn read_v5_header_fragment<R: Read>(mut reader: R) -> io::Result<BranchId> {
+
+    fn read_v5_header_fragment<R: Read>(mut reader: R) -> io::Result<(BranchId, u32, BlockHeight)> {
         let consensus_branch_id = reader.read_u32::<LittleEndian>().and_then(|value| {
             BranchId::try_from(value).map_err(|e| {
                 io::Error::new(
@@ -334,7 +364,9 @@ impl Transaction {
                 )
             })
         })?;
-        Ok(consensus_branch_id)
+        let lock_time = reader.read_u32::<LittleEndian>()?;
+        let expiry_height: BlockHeight = reader.read_u32::<LittleEndian>()?.into();
+        Ok((consensus_branch_id, lock_time, expiry_height))
     }
 
     #[allow(clippy::redundant_closure)]
@@ -342,8 +374,10 @@ impl Transaction {
         mut reader: R,
     ) -> io::Result<Option<sapling::Bundle<sapling::Authorized>>> {
         let sd_v5s = Vector::read(&mut reader, SpendDescriptionV5::read)?;
+        let cd_v5s = Vector::read(&mut reader, ConvertDescriptionV5::read)?;
         let od_v5s = Vector::read(&mut reader, OutputDescriptionV5::read)?;
         let n_spends = sd_v5s.len();
+        let n_converts = cd_v5s.len();
         let n_outputs = od_v5s.len();
         let value_balance = if n_spends > 0 || n_outputs > 0 {
             Self::read_amount(&mut reader)?
@@ -351,8 +385,14 @@ impl Transaction {
             Amount::zero()
         };
 
-        let anchor = if n_spends > 0 {
-            Some(sapling::read_base(&mut reader, "anchor")?)
+        let spend_anchor = if n_spends > 0 {
+            Some(sapling::read_base(&mut reader, "spend anchor")?)
+        } else {
+            None
+        };
+
+        let convert_anchor = if n_converts > 0 {
+            Some(sapling::read_base(&mut reader, "convert anchor")?)
         } else {
             None
         };
@@ -361,6 +401,7 @@ impl Transaction {
         let v_spend_auth_sigs = Array::read(&mut reader, n_spends, |r| {
             SpendDescription::read_spend_auth_sig(r)
         })?;
+        let v_convert_proofs = Array::read(&mut reader, n_converts, |r| sapling::read_zkproof(r))?;
         let v_output_proofs = Array::read(&mut reader, n_outputs, |r| sapling::read_zkproof(r))?;
 
         let binding_sig = if n_spends > 0 || n_outputs > 0 {
@@ -378,11 +419,15 @@ impl Transaction {
             )
             .map(|(sd_5, (zkproof, spend_auth_sig))| {
                 // the following `unwrap` is safe because we know n_spends > 0.
-                sd_5.into_spend_description(anchor.unwrap(), zkproof, spend_auth_sig)
+                sd_5.into_spend_description(spend_anchor.unwrap(), zkproof, spend_auth_sig)
             })
             .collect();
 
-        let shielded_converts = vec![];
+        let shielded_converts = cd_v5s
+            .into_iter()
+            .zip(v_convert_proofs.into_iter())
+            .map(|(cd_5, zkproof)| cd_5.into_convert_description(convert_anchor.unwrap(), zkproof))
+            .collect();
 
         let shielded_outputs = od_v5s
             .into_iter()
@@ -405,6 +450,7 @@ impl Transaction {
     }
     pub fn write_transparent<W: Write>(&self, mut writer: W) -> io::Result<()> {
         if let Some(bundle) = &self.transparent_bundle {
+            Vector::write(&mut writer, &bundle.vin, |w, e| e.write(w))?;
             Vector::write(&mut writer, &bundle.vout, |w, e| e.write(w))?;
         } else {
             CompactSize::write(&mut writer, 0)?;
@@ -424,6 +470,8 @@ impl Transaction {
     pub fn write_v5_header<W: Write>(&self, mut writer: W) -> io::Result<()> {
         self.version.write(&mut writer)?;
         writer.write_u32::<LittleEndian>(u32::from(self.consensus_branch_id))?;
+        writer.write_u32::<LittleEndian>(self.lock_time)?;
+        writer.write_u32::<LittleEndian>(u32::from(self.expiry_height))?;
         Ok(())
     }
 
@@ -499,6 +547,7 @@ impl Transaction {
 
 #[derive(Clone, Debug)]
 pub struct TransparentDigests<A> {
+    pub inputs_digest: A,
     pub outputs_digest: A,
 }
 
@@ -519,6 +568,8 @@ pub trait TransactionDigest<A: Authorization> {
         &self,
         version: TxVersion,
         consensus_branch_id: BranchId,
+        lock_time: u32,
+        expiry_height: BlockHeight,
     ) -> Self::HeaderDigest;
 
     fn digest_transparent(
@@ -571,6 +622,8 @@ pub mod testing {
         pub fn arb_txdata(consensus_branch_id: BranchId)(
             version in arb_tx_version(consensus_branch_id),
         )(
+            lock_time in any::<u32>(),
+            expiry_height in any::<u32>(),
             transparent_bundle in transparent::arb_bundle(),
             sapling_bundle in sapling::arb_bundle_for_version(version),
             version in Just(version)
@@ -578,6 +631,8 @@ pub mod testing {
             TransactionData {
                 version,
                 consensus_branch_id,
+                lock_time,
+                expiry_height: expiry_height.into(),
                 transparent_bundle,
                 sapling_bundle,
             }
@@ -589,6 +644,10 @@ pub mod testing {
             Transaction::from_data(tx_data).unwrap()
         }
     }
+
+    use crate::transaction::testing::sapling::{
+        arb_convert_description, arb_output_description, arb_spend_description,
+    };
     /*
     prop_compose! {
         pub fn arb_bundle()(

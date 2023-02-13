@@ -8,11 +8,11 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use ff::PrimeField;
 use group::GroupEncoding;
 
-use crate::consensus::BranchId;
+use crate::consensus::{BlockHeight, BranchId};
 
 use super::{
     sapling::{self, OutputDescription, SpendDescription},
-    transparent::{self, TxOut},
+    transparent::{self, TxIn, TxOut},
     Authorization, Authorized, TransactionDigest, TransparentDigests, TxDigests, TxId, TxVersion,
 };
 
@@ -25,6 +25,7 @@ pub(crate) const ZCASH_TRANSPARENT_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdTran
 const ZCASH_SAPLING_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSaplingHash";
 
 // TxId transparent level 2 node personalization
+const ZCASH_INPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdInputs_Hash";
 const ZCASH_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdOutputsHash";
 
 // TxId sapling level 2 node personalization
@@ -53,6 +54,18 @@ pub(crate) fn transparent_outputs_hash<T: Borrow<TxOut>>(vout: &[T]) -> Blake2bH
     let mut h = hasher(ZCASH_OUTPUTS_HASH_PERSONALIZATION);
     for t_out in vout {
         t_out.borrow().write(&mut h).unwrap();
+    }
+    h.finalize()
+}
+
+/// Sequentially append the full serialized value of each transparent input
+/// to a hash personalized by ZCASH_INPUTS_HASH_PERSONALIZATION.
+/// In the case that no inputs are provided, this produces a default
+/// hash from just the personalization string.
+pub(crate) fn transparent_inputs_hash<T: Borrow<TxIn>>(vin: &[T]) -> Blake2bHash {
+    let mut h = hasher(ZCASH_INPUTS_HASH_PERSONALIZATION);
+    for t_in in vin {
+        t_in.borrow().write(&mut h).unwrap();
     }
     h.finalize()
 }
@@ -129,6 +142,7 @@ fn transparent_digests<A: transparent::Authorization>(
     bundle: &transparent::Bundle<A>,
 ) -> TransparentDigests<Blake2bHash> {
     TransparentDigests {
+        inputs_digest: transparent_inputs_hash(&bundle.vin),
         outputs_digest: transparent_outputs_hash(&bundle.vout),
     }
 }
@@ -137,6 +151,8 @@ fn hash_header_txid_data(
     version: TxVersion,
     // we commit to the consensus branch ID with the header
     consensus_branch_id: BranchId,
+    lock_time: u32,
+    expiry_height: BlockHeight,
 ) -> Blake2bHash {
     let mut h = hasher(ZCASH_HEADERS_HASH_PERSONALIZATION);
 
@@ -145,6 +161,9 @@ fn hash_header_txid_data(
         .unwrap();
     h.write_u32::<LittleEndian>(consensus_branch_id.into())
         .unwrap();
+    h.write_u32::<LittleEndian>(lock_time).unwrap();
+    h.write_u32::<LittleEndian>(expiry_height.into()).unwrap();
+
     h.finalize()
 }
 
@@ -154,6 +173,7 @@ pub(crate) fn hash_transparent_txid_data(
 ) -> Blake2bHash {
     let mut h = hasher(ZCASH_TRANSPARENT_HASH_PERSONALIZATION);
     if let Some(d) = t_digests {
+        h.write_all(d.inputs_digest.as_bytes()).unwrap();
         h.write_all(d.outputs_digest.as_bytes()).unwrap();
     }
     h.finalize()
@@ -202,8 +222,10 @@ impl<A: Authorization> TransactionDigest<A> for TxIdDigester {
         &self,
         version: TxVersion,
         consensus_branch_id: BranchId,
+        lock_time: u32,
+        expiry_height: BlockHeight,
     ) -> Self::HeaderDigest {
-        hash_header_txid_data(version, consensus_branch_id)
+        hash_header_txid_data(version, consensus_branch_id, lock_time, expiry_height)
     }
 
     fn digest_transparent(
@@ -295,6 +317,8 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
         &self,
         _version: TxVersion,
         consensus_branch_id: BranchId,
+        _lock_time: u32,
+        _expiry_height: BlockHeight,
     ) -> Self::HeaderDigest {
         consensus_branch_id
     }

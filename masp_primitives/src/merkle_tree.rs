@@ -725,9 +725,10 @@ impl<Node: Hashable> MerklePath<Node> {
         let path = Self::deserialize(&mut witness).map_err(|_| ())?;
         if path.auth_path.len() != depth {
             return Err(());
-        } // The witness should be empty now; if it wasn't, the caller would
-          // have provided more information than they should have, indicating
-          // a bug downstream
+        }
+        // The witness should be empty now; if it wasn't, the caller would
+        // have provided more information than they should have, indicating
+        // a bug downstream
         if witness.is_empty() {
             Ok(path)
         } else {

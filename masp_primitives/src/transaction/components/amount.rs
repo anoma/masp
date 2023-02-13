@@ -30,16 +30,17 @@ pub struct Amount<Unit: Hash + Ord + BorshSerialize + BorshDeserialize = AssetTy
     pub BTreeMap<Unit, i64>,
 );
 
-// TODO
 impl memuse::DynamicUsage for Amount {
     #[inline(always)]
     fn dynamic_usage(&self) -> usize {
-        0
+        unimplemented!()
+        //self.0.dynamic_usage()
     }
 
     #[inline(always)]
     fn dynamic_usage_bounds(&self) -> (usize, Option<usize>) {
-        (0, Some(0))
+        unimplemented!()
+        //self.0.dynamic_usage_bounds()
     }
 }
 

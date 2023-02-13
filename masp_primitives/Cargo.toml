@@ -89,7 +89,9 @@ proptest = "1.0.0"
 rand_xorshift = "0.3"
 
 [features]
+transparent-inputs = []
 test-dependencies = ["proptest"]
+default = ["transparent-inputs"]
 
 [badges]
 maintenance = { status = "actively-developed" }

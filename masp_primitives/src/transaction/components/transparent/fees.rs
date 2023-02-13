@@ -2,11 +2,14 @@
 //! of a transaction.
 
 use super::TxOut;
-use crate::transaction::{components::amount::Amount, TransparentAddress};
+use crate::transaction::{components::amount::Amount, OutPoint, TransparentAddress};
 
 /// This trait provides a minimized view of a transparent input suitable for use in
 /// fee and change computation.
-pub trait InputView {}
+pub trait InputView {
+    /// The previous output being spent.
+    fn coin(&self) -> &TxOut;
+}
 
 /// This trait provides a minimized view of a transparent output suitable for use in
 /// fee and change computation.

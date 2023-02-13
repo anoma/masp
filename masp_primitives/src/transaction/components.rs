@@ -6,7 +6,7 @@ pub mod transparent;
 pub use self::{
     amount::Amount,
     sapling::{OutputDescription, SpendDescription},
-    transparent::TxOut,
+    transparent::{OutPoint, TxIn, TxOut},
 };
 
 // π_A + π_B + π_C
