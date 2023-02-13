@@ -103,7 +103,7 @@ impl SaplingVerificationContext {
         binding_sig: Signature,
     ) -> bool {
         self.inner.final_check(
-            value_balance.components(),
+            value_balance,
             sighash_value,
             binding_sig,
             |bvk, msg, binding_sig| {

@@ -258,8 +258,6 @@ impl SpendDescription<Authorized> {
         Signature::read(&mut reader)
     }
 
-
-
     pub fn write_v5_without_witness_data<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(&self.cv.to_bytes())?;
         writer.write_all(&self.nullifier.0)?;
@@ -350,7 +348,6 @@ where
 }
 
 impl OutputDescription<GrothProofBytes> {
-
     pub fn write_v5_without_proof<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(&self.cv.to_bytes())?;
         writer.write_all(self.cmu.to_repr().as_ref())?;

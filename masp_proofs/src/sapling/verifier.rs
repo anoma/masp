@@ -6,6 +6,7 @@ use group::{Curve, GroupEncoding};
 use masp_primitives::{
     asset_type::AssetType,
     sapling::redjubjub::{PublicKey, Signature},
+    transaction::components::Amount,
 };
 
 use super::masp_compute_value_balance;
@@ -170,22 +171,19 @@ impl SaplingVerificationContextInner {
     /// Perform consensus checks on the valueBalance and bindingSig parts of a
     /// Sapling transaction. All SpendDescriptions and OutputDescriptions must
     /// have been checked before calling this function.
-    fn final_check<'a, I>(
+    fn final_check(
         &self,
-        assets_and_values: I,
+        value_balance: Amount,
         sighash_value: &[u8; 32],
         binding_sig: Signature,
         binding_sig_verifier: impl FnOnce(PublicKey, [u8; 64], Signature) -> bool,
-    ) -> bool
-    where
-        I: IntoIterator<Item = (&'a AssetType, &'a i64)>,
-    {
+    ) -> bool {
         // Obtain current cv_sum from the context
         let mut bvk = PublicKey(self.cv_sum);
 
         // Compute value balance
-        let value_balances = assets_and_values
-            .into_iter()
+        let value_balance = value_balance
+            .components()
             .map(|(asset_type, value_balance)| {
                 // Compute value balance for each asset
                 // Error for bad value balances (-INT64_MAX value)
@@ -193,7 +191,7 @@ impl SaplingVerificationContextInner {
             })
             .collect::<Result<Vec<_>, _>>();
 
-        bvk.0 = match value_balances {
+        bvk.0 = match value_balance {
             Ok(vb) => vb.iter().fold(bvk.0, |tmp, value_balance| {
                 // Compute cv_sum minus sum of all value balances
                 tmp - value_balance

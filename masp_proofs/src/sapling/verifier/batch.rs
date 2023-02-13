@@ -143,7 +143,7 @@ impl BatchValidator {
 
         // Check the whole-bundle consensus rules, and batch the binding signature.
         ctx.final_check(
-            bundle.value_balance.components(),
+            bundle.value_balance,
             &sighash,
             bundle.authorization.binding_sig,
             |bvk, _, binding_sig| {
