@@ -1301,13 +1301,6 @@ mod tests {
     }
 
     #[test]
-    /*     fn test_note_encryption() {
-            // Encryption
-            let mut rng = OsRng;
-            let height = TEST_NETWORK.activation_height(MASP).unwrap();
-            let ivk = SaplingIvk(jubjub::Fr::random(rng));
-            let (ovk, ock, output, note, to, memo) = random_enc_ciphertext_with(height, &ivk, &mut rng);
-    */
     fn test_vectors() {
         let test_vectors = crate::test_vectors::note_encryption::make_test_vectors();
 
