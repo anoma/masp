@@ -22,37 +22,6 @@ use crate::{
         Nullifier,
     },
 };
-/*
-use crate::{
-    asset_type::AssetType,
-    consensus::{self, BlockHeight, H0, MAIN_NETWORK},
-    convert::AllowedConversion,
-    keys::OutgoingViewingKey,
-    merkle_tree::MerklePath,
-    note_encryption::sapling_note_encryption,
-    primitives::{Diversifier, Note, Nullifier, PaymentAddress},
-    prover::{TxProver, GROTH_PROOF_SIZE},
-    redjubjub::{self, PrivateKey, PublicKey, Signature},
-    sapling::{spend_sig_internal, Node},
-    transaction::{
-        //Bundle,
-        amount::{Amount, MAX_MONEY},
-        builder::Progress,
-        //components::{
-        //    amount::Amount,
-        //    sapling::{
-        //        fees, Authorization, Authorized, Bundle, GrothProofBytes, OutputDescription,
-        //        SpendDescription,
-        //    },
-        //},
-        memo::MemoBytes,
-        GrothProofBytes,
-        SaplingDomain,
-        TransactionData,
-    },
-    util::generate_random_rseed_internal,
-    zip32::ExtendedSpendingKey,
-};*/
 
 use super::{amount::Amount, GROTH_PROOF_SIZE};
 
