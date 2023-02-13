@@ -3,6 +3,8 @@
 //!
 //! [RedJubjub]: https://zips.z.cash/protocol/protocol.pdf#concretereddsa
 
+use crate::transaction::components::sapling::read_point;
+
 use super::util::hash_to_scalar;
 use borsh::{BorshDeserialize, BorshSerialize};
 use ff::{Field, PrimeField};
@@ -57,8 +59,9 @@ impl Hash for PublicKey {
 
 impl BorshDeserialize for PublicKey {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Ok(Self(crate::transaction::util::deserialize_extended_point(
+        Ok(Self(read_point(
             buf,
+            "public key"
         )?))
     }
 }
