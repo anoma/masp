@@ -126,6 +126,8 @@ impl TxVersion {
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_u32::<LittleEndian>(self.header())?;
+        // For consistency with librustzcash & future use
+        #[allow(clippy::match_single_binding)]
         match self {
             _ => writer.write_u32::<LittleEndian>(self.version_group_id()),
         }
@@ -143,9 +145,9 @@ pub trait Authorization {
     type TransparentAuth: transparent::Authorization + PartialEq + BorshDeserialize + BorshSerialize;
     type SaplingAuth: sapling::Authorization + PartialEq + BorshDeserialize + BorshSerialize;
 }
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Unproven;
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Authorized;
 
 impl Authorization for Authorized {

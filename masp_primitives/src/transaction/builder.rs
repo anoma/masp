@@ -561,7 +561,7 @@ mod tests {
         {
             let mut builder = Builder::new(TEST_NETWORK, tx_height);
             builder
-                .add_sapling_output(ovk, to.clone(), zec(), 50000, MemoBytes::empty())
+                .add_sapling_output(ovk, to, zec(), 50000, MemoBytes::empty())
                 .unwrap();
             assert_eq!(
                 builder.mock_build(),
@@ -604,14 +604,14 @@ mod tests {
             let mut builder = Builder::new(TEST_NETWORK, tx_height);
             builder
                 .add_sapling_spend(
-                    extsk.clone(),
+                    extsk,
                     *to.diversifier(),
                     note1.clone(),
                     witness1.path().unwrap(),
                 )
                 .unwrap();
             builder
-                .add_sapling_output(ovk, to.clone(), zec(), 30000, MemoBytes::empty())
+                .add_sapling_output(ovk, to, zec(), 30000, MemoBytes::empty())
                 .unwrap();
             builder
                 .add_transparent_output(&transparent_address, zec(), 20000)
@@ -640,12 +640,7 @@ mod tests {
         {
             let mut builder = Builder::new(TEST_NETWORK, tx_height);
             builder
-                .add_sapling_spend(
-                    extsk.clone(),
-                    *to.diversifier(),
-                    note1,
-                    witness1.path().unwrap(),
-                )
+                .add_sapling_spend(extsk, *to.diversifier(), note1, witness1.path().unwrap())
                 .unwrap();
             builder
                 .add_sapling_spend(extsk, *to.diversifier(), note2, witness2.path().unwrap())

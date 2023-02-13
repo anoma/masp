@@ -3,7 +3,7 @@
 use crate::sapling::pedersen_hash::{test::TestVector, Personalization};
 
 pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
-    return vec![
+    vec![
         TestVector {
             personalization: Personalization::NoteCommitment,
             input_bits: vec![1, 1, 1, 1, 1, 1],
@@ -711,5 +711,5 @@ pub fn get_vectors<'a>() -> Vec<TestVector<'a>> {
             hash_u: "0x6de8499ad50b555936477cd7b009d60b9dc855dec64e9a77fc0a9e10d1da6acd",
             hash_v: "0x4b736cb086e4132765757fa7239899c5655ee17cc653e006ee17c55e560d6a35",
         },
-    ];
+    ]
 }

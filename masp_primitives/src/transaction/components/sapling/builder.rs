@@ -99,6 +99,7 @@ pub struct SaplingOutputInfo {
 }
 
 impl SaplingOutputInfo {
+    #[allow(clippy::too_many_arguments)]
     fn new_internal<P: consensus::Parameters, R: RngCore>(
         params: &P,
         rng: &mut R,
@@ -236,7 +237,7 @@ pub struct SaplingBuilder<P> {
     outputs: Vec<SaplingOutputInfo>,
 }
 
-#[derive(Clone, PartialEq, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Unauthorized {
     tx_metadata: SaplingMetadata,
 }
@@ -717,7 +718,7 @@ pub mod testing {
             for ((note, path), diversifier) in spendable_notes.into_iter().zip(commitment_trees.into_iter()).zip(diversifiers.into_iter()) {
                 builder.add_spend(
                     &mut rng,
-                    extsk.clone(),
+                    extsk,
                     diversifier,
                     note,
                     path

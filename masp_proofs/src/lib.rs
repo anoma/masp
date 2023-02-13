@@ -243,7 +243,7 @@ fn stream_params_downloads_to_disk(
         expected_hash,
         expected_bytes,
         name,
-        &format!("{}", params_url_1),
+        &params_url_1,
     )?;
 
     Ok(())

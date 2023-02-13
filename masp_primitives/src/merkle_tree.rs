@@ -908,8 +908,8 @@ mod tests {
             let mut orig = CommitmentTree::empty();
             let mut cmus = Vec::new();
             let mut paths: Vec<IncrementalWitness<Node>> = Vec::new();
-            for i in 0..right {
-                let cmu = hex::decode(commitments[i]).unwrap();
+            for commitment in commitments.iter().take(right) {
+                let cmu = hex::decode(commitment).unwrap();
                 let cmu = Node::new(cmu[..].try_into().unwrap());
                 orig.append(cmu).unwrap();
                 cmus.push(cmu);

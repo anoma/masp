@@ -66,9 +66,9 @@ impl AllowedConversion {
     }
 }
 
-impl Into<Amount> for AllowedConversion {
-    fn into(self) -> Amount {
-        self.assets
+impl From<AllowedConversion> for Amount {
+    fn from(allowed_conversion: AllowedConversion) -> Amount {
+        allowed_conversion.assets
     }
 }
 

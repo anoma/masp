@@ -711,7 +711,7 @@ fn test_input_circuit_with_bls12_381() {
             let instance = Spend {
                 value_commitment: Some(value_commitment.clone()),
                 proof_generation_key: Some(proof_generation_key.clone()),
-                payment_address: Some(payment_address.clone()),
+                payment_address: Some(payment_address),
                 commitment_randomness: Some(commitment_randomness),
                 ar: Some(ar),
                 auth_path: auth_path.clone(),
@@ -908,7 +908,7 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
             let instance = Spend {
                 value_commitment: Some(value_commitment.clone()),
                 proof_generation_key: Some(proof_generation_key.clone()),
-                payment_address: Some(payment_address.clone()),
+                payment_address: Some(payment_address),
                 commitment_randomness: Some(commitment_randomness),
                 ar: Some(ar),
                 auth_path: auth_path.clone(),
@@ -1005,7 +1005,7 @@ fn test_output_circuit_with_bls12_381() {
 
             let instance = Output {
                 value_commitment: Some(value_commitment.clone()),
-                payment_address: Some(payment_address.clone()),
+                payment_address: Some(payment_address),
                 commitment_randomness: Some(commitment_randomness),
                 esk: Some(esk),
                 asset_identifier: asset_type.identifier_bits(),

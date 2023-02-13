@@ -27,7 +27,7 @@ pub trait MapAuth<A: Authorization, B: Authorization> {
     fn map_authorization(&self, s: A) -> B;
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bundle<A: Authorization> {
     pub vin: Vec<TxIn>,
     pub vout: Vec<TxOut>,
@@ -63,7 +63,7 @@ impl<A: Authorization> Bundle<A> {
                 }
             })
             .sum::<Result<Amount, ()>>()
-            .map_err(|_| BalanceError::Overflow.into())?;
+            .map_err(|_| BalanceError::Overflow)?;
 
         let output_sum = self
             .vout
@@ -76,14 +76,14 @@ impl<A: Authorization> Bundle<A> {
                 }
             })
             .sum::<Result<Amount, ()>>()
-            .map_err(|_| BalanceError::Overflow.into())?;
+            .map_err(|_| BalanceError::Overflow)?;
 
         // Cannot panic when subtracting two positive i64
         Ok(input_sum - output_sum)
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxIn {
     pub asset_type: AssetType,
     pub value: i64,

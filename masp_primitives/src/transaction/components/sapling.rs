@@ -43,7 +43,7 @@ impl Authorization for Unproven {
     type AuthSig = ();
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Authorized {
     pub binding_sig: redjubjub::Signature,
 }
@@ -267,7 +267,7 @@ impl SpendDescriptionV5 {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct OutputDescription<Proof: Clone> {
     pub cv: jubjub::ExtendedPoint,
     pub cmu: bls12_381::Scalar,
