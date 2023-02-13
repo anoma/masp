@@ -828,10 +828,10 @@ mod tests {
     #[test]
     fn decryption_with_invalid_version_byte() {
         let mut rng = OsRng;
-        let canopy_activation_height = TEST_NETWORK.activation_height(MASP).unwrap();
+        let masp_activation_height = TEST_NETWORK.activation_height(MASP).unwrap();
         let heights = [
-            canopy_activation_height,
-            canopy_activation_height + ZIP212_GRACE_PERIOD,
+            masp_activation_height,
+            masp_activation_height + ZIP212_GRACE_PERIOD,
         ];
         let leadbytes = [0x01, 0x01];
 
@@ -968,10 +968,10 @@ mod tests {
     #[test]
     fn compact_decryption_with_invalid_version_byte() {
         let mut rng = OsRng;
-        let canopy_activation_height = TEST_NETWORK.activation_height(MASP).unwrap();
+        let masp_activation_height = TEST_NETWORK.activation_height(MASP).unwrap();
         let heights = [
-            canopy_activation_height,
-            canopy_activation_height + ZIP212_GRACE_PERIOD,
+            masp_activation_height,
+            masp_activation_height + ZIP212_GRACE_PERIOD,
         ];
         let leadbytes = [0x01, 0x01];
 
@@ -1194,10 +1194,10 @@ mod tests {
     #[test]
     fn recovery_with_invalid_version_byte() {
         let mut rng = OsRng;
-        let canopy_activation_height = TEST_NETWORK.activation_height(MASP).unwrap();
+        let masp_activation_height = TEST_NETWORK.activation_height(MASP).unwrap();
         let heights = [
-            canopy_activation_height,
-            canopy_activation_height + ZIP212_GRACE_PERIOD,
+            masp_activation_height,
+            masp_activation_height + ZIP212_GRACE_PERIOD,
         ];
         let leadbytes = [0x01, 0x01];
 
