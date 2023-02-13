@@ -468,7 +468,7 @@ pub fn plaintext_version_is_valid<P: consensus::Parameters>(
         leadbyte == 0x02
     } else {
         // Pre-ZIP 212 testnet
-        // Only used for the TEST_NETWORK prior to MASP activation, 
+        // Only used for the TEST_NETWORK prior to MASP activation,
         // because note encryption test vectors use pre-ZIP-212 rseed derivation
         leadbyte == 0x01
     }
@@ -1323,7 +1323,7 @@ mod tests {
                 jubjub::ExtendedPoint::from_bytes(&$field).unwrap()
             };
         }
-        // We must use height 0 here because the note encryption test vectors 
+        // We must use height 0 here because the note encryption test vectors
         // use  pre-ZIP-212 rseed, while all MASP tx always use ZIP-212
         let height = crate::consensus::H0;
 

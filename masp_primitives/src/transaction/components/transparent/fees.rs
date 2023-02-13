@@ -2,7 +2,7 @@
 //! of a transaction.
 
 use super::TxOut;
-use crate::transaction::{components::amount::Amount, OutPoint, TransparentAddress};
+use crate::transaction::{components::amount::Amount, TransparentAddress};
 
 /// This trait provides a minimized view of a transparent input suitable for use in
 /// fee and change computation.

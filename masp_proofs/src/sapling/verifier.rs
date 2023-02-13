@@ -4,7 +4,6 @@ use bellman::{gadgets::multipack, groth16::Proof};
 use bls12_381::Bls12;
 use group::{Curve, GroupEncoding};
 use masp_primitives::{
-    asset_type::AssetType,
     sapling::redjubjub::{PublicKey, Signature},
     transaction::components::Amount,
 };

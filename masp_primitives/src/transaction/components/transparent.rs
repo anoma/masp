@@ -1,7 +1,6 @@
 //! Structs representing the components within Zcash transactions.
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use secp256k1::PublicKey as TransparentAddress;
 use std::fmt::{self, Debug};
 use std::io::{self, Read, Write};
@@ -81,46 +80,6 @@ impl<A: Authorization> Bundle<A> {
 
         // Cannot panic when subtracting two positive i64
         Ok(input_sum - output_sum)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct OutPoint {
-    hash: [u8; 32],
-    n: u32,
-}
-
-impl OutPoint {
-    pub fn new(hash: [u8; 32], n: u32) -> Self {
-        OutPoint { hash, n }
-    }
-
-    pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
-        let mut hash = [0u8; 32];
-        reader.read_exact(&mut hash)?;
-        let n = reader.read_u32::<LittleEndian>()?;
-        Ok(OutPoint { hash, n })
-    }
-
-    pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        writer.write_all(&self.hash)?;
-        writer.write_u32::<LittleEndian>(self.n)
-    }
-
-    /// Returns `true` if this `OutPoint` is "null" in the Bitcoin sense: it points to the
-    /// `u32::MAX`th output of the transaction with the all-zeroes txid.
-    fn is_null(&self) -> bool {
-        // From `BaseOutPoint::IsNull()` in zcashd:
-        //   return (hash.IsNull() && n == (uint32_t) -1);
-        self.hash == [0; 32] && self.n == u32::MAX
-    }
-
-    pub fn n(&self) -> u32 {
-        self.n
-    }
-
-    pub fn hash(&self) -> &[u8; 32] {
-        &self.hash
     }
 }
 

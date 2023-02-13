@@ -31,7 +31,6 @@ use self::{
             self, ConvertDescriptionV5, OutputDescriptionV5, SpendDescription, SpendDescriptionV5,
         },
         transparent::{self, TxIn, TxOut},
-        OutPoint,
     },
     txid::{to_txid, BlockTxCommitmentDigester, TxIdDigester},
 };

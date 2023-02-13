@@ -10,7 +10,7 @@ use crate::{
             transparent::{self, fees, Authorization, Authorized, Bundle, TxIn, TxOut},
         },
         sighash::TransparentAuthorizingContext,
-        OutPoint, TransparentAddress,
+        TransparentAddress,
     },
 };
 use borsh::{BorshDeserialize, BorshSerialize};

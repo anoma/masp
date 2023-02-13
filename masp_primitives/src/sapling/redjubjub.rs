@@ -59,10 +59,7 @@ impl Hash for PublicKey {
 
 impl BorshDeserialize for PublicKey {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Ok(Self(read_point(
-            buf,
-            "public key"
-        )?))
+        Ok(Self(read_point(buf, "public key")?))
     }
 }
 
