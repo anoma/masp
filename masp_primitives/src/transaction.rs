@@ -644,39 +644,4 @@ pub mod testing {
             Transaction::from_data(tx_data).unwrap()
         }
     }
-
-    use crate::transaction::testing::sapling::{
-        arb_convert_description, arb_output_description, arb_spend_description,
-    };
-    /*
-    prop_compose! {
-        pub fn arb_bundle()(
-            shielded_spends in vec(arb_spend_description(), 0..30),
-            shielded_converts in vec(arb_convert_description(), 0..30),
-            shielded_outputs in vec(arb_output_description(), 0..30),
-            value in arb_amount(),
-            rng_seed in prop::array::uniform32(prop::num::u8::ANY),
-            fake_bvk_bytes in prop::array::uniform32(prop::num::u8::ANY),
-        ) -> Option<Bundle<Authorized>> {
-            if shielded_spends.is_empty() && shielded_outputs.is_empty() {
-                None
-            } else {
-                let mut rng = StdRng::from_seed(rng_seed);
-                let bsk = PrivateKey(jubjub::Fr::random(&mut rng));
-
-                //let mut value_balance = std::collections::BTreeMap::new();
-                //value_balance.insert(, value);
-                let value_balance = crate::transaction::amount::Amount::from_pair(crate::asset_type::AssetType::new(b"prop_test").unwrap(), value).unwrap();
-                Some(
-                    Bundle {
-                        shielded_spends,
-                        shielded_converts,
-                        shielded_outputs,
-                        value_balance,
-                        authorization: Authorized { binding_sig: bsk.sign(&fake_bvk_bytes, &mut rng, VALUE_COMMITMENT_RANDOMNESS_GENERATOR) },
-                    }
-                )
-            }
-        }
-    }*/
 }

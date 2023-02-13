@@ -258,29 +258,7 @@ impl SpendDescription<Authorized> {
         Signature::read(&mut reader)
     }
 
-    /*pub fn read<R: Read>(mut reader: R) -> io::Result<Self> {
-        // Consensus rules (§4.4) & (§4.5):
-        // - Canonical encoding is enforced here.
-        // - "Not small order" is enforced in SaplingVerificationContext::(check_spend()/check_output())
-        //   (located in zcash_proofs::sapling::verifier).
-        let cv = read_point(&mut reader, "cv")?;
-        // Consensus rules (§7.3) & (§7.4):
-        // - Canonical encoding is enforced here
-        let anchor = read_base(&mut reader, "anchor")?;
-        let nullifier = Self::read_nullifier(&mut reader)?;
-        let rk = Self::read_rk(&mut reader)?;
-        let zkproof = read_zkproof(&mut reader)?;
-        let spend_auth_sig = Self::read_spend_auth_sig(&mut reader)?;
 
-        Ok(SpendDescription {
-            cv,
-            anchor,
-            nullifier,
-            rk,
-            zkproof,
-            spend_auth_sig,
-        })
-    }*/
 
     pub fn write_v5_without_witness_data<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(&self.cv.to_bytes())?;
@@ -372,38 +350,6 @@ where
 }
 
 impl OutputDescription<GrothProofBytes> {
-    /*     pub fn read<R: Read>(mut reader: &mut R) -> io::Result<Self> {
-        // Consensus rules (§4.5):
-        // - Canonical encoding is enforced here.
-        // - "Not small order" is enforced in SaplingVerificationContext::check_output()
-        //   (located in zcash_proofs::sapling::verifier).
-        let cv = read_point(&mut reader, "cv")?;
-
-        // Consensus rule (§7.4): Canonical encoding is enforced here
-        let cmu = read_base(&mut reader, "cmu")?;
-
-        // Consensus rules (§4.5):
-        // - Canonical encoding is enforced in librustzcash_sapling_check_output by zcashd
-        // - "Not small order" is enforced in SaplingVerificationContext::check_output()
-        let mut ephemeral_key = EphemeralKeyBytes([0u8; 32]);
-        reader.read_exact(&mut ephemeral_key.0)?;
-
-        let mut enc_ciphertext = [0u8; 580 + 32];
-        let mut out_ciphertext = [0u8; 80];
-        reader.read_exact(&mut enc_ciphertext)?;
-        reader.read_exact(&mut out_ciphertext)?;
-
-        let zkproof = read_zkproof(&mut reader)?;
-
-        Ok(OutputDescription {
-            cv,
-            cmu,
-            ephemeral_key,
-            enc_ciphertext,
-            out_ciphertext,
-            zkproof,
-        })
-    }*/
 
     pub fn write_v5_without_proof<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(&self.cv.to_bytes())?;

@@ -120,6 +120,11 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
         if subtrees.is_empty() {
             return Self(Vec::new(), 0);
         }
+        let size = subtrees[0].size();
+        assert!(size.is_power_of_two());
+        for subtree in subtrees.iter().rev().skip(1) {
+            assert_eq!(subtree.size(), size);
+        }
         // Combine the 1 or more supplied subtrees
         let mut height = 0;
         let mut prev_first_start = 0;
@@ -759,6 +764,7 @@ impl<Node: Hashable> BorshDeserialize for MerklePath<Node> {
         *witness = &witness[1..];
 
         // Begin to construct the authentication path
+        // Do not use any data in the witness after the expected depth
         let iter = witness[..33 * depth + 8].chunks_exact(33);
         *witness = iter.remainder();
 
@@ -807,7 +813,6 @@ impl<Node: Hashable> BorshDeserialize for MerklePath<Node> {
 
 impl<Node: Hashable> BorshSerialize for MerklePath<Node> {
     fn serialize<W: Write>(&self, witness: &mut W) -> Result<(), std::io::Error> {
-        //let mut witness = Vec::new();
         let mut position = 0u64;
         // Write path length
         witness.write_u8(self.auth_path.len() as u8)?;
