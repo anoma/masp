@@ -192,9 +192,9 @@ impl Parameters for Network {
 /// See [ZIP 200](https://zips.z.cash/zip-0200) for more details.
 #[derive(Clone, Copy, Debug)]
 pub enum NetworkUpgrade {
-    /// The [Canopy] network upgrade.
+    /// The [MASP] network upgrade.
     ///
-    /// [Canopy]: https://z.cash/upgrade/canopy/
+    /// [MASP]: https://github.com/anoma/masp/
     MASP,
 }
 
@@ -239,7 +239,7 @@ pub const ZIP212_GRACE_PERIOD: u32 = 0;
 /// [`signature_hash`]: crate::transaction::sighash::signature_hash
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BranchId {
-    /// The consensus rules deployed by [`NetworkUpgrade::Canopy`].
+    /// The consensus rules deployed by [`NetworkUpgrade::MASP`].
     MASP,
 }
 

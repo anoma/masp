@@ -1,7 +1,7 @@
 use crate::{
     sapling::{
         pedersen_hash::{pedersen_hash, Personalization},
-        ValueCommitment,
+        Node, ValueCommitment,
     },
     transaction::components::amount::Amount,
 };
@@ -63,6 +63,11 @@ impl AllowedConversion {
             value,
             randomness,
         }
+    }
+    /// Returns [`self.cmu`] in the correct representation for inclusion in the MASP
+    /// AllowedConversions commitment tree.
+    pub fn commitment(&self) -> Node {
+        Node::from_scalar(self.cmu())
     }
 }
 

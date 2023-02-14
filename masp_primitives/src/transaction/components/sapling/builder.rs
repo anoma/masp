@@ -228,7 +228,7 @@ impl SaplingMetadata {
 
 pub struct SaplingBuilder<P> {
     params: P,
-    anchor: Option<bls12_381::Scalar>,
+    spend_anchor: Option<bls12_381::Scalar>,
     target_height: BlockHeight,
     value_balance: Amount,
     convert_anchor: Option<bls12_381::Scalar>,
@@ -257,7 +257,7 @@ impl<P> SaplingBuilder<P> {
     pub fn new(params: P, target_height: BlockHeight) -> Self {
         SaplingBuilder {
             params,
-            anchor: None,
+            spend_anchor: None,
             target_height,
             value_balance: Amount::zero(),
             convert_anchor: None,
@@ -302,13 +302,13 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
     ) -> Result<(), Error> {
         // Consistency check: all anchors must equal the first one
         let node = note.commitment();
-        if let Some(anchor) = self.anchor {
+        if let Some(anchor) = self.spend_anchor {
             let path_root: bls12_381::Scalar = merkle_path.root(node).into();
             if path_root != anchor {
                 return Err(Error::AnchorMismatch);
             }
         } else {
-            self.anchor = Some(merkle_path.root(node).into())
+            self.spend_anchor = Some(merkle_path.root(node).into())
         }
 
         let alpha = jubjub::Fr::random(&mut rng);
@@ -321,6 +321,40 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
             diversifier,
             note,
             alpha,
+            merkle_path,
+        });
+
+        Ok(())
+    }
+
+    /// Adds a convert note to be applied in this transaction.
+    ///
+    /// Returns an error if the given Merkle path does not have the same anchor as the
+    /// paths for previous convert notes.
+    pub fn add_convert<R: RngCore>(
+        &mut self,
+        allowed: AllowedConversion,
+        value: u64,
+        merkle_path: MerklePath<Node>,
+    ) -> Result<(), Error> {
+        // Consistency check: all anchors must equal the first one
+
+        let node = allowed.commitment();
+        if let Some(anchor) = self.convert_anchor {
+            let path_root: bls12_381::Scalar = merkle_path.root(node).into();
+            if path_root != anchor {
+                return Err(Error::AnchorMismatch);
+            }
+        } else {
+            self.convert_anchor = Some(merkle_path.root(node).into())
+        }
+
+        let allowed_amt: Amount = allowed.clone().into();
+        self.value_balance += allowed_amt * value.try_into().unwrap();
+
+        self.converts.push(ConvertDescriptionInfo {
+            allowed,
+            value,
             merkle_path,
         });
 
@@ -404,7 +438,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         // Create Sapling SpendDescriptions
         let shielded_spends: Vec<SpendDescription<Unauthorized>> = if !indexed_spends.is_empty() {
             let anchor = self
-                .anchor
+                .spend_anchor
                 .expect("MASP Spend anchor must be set if MASP spends are present.");
 
             indexed_spends
