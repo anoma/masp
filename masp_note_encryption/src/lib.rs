@@ -9,6 +9,7 @@
 //! users with their own existing types can similarly implement the trait themselves.
 //!
 //! [in-band secret distribution scheme]: https://zips.z.cash/protocol/protocol.pdf#saplingandorchardinband
+//! [`masp_primitives`]: https://github.com/anoma/masp
 
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]

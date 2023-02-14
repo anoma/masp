@@ -25,8 +25,9 @@ pub mod constants;
 pub mod hashreader;
 pub mod sapling;
 
-// #[cfg(feature = "embed-verifying-key")]
-// pub mod params;
+#[cfg(feature = "embed-verifying-key")]
+pub mod params;
+
 #[cfg(any(feature = "local-prover", feature = "bundled-prover"))]
 #[cfg_attr(
     docsrs,
@@ -39,11 +40,14 @@ pub mod prover;
 mod downloadreader;
 
 // Circuit names
-#[cfg(feature = "local-prover")]
+
+/// The MASP spend parameters file name.
 const MASP_SPEND_NAME: &str = "masp-spend.params";
-#[cfg(feature = "local-prover")]
+
+/// The MASP output parameters file name.
 const MASP_OUTPUT_NAME: &str = "masp-output.params";
-#[cfg(feature = "local-prover")]
+
+/// The MASP convert parameters file name.
 const MASP_CONVERT_NAME: &str = "masp-convert.params";
 
 // Circuit hashes
@@ -214,25 +218,19 @@ fn stream_params_downloads_to_disk(
     // because of CloudFlare's maximum cached file size limit of 512 MB.
     // The files must fit in the cache to prevent "denial of wallet" attacks.
     let params_url_1 = format!("{}/{}", DOWNLOAD_URL, name);
-    // TODO: skip empty part.2 files when downloading sapling spend and sapling output
-    //let params_url_2 = format!("{}/{}.part.2", DOWNLOAD_URL, name);
 
     let mut params_download_1 = minreq::get(&params_url_1);
-    //let mut params_download_2 = minreq::get(&params_url_2);
     if let Some(timeout) = timeout {
         params_download_1 = params_download_1.with_timeout(timeout);
-        //params_download_2 = params_download_2.with_timeout(timeout);
     }
 
     // Download the responses and write them to a new file,
     // verifying the hash as bytes are read.
     let params_download_1 = ResponseLazyReader::from(params_download_1);
-    //let params_download_2 = ResponseLazyReader::from(params_download_2);
 
     // Limit the download size to avoid DoS.
     // This also avoids launching the second request, if the first request provides enough bytes.
     let params_download = params_download_1
-        //.chain(params_download_2)
         .take(expected_bytes);
     let params_download = BufReader::with_capacity(1024 * 1024, params_download);
     let params_download = hashreader::HashReader::new(params_download);
