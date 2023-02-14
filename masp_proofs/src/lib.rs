@@ -230,8 +230,7 @@ fn stream_params_downloads_to_disk(
 
     // Limit the download size to avoid DoS.
     // This also avoids launching the second request, if the first request provides enough bytes.
-    let params_download = params_download_1
-        .take(expected_bytes);
+    let params_download = params_download_1.take(expected_bytes);
     let params_download = BufReader::with_capacity(1024 * 1024, params_download);
     let params_download = hashreader::HashReader::new(params_download);
 

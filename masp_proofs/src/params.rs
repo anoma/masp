@@ -6,11 +6,9 @@ lazy_static! {
     pub static ref SPEND_VK: VerifyingKey::<Bls12> =
         VerifyingKey::<Bls12>::read(&include_bytes!("../params/masp-spend.vk")[..]).unwrap();
     pub static ref OUTPUT_VK: VerifyingKey::<Bls12> =
-        VerifyingKey::<Bls12>::read(&include_bytes!("../params/masp-output.vk")[..])
-            .unwrap();
+        VerifyingKey::<Bls12>::read(&include_bytes!("../params/masp-output.vk")[..]).unwrap();
     pub static ref CONVERT_VK: VerifyingKey::<Bls12> =
-        VerifyingKey::<Bls12>::read(&include_bytes!("../params/masp-convert.vk")[..])
-            .unwrap();
+        VerifyingKey::<Bls12>::read(&include_bytes!("../params/masp-convert.vk")[..]).unwrap();
 }
 
 #[cfg(feature = "download-params")]
