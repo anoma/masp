@@ -1,9 +1,0 @@
-This is makeindex, version 2.16 [TeX Live 2022] (kpathsea + Thai support).
-Scanning input file sapling.idx....done (165 entries accepted, 0 rejected).
-Sorting entries....done (1309 comparisons).
-Generating output file sapling.ind....
-## Warning (input = sapling.idx, line = 63; output = sapling.ind, line = 63):
-   -- Conflicting entries: multiple encaps for the same page under same key.
-done (137 lines written, 1 warning).
-Output written in sapling.ind.
-Transcript written in sapling.ilg.
