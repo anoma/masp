@@ -69,9 +69,6 @@ hex = "0.4"
 bitvec = "1"
 blake2s_simd = "1"
 
-# - Transparent inputs
-ripemd = { version = "0.1", optional = true }
-
 # - ZIP 32
 aes = "0.7"
 fpe = "0.5"
