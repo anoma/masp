@@ -117,7 +117,7 @@ impl TransparentBuilder {
         &mut self,
         to: &TransparentAddress,
         asset_type: AssetType,
-        value: i64,
+        value: i128,
     ) -> Result<(), Error> {
         if value < 0 || value > MAX_MONEY {
             return Err(Error::InvalidAmount);
@@ -163,7 +163,7 @@ impl TransparentBuilder {
             .sum::<Result<Amount, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
-        // Cannot panic when subtracting two positive i64
+        // Cannot panic when subtracting two positive i128
         Ok(input_sum - output_sum)
     }
 

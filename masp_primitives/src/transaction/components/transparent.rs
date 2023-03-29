@@ -78,7 +78,7 @@ impl<A: Authorization> Bundle<A> {
             .sum::<Result<Amount, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
-        // Cannot panic when subtracting two positive i64
+        // Cannot panic when subtracting two positive i128
         Ok(input_sum - output_sum)
     }
 }
@@ -86,21 +86,21 @@ impl<A: Authorization> Bundle<A> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxIn {
     pub asset_type: AssetType,
-    pub value: i64,
+    pub value: i128,
 }
 
 impl TxIn {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let asset_type = {
-            let mut tmp = [0u8; 32];
+            let mut tmp = [0u8; crate::constants::ASSET_IDENTIFIER_LENGTH];
             reader.read_exact(&mut tmp)?;
             AssetType::from_identifier(&tmp)
         }
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid asset identifier"))?;
         let value = {
-            let mut tmp = [0u8; 8];
+            let mut tmp = [0u8; core::mem::size_of::<i128>()];
             reader.read_exact(&mut tmp)?;
-            i64::from_le_bytes(tmp)
+            i128::from_le_bytes(tmp)
         };
         if value < 0 || value > MAX_MONEY {
             return Err(io::Error::new(
@@ -121,22 +121,22 @@ impl TxIn {
 #[derive(Clone, Debug, Hash, PartialOrd, PartialEq, Ord, Eq)]
 pub struct TxOut {
     pub asset_type: AssetType,
-    pub value: i64,
+    pub value: i128,
     pub transparent_address: TransparentAddress,
 }
 
 impl TxOut {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let asset_type = {
-            let mut tmp = [0u8; 32];
+            let mut tmp = [0u8; crate::constants::ASSET_IDENTIFIER_LENGTH];
             reader.read_exact(&mut tmp)?;
             AssetType::from_identifier(&tmp)
         }
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid asset identifier"))?;
         let value = {
-            let mut tmp = [0u8; 8];
+            let mut tmp = [0u8; core::mem::size_of::<i128>()];
             reader.read_exact(&mut tmp)?;
-            i64::from_le_bytes(tmp)
+            i128::from_le_bytes(tmp)
         };
         if value < 0 || value > MAX_MONEY {
             return Err(io::Error::new(
