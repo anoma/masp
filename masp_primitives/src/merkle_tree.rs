@@ -108,7 +108,10 @@ pub struct FrozenCommitmentTree<Node>(Vec<Node>, usize);
 impl<Node: Hashable> FrozenCommitmentTree<Node> {
     /// Construct a commitment tree with the given leaf nodes
     pub fn new(leafs: &[Node]) -> Self {
-        let mut tree = Vec::with_capacity(leafs.len() * 2 + SAPLING_COMMITMENT_TREE_DEPTH + 1);
+        // This capacity is sufficient to hold a Merkle tree (where an empty node
+        // is added onto some rows to ensure that they are of even size) with the
+        // given number of leaves. This follows from the identity ceil(ceil(x/m)/n)=ceil(x/(mn))
+        let mut tree = Vec::with_capacity(leafs.len() * 2 + SAPLING_COMMITMENT_TREE_DEPTH - 1);
         tree.extend_from_slice(leafs);
         // Infer the rest of the tree
         Self::complete(tree, 0, leafs.len(), 0, leafs.len())
@@ -134,7 +137,7 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
         let mut prev_start = 0;
         let mut prev_width = (subtrees.len() - 1) * prev_first_width + prev_last_width;
         let leafs = prev_width;
-        let mut tree = Vec::with_capacity(leafs * 2 + SAPLING_COMMITMENT_TREE_DEPTH + 1);
+        let mut tree = Vec::with_capacity(leafs * 2 + SAPLING_COMMITMENT_TREE_DEPTH - 1);
         loop {
             // Need to make sure that right child is present for parent
             if prev_last_width % 2 == 1 && prev_first_width > 1 {

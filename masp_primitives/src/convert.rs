@@ -128,6 +128,10 @@ impl BorshDeserialize for AllowedConversion {
             <<jubjub::ExtendedPoint as GroupEncoding>::Repr as BorshDeserialize>::deserialize(buf)?;
         let generator = Option::from(jubjub::ExtendedPoint::from_bytes(&gen_bytes))
             .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidData))?;
+        let allowed_conversion: AllowedConversion = assets.clone().into();
+        if allowed_conversion.generator != generator {
+            return Err(io::Error::from(io::ErrorKind::InvalidData));
+        }
         Ok(AllowedConversion { assets, generator })
     }
 }
