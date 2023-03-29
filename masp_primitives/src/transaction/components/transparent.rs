@@ -134,6 +134,7 @@ impl TxOut {
         }
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid asset identifier"))?;
         let value = {
+            assert_eq!(core::mem::size_of::<i128>(), 8);
             let mut tmp = [0u8; core::mem::size_of::<i128>()];
             reader.read_exact(&mut tmp)?;
             i128::from_le_bytes(tmp)
