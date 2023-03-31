@@ -117,7 +117,7 @@ impl TransparentBuilder {
         &mut self,
         to: &TransparentAddress,
         asset_type: AssetType,
-        value: i64,
+        value: u64,
     ) -> Result<(), Error> {
         if value < 0 || value > MAX_MONEY {
             return Err(Error::InvalidAmount);

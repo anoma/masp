@@ -56,7 +56,7 @@ impl<A: Authorization> Bundle<A> {
             .vin
             .iter()
             .map(|p| {
-                if p.value > 0 {
+                if p.value >= 0 {
                     Amount::from_pair(p.asset_type, p.value)
                 } else {
                     Err(())
@@ -69,7 +69,7 @@ impl<A: Authorization> Bundle<A> {
             .vout
             .iter()
             .map(|p| {
-                if p.value > 0 {
+                if p.value >= 0 {
                     Amount::from_pair(p.asset_type, p.value)
                 } else {
                     Err(())
@@ -121,7 +121,7 @@ impl TxIn {
 #[derive(Clone, Debug, Hash, PartialOrd, PartialEq, Ord, Eq)]
 pub struct TxOut {
     pub asset_type: AssetType,
-    pub value: i64,
+    pub value: u64,
     pub transparent_address: TransparentAddress,
 }
 
