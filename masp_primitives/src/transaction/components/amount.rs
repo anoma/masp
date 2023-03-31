@@ -114,7 +114,7 @@ impl Amount<AssetType> {
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
             let mut atype = [0; crate::constants::ASSET_IDENTIFIER_LENGTH];
-            assert_eq!(core::mem::size_of::<i128>(), 8);
+            assert_eq!(core::mem::size_of::<i128>(), 16);
             let mut value = [0; core::mem::size_of::<i128>()];
             reader.read_exact(&mut atype)?;
             reader.read_exact(&mut value)?;
