@@ -454,6 +454,8 @@ mod tests {
             .unwrap();
 
         let mut builder = Builder::new(TEST_NETWORK, masp_activation_height);
+
+        if MAX_MONEY + 1 <= u64::MAX.into() {
         assert_eq!(
             builder.add_sapling_output(
                 Some(ovk),
@@ -464,6 +466,7 @@ mod tests {
             ),
             Err(build_s::Error::InvalidAmount)
         );
+    }
     }
 
     /// Generate ZEC asset type
