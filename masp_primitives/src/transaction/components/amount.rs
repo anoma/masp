@@ -1,4 +1,4 @@
-use crate::asset_type::AssetType;
+use crate::asset_type::{AssetType, self};
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::cmp::Ordering;
 use std::collections::btree_map::Keys;
@@ -11,14 +11,14 @@ use std::iter::Sum;
 use std::ops::{Add, AddAssign, Index, Mul, MulAssign, Neg, Sub, SubAssign};
 use zcash_encoding::Vector;
 
-pub const MAX_MONEY: i64 = i64::MAX;
+pub const MAX_MONEY: i128 = u64::MAX as i128;
 lazy_static::lazy_static! {
 pub static ref DEFAULT_FEE: Amount = Amount::from_pair(zec(), 1000).unwrap();
 }
 /// A type-safe representation of some quantity of Zcash.
 ///
 /// An Amount can only be constructed from an integer that is within the valid monetary
-/// range of `{-MAX_MONEY..MAX_MONEY}` (where `MAX_MONEY` = i64::MAX).
+/// range of `{-MAX_MONEY..MAX_MONEY}` (where `MAX_MONEY` = i128::MAX).
 /// However, this range is not preserved as an invariant internally; it is possible to
 /// add two valid Amounts together to obtain an invalid Amount. It is the user's
 /// responsibility to handle the result of serializing potentially-invalid Amounts. In
@@ -27,7 +27,7 @@ pub static ref DEFAULT_FEE: Amount = Amount::from_pair(zec(), 1000).unwrap();
 ///
 #[derive(Clone, Default, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
 pub struct Amount<Unit: Hash + Ord + BorshSerialize + BorshDeserialize = AssetType>(
-    pub BTreeMap<Unit, i64>,
+    pub BTreeMap<Unit, i128>,
 );
 
 impl memuse::DynamicUsage for Amount {
@@ -50,10 +50,10 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
         Amount(BTreeMap::new())
     }
 
-    /// Creates a non-negative Amount from an i64.
+    /// Creates a non-negative Amount from an i128.
     ///
     /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
-    pub fn from_nonnegative<Amt: TryInto<i64>>(atype: Unit, amount: Amt) -> Result<Self, ()> {
+    pub fn from_nonnegative<Amt: TryInto<i128>>(atype: Unit, amount: Amt) -> Result<Self, ()> {
         let amount = amount.try_into().map_err(|_| ())?;
         if amount == 0 {
             Ok(Self::zero())
@@ -65,10 +65,10 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
             Err(())
         }
     }
-    /// Creates an Amount from a type convertible to i64.
+    /// Creates an Amount from a type convertible to i128.
     ///
     /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
-    pub fn from_pair<Amt: TryInto<i64>>(atype: Unit, amount: Amt) -> Result<Self, ()> {
+    pub fn from_pair<Amt: TryInto<i128>>(atype: Unit, amount: Amt) -> Result<Self, ()> {
         let amount = amount.try_into().map_err(|_| ())?;
         if amount == 0 {
             Ok(Self::zero())
@@ -82,17 +82,17 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
     }
 
     /// Returns an iterator over the amount's non-zero asset-types
-    pub fn asset_types(&self) -> Keys<'_, Unit, i64> {
+    pub fn asset_types(&self) -> Keys<'_, Unit, i128> {
         self.0.keys()
     }
 
     /// Returns an iterator over the amount's non-zero components
-    pub fn components(&self) -> Iter<'_, Unit, i64> {
+    pub fn components(&self) -> Iter<'_, Unit, i128> {
         self.0.iter()
     }
 
     /// Returns an iterator over the amount's non-zero components
-    pub fn into_components(self) -> IntoIter<Unit, i64> {
+    pub fn into_components(self) -> IntoIter<Unit, i128> {
         self.0.into_iter()
     }
 
@@ -113,14 +113,15 @@ impl Amount<AssetType> {
     /// different assets
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
-            let mut atype = [0; 32];
-            let mut value = [0; 8];
+            let mut atype = [0; crate::constants::ASSET_IDENTIFIER_LENGTH];
+            assert_eq!(core::mem::size_of::<i128>(), 8);
+            let mut value = [0; core::mem::size_of::<i128>()];
             reader.read_exact(&mut atype)?;
             reader.read_exact(&mut value)?;
             let atype = AssetType::from_identifier(&atype).ok_or_else(|| {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
             })?;
-            Ok((atype, i64::from_le_bytes(value)))
+            Ok((atype, i128::from_le_bytes(value)))
         })?;
         let mut ret = Self::zero();
         for (atype, amt) in vec {
@@ -177,15 +178,15 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> PartialOrd fo
 }
 
 impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize> Index<&Unit> for Amount<Unit> {
-    type Output = i64;
+    type Output = i128;
     /// Query how much of the given asset this amount contains
     fn index(&self, index: &Unit) -> &Self::Output {
         self.0.get(index).unwrap_or(&0)
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> MulAssign<i64> for Amount<Unit> {
-    fn mul_assign(&mut self, rhs: i64) {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> MulAssign<i128> for Amount<Unit> {
+    fn mul_assign(&mut self, rhs: i128) {
         for (_atype, amount) in self.0.iter_mut() {
             let ent = *amount * rhs;
             if -MAX_MONEY <= ent && ent <= MAX_MONEY {
@@ -197,10 +198,10 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> MulAssign<i64
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i64> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i128> for Amount<Unit> {
     type Output = Self;
 
-    fn mul(mut self, rhs: i64) -> Self {
+    fn mul(mut self, rhs: i128) -> Self {
         self *= rhs;
         self
     }
@@ -364,13 +365,13 @@ pub mod testing {
     }
 
     prop_compose! {
-        pub fn arb_nonnegative_amount()(asset_type in arb_asset_type(), amt in 0i64..MAX_MONEY) -> Amount {
+        pub fn arb_nonnegative_amount()(asset_type in arb_asset_type(), amt in 0i128..MAX_MONEY) -> Amount {
             Amount::from_pair(asset_type, amt).unwrap()
         }
     }
 
     prop_compose! {
-        pub fn arb_positive_amount()(asset_type in arb_asset_type(), amt in 1i64..MAX_MONEY) -> Amount {
+        pub fn arb_positive_amount()(asset_type in arb_asset_type(), amt in 1i128..MAX_MONEY) -> Amount {
             Amount::from_pair(asset_type, amt).unwrap()
         }
     }
@@ -403,7 +404,7 @@ mod tests {
 
         //let mut neg_max_money = [0u8; 41];
         //let mut amount = Amount::from_pair(zec(), -MAX_MONEY).unwrap();
-        //*amount.0.get_mut(&zec()).unwrap() = i64::MIN;
+        //*amount.0.get_mut(&zec()).unwrap() = i128::MIN;
         //amount.write(&mut neg_max_money.as_mut());
         //dbg!(std::str::from_utf8(&neg_max_money.as_ref().iter().map(|b| std::ascii::escape_default(*b)).flatten().collect::<Vec<_>>()).unwrap());
 

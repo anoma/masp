@@ -250,7 +250,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         &mut self,
         to: &TransparentAddress,
         asset_type: AssetType,
-        value: i64,
+        value: i128,
     ) -> Result<(), transparent::builder::Error> {
         if value < 0 || value > MAX_MONEY {
             return Err(transparent::builder::Error::InvalidAmount);
