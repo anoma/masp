@@ -98,31 +98,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --all-targets -- -W clippy::all
 
-  jobs:
-    name: Code coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Fetch path to MASP parameters
-        working-directory: ./masp_proofs
-        shell: bash
-        run: echo "MASP_PARAMS=$(cargo run --release --example get-params-path --features directories)" >> $GITHUB_ENV
-      - name: Cache MASP parameters
-        id: cache-params
-        uses: actions/cache@v3.2.4
-        with:
-          path: ${{ env.MASP_PARAMS }}
-          key: ${{ runner.os }}-params
-      - name: Fetch MASP parameters
-        if: steps.cache-params.outputs.cache-hit != 'true'
-        working-directory: ./masp_proofs
-        run: cargo run --release --example download-params --features download-params
-      - name: Generate coverage report
-        uses: taiki-e/install-action@cargo-llvm-cov
-        run: cargo llvm-cov
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3.0.0
-
   doc-links:
     name: Intra-doc links
     runs-on: ubuntu-latest
