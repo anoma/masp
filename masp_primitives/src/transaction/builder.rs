@@ -455,18 +455,19 @@ mod tests {
 
         let mut builder = Builder::new(TEST_NETWORK, masp_activation_height);
 
-        if MAX_MONEY + 1 <= u64::MAX.into() {
-        assert_eq!(
-            builder.add_sapling_output(
-                Some(ovk),
-                to,
-                zec(),
-                MAX_MONEY as u64 + 1,
-                MemoBytes::empty()
-            ),
-            Err(build_s::Error::InvalidAmount)
-        );
-    }
+        let value = MAX_MONEY + 1;
+        if value <= u64::MAX.into() {
+            assert_eq!(
+                builder.add_sapling_output(
+                    Some(ovk),
+                    to,
+                    zec(),
+                    value.try_into().unwrap(),
+                    MemoBytes::empty()
+                ),
+                Err(build_s::Error::InvalidAmount)
+            );
+        }
     }
 
     /// Generate ZEC asset type
