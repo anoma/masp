@@ -1,4 +1,4 @@
-use crate::asset_type::{AssetType, self};
+use crate::asset_type::AssetType;
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::cmp::Ordering;
 use std::collections::btree_map::Keys;
@@ -185,7 +185,9 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize> Index<&Unit> for Amou
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> MulAssign<i128> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> MulAssign<i128>
+    for Amount<Unit>
+{
     fn mul_assign(&mut self, rhs: i128) {
         for (_atype, amount) in self.0.iter_mut() {
             let ent = *amount * rhs;

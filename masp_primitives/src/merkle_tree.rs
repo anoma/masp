@@ -122,8 +122,8 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
     pub fn merge(subtrees: &[FrozenCommitmentTree<Node>]) -> Self {
         if subtrees.is_empty() {
             return Self(Vec::new(), 0);
-        } else if subtrees.size() == 1 {
-            return subtrees[0].clone()
+        } else if subtrees.len() == 1 {
+            return subtrees[0].clone();
         }
         let size = subtrees[0].size();
         assert!(size.is_power_of_two());

@@ -9,11 +9,11 @@ pub use self::prover::SaplingProvingContext;
 pub use self::verifier::{BatchValidator, SaplingVerificationContext};
 
 // This function computes `value` in the exponent of the value commitment base
-fn masp_compute_value_balance(asset_type: AssetType, value: i64) -> Option<jubjub::ExtendedPoint> {
+fn masp_compute_value_balance(asset_type: AssetType, value: i128) -> Option<jubjub::ExtendedPoint> {
     // Compute the absolute value (failing if -i64::MAX is
     // the value)
     let abs = match value.checked_abs() {
-        Some(a) => a as u64,
+        Some(a) => u64::try_from(a).ok()?,
         None => return None,
     };
 
