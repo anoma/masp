@@ -12,6 +12,7 @@ use std::{
     cmp::Ordering,
     fmt::{Display, Formatter},
     hash::{Hash, Hasher},
+    io::Read,
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq)]
@@ -147,6 +148,14 @@ impl AssetType {
 
     pub fn get_nonce(&self) -> Option<u8> {
         self.nonce
+    }
+    /// Deserialize an AssetType object
+    pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut atype = [0; crate::constants::ASSET_IDENTIFIER_LENGTH];
+        reader.read_exact(&mut atype)?;
+        AssetType::from_identifier(&atype).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
+        })
     }
 }
 

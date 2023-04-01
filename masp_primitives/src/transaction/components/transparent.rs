@@ -91,12 +91,7 @@ pub struct TxIn {
 
 impl TxIn {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let asset_type = {
-            let mut tmp = [0u8; crate::constants::ASSET_IDENTIFIER_LENGTH];
-            reader.read_exact(&mut tmp)?;
-            AssetType::from_identifier(&tmp)
-        }
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid asset identifier"))?;
+        let asset_type = AssetType::read(reader)?;
         let value = {
             assert_eq!(core::mem::size_of::<u64>(), 8);
             let mut tmp = [0u8; core::mem::size_of::<u64>()];
@@ -128,12 +123,7 @@ pub struct TxOut {
 
 impl TxOut {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let asset_type = {
-            let mut tmp = [0u8; crate::constants::ASSET_IDENTIFIER_LENGTH];
-            reader.read_exact(&mut tmp)?;
-            AssetType::from_identifier(&tmp)
-        }
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid asset identifier"))?;
+        let asset_type = AssetType::read(reader)?;
         let value = {
             assert_eq!(core::mem::size_of::<u64>(), 8);
             let mut tmp = [0u8; core::mem::size_of::<u64>()];

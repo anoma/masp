@@ -113,11 +113,7 @@ impl Amount<AssetType> {
     /// different assets
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
-            let mut atype = [0; crate::constants::ASSET_IDENTIFIER_LENGTH];
-            reader.read_exact(&mut atype)?;
-            let atype = AssetType::from_identifier(&atype).ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
-            })?;
+            let atype = AssetType::read(reader)?;
             assert_eq!(core::mem::size_of::<i128>(), 16);
             let mut value = [0; core::mem::size_of::<i128>()];
             reader.read_exact(&mut value)?;
@@ -393,8 +389,7 @@ mod tests {
                 std::str::from_utf8(
                     &bytes
                         .iter()
-                        .map(|b| std::ascii::escape_default(*b))
-                        .flatten()
+                        .flat_map(|b| std::ascii::escape_default(*b))
                         .collect::<Vec<_>>()
                 )
                 .unwrap()
