@@ -18,7 +18,7 @@ pub static ref DEFAULT_FEE: Amount = Amount::from_pair(zec(), 1000).unwrap();
 /// A type-safe representation of some quantity of Zcash.
 ///
 /// An Amount can only be constructed from an integer that is within the valid monetary
-/// range of `{-MAX_MONEY..MAX_MONEY}` (where `MAX_MONEY` = i128::MAX).
+/// range of `{-MAX_MONEY..MAX_MONEY}` (where `MAX_MONEY` = u64::MAX).
 /// However, this range is not preserved as an invariant internally; it is possible to
 /// add two valid Amounts together to obtain an invalid Amount. It is the user's
 /// responsibility to handle the result of serializing potentially-invalid Amounts. In

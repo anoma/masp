@@ -456,6 +456,7 @@ mod tests {
         let mut builder = Builder::new(TEST_NETWORK, masp_activation_height);
 
         let value = MAX_MONEY + 1;
+        // Only test overflow if overflow is possible
         if value <= u64::MAX.into() {
             assert_eq!(
                 builder.add_sapling_output(
