@@ -4,11 +4,10 @@ extern crate criterion;
 use bellman::groth16::*;
 use bls12_381::Bls12;
 use criterion::Criterion;
-use ff::Field;
-use group::Group;
+use group::{ff::Field, Group};
 use masp_primitives::{
     asset_type::AssetType,
-    primitives::{Diversifier, ProofGenerationKey},
+    sapling::{Diversifier, ProofGenerationKey},
 };
 use masp_proofs::circuit::sapling::Spend;
 use rand_core::{RngCore, SeedableRng};
@@ -74,7 +73,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 Spend {
                     value_commitment: Some(value_commitment.clone()),
                     proof_generation_key: Some(proof_generation_key.clone()),
-                    payment_address: Some(payment_address.clone()),
+                    payment_address: Some(payment_address),
                     commitment_randomness: Some(commitment_randomness),
                     ar: Some(ar),
                     auth_path: auth_path.clone(),

@@ -33,7 +33,7 @@ pub const SPENDING_KEY_GENERATOR_PERSONALIZATION: &[u8; 8] = b"MASP__G_";
 pub const PROOF_GENERATION_KEY_BASE_GENERATOR_PERSONALIZATION: &[u8; 8] = b"MASP__H_";
 
 /// BLAKE2s Personalization for the value commitment generator for the value
-pub const VALUE_COMMITMENT_GENERATOR_PERSONALIZATION: &[u8; 8] = b"MASP__v_"; //b"MASP__cv";
+pub const VALUE_COMMITMENT_GENERATOR_PERSONALIZATION: &[u8; 8] = b"MASP__v_";
 pub const VALUE_COMMITMENT_RANDOMNESS_PERSONALIZATION: &[u8; 8] = b"MASP__r_";
 
 /// BLAKE2s Personalization for the nullifier position generator (for computing rho)
@@ -266,7 +266,7 @@ mod tests {
     use jubjub::SubgroupPoint;
 
     use super::*;
-    use zcash_primitives::sapling::group_hash::group_hash;
+    use crate::sapling::group_hash::group_hash;
 
     fn find_group_hash(m: &[u8], personalization: &[u8; 8]) -> SubgroupPoint {
         let mut tag = m.to_vec();

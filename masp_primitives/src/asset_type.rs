@@ -3,14 +3,21 @@ use crate::{
         ASSET_IDENTIFIER_LENGTH, ASSET_IDENTIFIER_PERSONALIZATION, GH_FIRST_BLOCK,
         VALUE_COMMITMENT_GENERATOR_PERSONALIZATION,
     },
-    primitives::ValueCommitment,
+    sapling::ValueCommitment,
 };
 use blake2s_simd::Params as Blake2sParams;
+use borsh::{BorshDeserialize, BorshSerialize};
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
+use std::{
+    cmp::Ordering,
+    fmt::{Display, Formatter},
+    hash::{Hash, Hasher},
+};
 
-#[derive(Debug)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
+    #[borsh_skip]
     nonce: Option<u8>,
 }
 
@@ -143,19 +150,56 @@ impl AssetType {
     }
 }
 
-impl Copy for AssetType {}
-
-impl Clone for AssetType {
-    fn clone(&self) -> Self {
-        AssetType {
-            identifier: self.identifier,
-            nonce: self.nonce,
-        }
-    }
-}
-
 impl PartialEq for AssetType {
     fn eq(&self, other: &Self) -> bool {
         self.get_identifier() == other.get_identifier()
+    }
+}
+
+impl Display for AssetType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", hex::encode(self.get_identifier()))
+    }
+}
+
+impl Hash for AssetType {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.get_identifier().hash(state)
+    }
+}
+
+impl PartialOrd for AssetType {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.get_identifier().partial_cmp(other.get_identifier())
+    }
+}
+
+impl Ord for AssetType {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.get_identifier().cmp(other.get_identifier())
+    }
+}
+
+impl std::str::FromStr for AssetType {
+    type Err = std::io::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let vec = hex::decode(s).map_err(|x| Self::Err::new(std::io::ErrorKind::InvalidData, x))?;
+        Self::from_identifier(
+            &vec.try_into()
+                .map_err(|_| Self::Err::from(std::io::ErrorKind::InvalidData))?,
+        )
+        .ok_or_else(|| Self::Err::from(std::io::ErrorKind::InvalidData))
+    }
+}
+
+#[cfg(any(test, feature = "test-dependencies"))]
+pub mod testing {
+    use proptest::prelude::*;
+
+    prop_compose! {
+        pub fn arb_asset_type()(name in proptest::collection::vec(prop::num::u8::ANY, 0..64)) -> super::AssetType {
+            super::AssetType::new(&name).unwrap()
+        }
     }
 }

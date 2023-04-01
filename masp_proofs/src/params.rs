@@ -4,20 +4,19 @@ use lazy_static::lazy_static;
 
 lazy_static! {
     pub static ref SPEND_VK: VerifyingKey::<Bls12> =
-        VerifyingKey::<Bls12>::read(&include_bytes!("params/spend_TESTING_vk.params")[..]).unwrap();
+        VerifyingKey::<Bls12>::read(&include_bytes!("../params/masp-spend.vk")[..]).unwrap();
     pub static ref OUTPUT_VK: VerifyingKey::<Bls12> =
-        VerifyingKey::<Bls12>::read(&include_bytes!("params/output_TESTING_vk.params")[..])
-            .unwrap();
+        VerifyingKey::<Bls12>::read(&include_bytes!("../params/masp-output.vk")[..]).unwrap();
     pub static ref CONVERT_VK: VerifyingKey::<Bls12> =
-        VerifyingKey::<Bls12>::read(&include_bytes!("params/convert_TESTING_vk.params")[..])
-            .unwrap();
+        VerifyingKey::<Bls12>::read(&include_bytes!("../params/masp-convert.vk")[..]).unwrap();
 }
 
 #[cfg(feature = "download-params")]
 #[test]
 fn test_serialization() {
     // Download params first
-    crate::download_parameters().unwrap();
+    #[cfg(feature = "download-params")]
+    crate::download_masp_parameters(None).unwrap();
 
     if let Some(path) = crate::default_params_folder() {
         let params = crate::load_parameters(

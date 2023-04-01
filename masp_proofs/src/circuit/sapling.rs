@@ -1,31 +1,24 @@
-//! The Sapling circuits.
+//! The MASP Spend and Output circuits.
 
-use ff::PrimeField;
-use group::Curve;
+use group::{ff::PrimeField, Curve};
 
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
 
 use masp_primitives::{
     constants,
-    primitives::{PaymentAddress, ProofGenerationKey, ValueCommitment},
+    sapling::{PaymentAddress, ProofGenerationKey, ValueCommitment, SAPLING_COMMITMENT_TREE_DEPTH},
 };
 
+use super::ecc;
 use super::pedersen_hash;
 use crate::constants::{
     NOTE_COMMITMENT_RANDOMNESS_GENERATOR, NULLIFIER_POSITION_GENERATOR,
     PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
 };
-use zcash_proofs::circuit::ecc;
-
-use bellman::gadgets::blake2s;
-use bellman::gadgets::boolean;
-use bellman::gadgets::multipack;
-use bellman::gadgets::num;
-use bellman::gadgets::Assignment;
-
+use bellman::gadgets::{blake2s, boolean, multipack, num, Assignment};
 use itertools::multizip;
 
-pub const TREE_DEPTH: usize = zcash_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
+pub const TREE_DEPTH: usize = SAPLING_COMMITMENT_TREE_DEPTH;
 
 /// This is an instance of the `Spend` circuit.
 pub struct Spend {
@@ -603,16 +596,13 @@ impl Circuit<bls12_381::Scalar> for Output {
 #[test]
 fn test_input_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use ff::{Field, PrimeField, PrimeFieldBits};
-    use group::Group;
+    use group::{ff::Field, ff::PrimeFieldBits, Group};
     use masp_primitives::{
         asset_type::AssetType,
-        pedersen_hash,
-        primitives::{Diversifier, Note, ProofGenerationKey},
+        sapling::{pedersen_hash, Diversifier, Note, ProofGenerationKey, Rseed},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -635,10 +625,10 @@ fn test_input_circuit_with_bls12_381() {
             value_commitment.asset_generator = -value_commitment.asset_generator;
         }
 
-        let nsk = jubjub::Fr::random(&mut rng);
-        let ak = jubjub::SubgroupPoint::random(&mut rng);
-
-        let proof_generation_key = ProofGenerationKey { ak, nsk };
+        let proof_generation_key = ProofGenerationKey {
+            ak: jubjub::SubgroupPoint::random(&mut rng),
+            nsk: jubjub::Fr::random(&mut rng),
+        };
 
         let viewing_key = proof_generation_key.to_viewing_key();
 
@@ -695,11 +685,11 @@ fn test_input_circuit_with_bls12_381() {
                 cur = jubjub::ExtendedPoint::from(pedersen_hash::pedersen_hash(
                     pedersen_hash::Personalization::MerkleTree(i),
                     lhs.iter()
-                        .by_val()
+                        .by_vals()
                         .take(bls12_381::Scalar::NUM_BITS as usize)
                         .chain(
                             rhs.iter()
-                                .by_val()
+                                .by_vals()
                                 .take(bls12_381::Scalar::NUM_BITS as usize),
                         ),
                 ))
@@ -711,7 +701,7 @@ fn test_input_circuit_with_bls12_381() {
                 }
             }
 
-            let expected_nf = note.nf(&viewing_key, position);
+            let expected_nf = note.nf(&viewing_key.nk, position);
             let expected_nf = multipack::bytes_to_bits_le(&expected_nf.0);
             let expected_nf = multipack::compute_multipacking(&expected_nf);
             assert_eq!(expected_nf.len(), 2);
@@ -721,7 +711,7 @@ fn test_input_circuit_with_bls12_381() {
             let instance = Spend {
                 value_commitment: Some(value_commitment.clone()),
                 proof_generation_key: Some(proof_generation_key.clone()),
-                payment_address: Some(payment_address.clone()),
+                payment_address: Some(payment_address),
                 commitment_randomness: Some(commitment_randomness),
                 ar: Some(ar),
                 auth_path: auth_path.clone(),
@@ -772,16 +762,14 @@ fn test_input_circuit_with_bls12_381() {
 #[test]
 fn test_input_circuit_with_bls12_381_external_test_vectors() {
     use bellman::gadgets::test::*;
-    use ff::{Field, PrimeField, PrimeFieldBits};
-    use group::Group;
+    use group::{ff::Field, ff::PrimeField, ff::PrimeFieldBits, Group};
     use masp_primitives::{
         asset_type::AssetType,
-        pedersen_hash,
-        primitives::{Diversifier, Note, ProofGenerationKey},
+        sapling::pedersen_hash,
+        sapling::{Diversifier, Note, ProofGenerationKey, Rseed},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x59, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -894,11 +882,11 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
                 cur = jubjub::ExtendedPoint::from(pedersen_hash::pedersen_hash(
                     pedersen_hash::Personalization::MerkleTree(i),
                     lhs.iter()
-                        .by_val()
+                        .by_vals()
                         .take(bls12_381::Scalar::NUM_BITS as usize)
                         .chain(
                             rhs.iter()
-                                .by_val()
+                                .by_vals()
                                 .take(bls12_381::Scalar::NUM_BITS as usize),
                         ),
                 ))
@@ -910,7 +898,7 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
                 }
             }
 
-            let expected_nf = note.nf(&viewing_key, position);
+            let expected_nf = note.nf(&viewing_key.nk, position);
             let expected_nf = multipack::bytes_to_bits_le(&expected_nf.0);
             let expected_nf = multipack::compute_multipacking(&expected_nf);
             assert_eq!(expected_nf.len(), 2);
@@ -920,7 +908,7 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
             let instance = Spend {
                 value_commitment: Some(value_commitment.clone()),
                 proof_generation_key: Some(proof_generation_key.clone()),
-                payment_address: Some(payment_address.clone()),
+                payment_address: Some(payment_address),
                 commitment_randomness: Some(commitment_randomness),
                 ar: Some(ar),
                 auth_path: auth_path.clone(),
@@ -960,15 +948,13 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
 #[test]
 fn test_output_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use ff::Field;
-    use group::Group;
+    use group::{ff::Field, Group};
     use masp_primitives::{
         asset_type::AssetType,
-        primitives::{Diversifier, ProofGenerationKey},
+        sapling::{Diversifier, ProofGenerationKey, Rseed},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-    use zcash_primitives::sapling::Rseed;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -1019,7 +1005,7 @@ fn test_output_circuit_with_bls12_381() {
 
             let instance = Output {
                 value_commitment: Some(value_commitment.clone()),
-                payment_address: Some(payment_address.clone()),
+                payment_address: Some(payment_address),
                 commitment_randomness: Some(commitment_randomness),
                 esk: Some(esk),
                 asset_identifier: asset_type.identifier_bits(),

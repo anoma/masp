@@ -1,0 +1,35 @@
+[package]
+name = "masp_note_encryption"
+description = "Note encryption for MASP transactions"
+version = "0.2.0"
+authors = [
+    "Jack Grigg <jack@electriccoin.co>",
+    "Kris Nuttycombe <kris@electriccoin.co>",
+    "joe@heliax.dev"
+]
+homepage = "https://github.com/anoma/masp"
+repository = "https://github.com/anoma/masp"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+edition = "2021"
+categories = ["cryptography::cryptocurrencies"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+cipher = { version = "0.4", default-features = false }
+chacha20 = { version = "0.9", default-features = false }
+chacha20poly1305 = { version = "0.10", default-features = false }
+rand_core = { version = "0.6", default-features = false }
+subtle = { version = "2.3", default-features = false }
+borsh = {version = "0.9", features = ["const-generics"]}
+
+[features]
+default = ["alloc"]
+alloc = []
+pre-zip-212 = []
+
+[lib]
+bench = false
