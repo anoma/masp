@@ -114,13 +114,13 @@ impl Amount<AssetType> {
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
             let mut atype = [0; crate::constants::ASSET_IDENTIFIER_LENGTH];
-            assert_eq!(core::mem::size_of::<i128>(), 16);
-            let mut value = [0; core::mem::size_of::<i128>()];
             reader.read_exact(&mut atype)?;
-            reader.read_exact(&mut value)?;
             let atype = AssetType::from_identifier(&atype).ok_or_else(|| {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
             })?;
+            assert_eq!(core::mem::size_of::<i128>(), 16);
+            let mut value = [0; core::mem::size_of::<i128>()];
+            reader.read_exact(&mut value)?;
             Ok((atype, i128::from_le_bytes(value)))
         })?;
         let mut ret = Self::zero();
@@ -385,38 +385,70 @@ mod tests {
 
     #[test]
     fn amount_in_range() {
-        let zero = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00\x00\x00\x00\x00";
+        let amount_as_bytes = |name, amount: &Amount| {
+            let mut bytes = [0u8; 49];
+            amount.write(&mut bytes.as_mut()).unwrap();
+            println!(
+                "let {name} = b\"{}\";",
+                std::str::from_utf8(
+                    &bytes
+                        .iter()
+                        .map(|b| std::ascii::escape_default(*b))
+                        .flatten()
+                        .collect::<Vec<_>>()
+                )
+                .unwrap()
+            );
+        };
+
+        amount_as_bytes("zero", &{
+            let mut amount = Amount::from_pair(zec(), 1).unwrap();
+            *amount.0.get_mut(&zec()).unwrap() = 0;
+            amount
+        });
+        amount_as_bytes("neg_one", &Amount::from_pair(zec(), -1).unwrap());
+        amount_as_bytes("max_money", &Amount::from_pair(zec(), MAX_MONEY).unwrap());
+        amount_as_bytes("max_money_p1", &{
+            let mut amount = Amount::from_pair(zec(), MAX_MONEY).unwrap();
+            *amount.0.get_mut(&zec()).unwrap() += 1;
+            amount
+        });
+        amount_as_bytes(
+            "neg_max_money",
+            &Amount::from_pair(zec(), -MAX_MONEY).unwrap(),
+        );
+        amount_as_bytes("neg_max_money_m1", &{
+            let mut amount = Amount::from_pair(zec(), -MAX_MONEY).unwrap();
+            *amount.0.get_mut(&zec()).unwrap() -= 1;
+            amount
+        });
+
+        let zero = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
         assert_eq!(Amount::read(&mut zero.as_ref()).unwrap(), Amount::zero());
 
-        let neg_one = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\xff";
+        let neg_one = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff";
         assert_eq!(
             Amount::read(&mut neg_one.as_ref()).unwrap(),
             Amount::from_pair(zec(), -1).unwrap()
         );
 
-        let max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\x7f";
+        let max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00";
 
         assert_eq!(
             Amount::read(&mut max_money.as_ref()).unwrap(),
             Amount::from_pair(zec(), MAX_MONEY).unwrap()
         );
 
-        //let max_money_p1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x40\x07\x5a\xf0\x75\x07\x00";
-        //assert!(Amount::read(&mut max_money_p1.as_ref()).is_err());
+        let max_money_p1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00";
+        assert!(Amount::read(&mut max_money_p1.as_ref()).is_err());
 
-        //let mut neg_max_money = [0u8; 41];
-        //let mut amount = Amount::from_pair(zec(), -MAX_MONEY).unwrap();
-        //*amount.0.get_mut(&zec()).unwrap() = i128::MIN;
-        //amount.write(&mut neg_max_money.as_mut());
-        //dbg!(std::str::from_utf8(&neg_max_money.as_ref().iter().map(|b| std::ascii::escape_default(*b)).flatten().collect::<Vec<_>>()).unwrap());
-
-        let neg_max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x00\x00\x00\x00\x00\x00\x80";
+        let neg_max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff";
         assert_eq!(
             Amount::read(&mut neg_max_money.as_ref()).unwrap(),
             Amount::from_pair(zec(), -MAX_MONEY).unwrap()
         );
 
-        let neg_max_money_m1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00\x00\x00\x00\x80";
+        let neg_max_money_m1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff";
         assert!(Amount::read(&mut neg_max_money_m1.as_ref()).is_err());
     }
 
