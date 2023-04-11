@@ -147,7 +147,7 @@ pub trait Authorization {
 }
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Unproven;
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Authorized;
 
 impl Authorization for Authorized {
@@ -163,7 +163,7 @@ impl Authorization for Unauthorized {
 }
 
 /// A MASP transaction.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Transaction {
     txid: TxId,
     data: TransactionData<Authorized>,
@@ -183,7 +183,7 @@ impl PartialEq for Transaction {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TransactionData<A: Authorization> {
     version: TxVersion,
     consensus_branch_id: BranchId,
@@ -277,6 +277,31 @@ impl<A: Authorization> TransactionData<A> {
 impl TransactionData<Authorized> {
     pub fn freeze(self) -> io::Result<Transaction> {
         Transaction::from_data(self)
+    }
+}
+
+impl BorshSerialize for Transaction {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl BorshDeserialize for Transaction {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf, BranchId::MASP)
+    }
+}
+
+impl borsh::BorshSchema for Transaction {
+    fn add_definitions_recursively(
+        _definitions: &mut std::collections::HashMap<
+                borsh::schema::Declaration,
+            borsh::schema::Definition,
+            >,
+    ) {}
+
+    fn declaration() -> borsh::schema::Declaration {
+        "Transaction".into()
     }
 }
 

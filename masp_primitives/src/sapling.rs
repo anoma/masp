@@ -85,8 +85,7 @@ pub struct Node {
 }
 
 impl Node {
-    #[cfg(test)]
-    pub(crate) fn new(repr: [u8; 32]) -> Self {
+    pub fn new(repr: [u8; 32]) -> Self {
         Node { repr }
     }
 
@@ -551,7 +550,7 @@ impl From<NoteValue> for u64 {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub struct Note {
     /// The asset type that the note represents
     pub asset_type: AssetType,

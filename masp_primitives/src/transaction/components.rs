@@ -5,7 +5,7 @@ pub mod sapling;
 pub mod transparent;
 pub use self::{
     amount::Amount,
-    sapling::{OutputDescription, SpendDescription},
+    sapling::{OutputDescription, SpendDescription, ConvertDescription},
     transparent::{TxIn, TxOut},
 };
 
