@@ -199,18 +199,18 @@ impl TransparentBuilder {
 
 #[cfg(not(feature = "transparent-inputs"))]
 impl TransparentAuthorizingContext for Unauthorized {
-    fn input_amounts(&self) -> Vec<Amount> {
+    fn input_amounts(&self) -> Vec<(AssetType, i64)> {
         vec![]
     }
 }
 
 #[cfg(feature = "transparent-inputs")]
 impl TransparentAuthorizingContext for Unauthorized {
-    fn input_amounts(&self) -> Vec<Result<Amount, ()>> {
+    fn input_amounts(&self) -> Vec<(AssetType, i64)> {
         return self
             .inputs
             .iter()
-            .map(|txin| Amount::from_pair(txin.coin.asset_type, txin.coin.value))
+            .map(|txin| (txin.coin.asset_type, txin.coin.value))
             .collect();
     }
 }
