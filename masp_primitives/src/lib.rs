@@ -30,7 +30,6 @@ pub use group;
 pub use ff;
 pub use jubjub;
 pub use bls12_381;
-pub use secp256k1;
 
 #[cfg(test)]
 mod test_vectors;

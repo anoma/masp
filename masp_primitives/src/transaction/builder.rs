@@ -10,6 +10,7 @@ use rand::{rngs::OsRng, CryptoRng, RngCore};
 use crate::{
     asset_type::AssetType,
     consensus::{self, BlockHeight, BranchId},
+    convert::AllowedConversion,
     keys::OutgoingViewingKey,
     memo::MemoBytes,
     merkle_tree::MerklePath,
@@ -217,6 +218,20 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
             .add_spend(&mut self.rng, extsk, diversifier, note, merkle_path)
     }
 
+    /// Adds a Sapling note to be spent in this transaction.
+    ///
+    /// Returns an error if the given Merkle path does not have the same anchor as the
+    /// paths for previous Sapling notes.
+    pub fn add_sapling_convert(
+        &mut self,
+        allowed: AllowedConversion,
+        value: u64,
+        merkle_path: MerklePath<Node>,
+    ) -> Result<(), sapling::builder::Error> {
+        self.sapling_builder
+            .add_convert(allowed, value, merkle_path)
+    }
+
     /// Adds a Sapling address to send funds to.
     pub fn add_sapling_output(
         &mut self,
@@ -268,7 +283,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     }
 
     /// Returns the sum of the transparent, Sapling, and TZE value balances.
-    fn value_balance(&self) -> Result<Amount, BalanceError> {
+    pub fn value_balance(&self) -> Result<Amount, BalanceError> {
         let value_balances = [
             self.transparent_builder.value_balance()?,
             self.sapling_builder.value_balance(),

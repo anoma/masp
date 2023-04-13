@@ -331,7 +331,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
     ///
     /// Returns an error if the given Merkle path does not have the same anchor as the
     /// paths for previous convert notes.
-    pub fn add_convert<R: RngCore>(
+    pub fn add_convert(
         &mut self,
         allowed: AllowedConversion,
         value: u64,
