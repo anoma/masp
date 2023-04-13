@@ -332,7 +332,7 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
             for txout in &bundle.vout {
                 h.write_all(txout.asset_type.get_identifier()).unwrap();
                 h.write_all(&txout.value.to_le_bytes()).unwrap();
-                h.write_all(&txout.transparent_address.serialize()).unwrap();
+                h.write_all(&txout.transparent_address.0).unwrap();
             }
         }
         h.finalize()

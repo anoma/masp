@@ -1,11 +1,11 @@
 //! Structs representing the components within Zcash transactions.
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use secp256k1::PublicKey as TransparentAddress;
 use std::fmt::{self, Debug};
 use std::io::{self, Read, Write};
 
 use crate::asset_type::AssetType;
+use crate::transaction::TransparentAddress;
 
 use super::amount::{Amount, BalanceError, MAX_MONEY};
 
@@ -145,10 +145,9 @@ impl TxOut {
             ));
         }
 
-        let mut tmp = [0u8; 33];
+        let mut tmp = [0u8; 20];
         reader.read_exact(&mut tmp)?;
-        let transparent_address = TransparentAddress::from_slice(&tmp)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad public key"))?;
+        let transparent_address = TransparentAddress(tmp);
 
         Ok(TxOut {
             asset_type,
@@ -160,7 +159,7 @@ impl TxOut {
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(self.asset_type.get_identifier())?;
         writer.write_all(&self.value.to_le_bytes())?;
-        writer.write_all(&self.transparent_address.serialize())
+        writer.write_all(&self.transparent_address.0)
     }
     /// Returns the address to which the TxOut was sent, if this is a valid P2SH or P2PKH output.
     pub fn recipient_address(&self) -> TransparentAddress {

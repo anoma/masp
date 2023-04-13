@@ -10,7 +10,6 @@ use blake2b_simd::Hash as Blake2bHash;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ff::PrimeField;
 use memuse::DynamicUsage;
-pub use secp256k1::PublicKey as TransparentAddress;
 use std::{
     fmt::{self, Debug},
     hash::Hash,
@@ -34,6 +33,9 @@ use self::{
     },
     txid::{to_txid, BlockTxCommitmentDigester, TxIdDigester},
 };
+
+#[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash, Debug)]
+pub struct TransparentAddress(pub [u8; 20]);
 
 pub const GROTH_PROOF_SIZE: usize = 48 + 96 + 48;
 pub type GrothProofBytes = [u8; GROTH_PROOF_SIZE];

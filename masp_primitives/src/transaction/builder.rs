@@ -5,8 +5,6 @@ use std::error;
 use std::fmt;
 use std::sync::mpsc::Sender;
 
-use secp256k1::PublicKey as TransparentAddress;
-
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
 use crate::{
@@ -28,7 +26,7 @@ use crate::{
         fees::FeeRule,
         sighash::{signature_hash, SignableInput},
         txid::TxIdDigester,
-        Transaction, TransactionData, TxVersion, Unauthorized,
+        Transaction, TransactionData, TxVersion, Unauthorized, TransparentAddress,
     },
     zip32::ExtendedSpendingKey,
 };
