@@ -422,7 +422,7 @@ mod testing {
 mod tests {
     use ff::Field;
     use rand_core::OsRng;
-    use secp256k1::Secp256k1;
+    use rand::Rng;
 
     use crate::{
         asset_type::AssetType,
@@ -434,6 +434,7 @@ mod tests {
             components::amount::{Amount, DEFAULT_FEE, MAX_MONEY},
             sapling::builder::{self as build_s},
             transparent::builder::{self as build_t},
+            TransparentAddress,
         },
         zip32::ExtendedSpendingKey,
     };
@@ -471,7 +472,9 @@ mod tests {
 
     #[test]
     fn binding_sig_present_if_shielded_spend() {
-        let (_, transparent_address) = Secp256k1::new().generate_keypair(&mut OsRng);
+        let mut rng = OsRng;
+        
+        let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
 
         let extsk = ExtendedSpendingKey::master(&[]);
         let dfvk = extsk.to_diversifiable_full_viewing_key();
@@ -515,10 +518,9 @@ mod tests {
 
     #[test]
     fn fails_on_negative_transparent_output() {
-        let secret_key =
-            secp256k1::SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-        let transparent_address =
-            secp256k1::PublicKey::from_secret_key(&secp256k1::Secp256k1::new(), &secret_key);
+        let mut rng = OsRng;
+        
+        let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
         let tx_height = TEST_NETWORK
             .activation_height(NetworkUpgrade::MASP)
             .unwrap();
@@ -533,7 +535,7 @@ mod tests {
     fn fails_on_negative_change() {
         let mut rng = OsRng;
 
-        let (_, transparent_address) = Secp256k1::new().generate_keypair(&mut OsRng);
+        let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
         // Just use the master key as the ExtendedSpendingKey for this test
         let extsk = ExtendedSpendingKey::master(&[]);
         let tx_height = TEST_NETWORK

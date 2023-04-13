@@ -62,10 +62,11 @@ pub(crate) fn transparent_outputs_hash<T: Borrow<TxOut>>(vout: &[T]) -> Blake2bH
 /// to a hash personalized by ZCASH_INPUTS_HASH_PERSONALIZATION.
 /// In the case that no inputs are provided, this produces a default
 /// hash from just the personalization string.
-pub(crate) fn transparent_inputs_hash<T: Borrow<TxIn>>(vin: &[T]) -> Blake2bHash {
+pub(crate) fn transparent_inputs_hash<TransparentAuth: transparent::Authorization, T: Borrow<TxIn<TransparentAuth>>>(vin: &[T]) -> Blake2bHash {
     let mut h = hasher(ZCASH_INPUTS_HASH_PERSONALIZATION);
     for t_in in vin {
-        t_in.borrow().write(&mut h).unwrap();
+        h.write(t_in.borrow().asset_type.get_identifier()).unwrap();
+        h.write(&t_in.borrow().value.to_le_bytes()).unwrap();
     }
     h.finalize()
 }

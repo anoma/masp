@@ -169,12 +169,13 @@ impl TransparentBuilder {
 
     pub fn build(self) -> Option<transparent::Bundle<Unauthorized>> {
         #[cfg(feature = "transparent-inputs")]
-        let vin: Vec<TxIn> = self
+        let vin: Vec<TxIn<Unauthorized>> = self
             .inputs
             .iter()
-            .map(|i| TxIn {
+            .map(|i| TxIn::<Unauthorized> {
                 asset_type: i.coin.asset_type,
                 value: i.coin.value,
+                transparent_sig: (),
             })
             .collect();
 
@@ -216,8 +217,29 @@ impl TransparentAuthorizingContext for Unauthorized {
 
 impl Bundle<Unauthorized> {
     pub fn apply_signatures(self) -> Bundle<Authorized> {
+        #[cfg(feature = "transparent-inputs")]
+        let transparent_sigs = self
+            .authorization
+            .inputs
+            .iter()
+            .map(|info| {
+                info.coin.transparent_address
+            });
+
+        #[cfg(not(feature = "transparent-inputs"))]
+        let transparent_sigs = std::iter::empty::<TransparenntAddress>();
+        
         transparent::Bundle {
-            vin: self.vin,
+            vin: self
+                .vin
+                .iter()
+                .zip(transparent_sigs)
+                .map(|(txin, sig)| TxIn {
+                    asset_type: txin.asset_type,
+                    transparent_sig: sig,
+                    value: txin.value,
+                })
+                .collect(),
             vout: self.vout,
             authorization: Authorized,
         }
