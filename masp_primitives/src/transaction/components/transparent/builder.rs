@@ -57,6 +57,7 @@ impl fees::InputView for TransparentInputInfo {
     }
 }
 
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct TransparentBuilder {
     #[cfg(feature = "transparent-inputs")]
     inputs: Vec<TransparentInputInfo>,

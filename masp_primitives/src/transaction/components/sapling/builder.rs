@@ -35,6 +35,7 @@ use crate::{
     zip32::ExtendedSpendingKey,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::maybestd::io::Write;
 
 /// If there are any shielded inputs, always have at least two shielded outputs, padding
 /// with dummy outputs if necessary. See <https://github.com/zcash/zcash/issues/3615>.
@@ -66,12 +67,34 @@ impl fmt::Display for Error {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct SpendDescriptionInfo {
-    extsk: ExtendedSpendingKey,
+pub struct SpendDescriptionInfo<Key = ExtendedSpendingKey> {
+    extsk: Key,
     diversifier: Diversifier,
     note: Note,
     alpha: jubjub::Fr,
     merkle_path: MerklePath<Node>,
+}
+
+impl<Key: BorshSerialize> BorshSerialize for SpendDescriptionInfo<Key> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.extsk.serialize(writer)?;
+        self.diversifier.serialize(writer)?;
+        self.note.serialize(writer)?;
+        self.alpha.to_bytes().serialize(writer)?;
+        self.merkle_path.serialize(writer)
+    }
+}
+
+impl<Key: BorshDeserialize> BorshDeserialize for SpendDescriptionInfo<Key> {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        let extsk = Key::deserialize(buf)?;
+        let diversifier = Diversifier::deserialize(buf)?;
+        let note = Note::deserialize(buf)?;
+        let alpha: Option<_> = jubjub::Fr::from_bytes(&<[u8; 32]>::deserialize(buf)?).into();
+        let alpha = alpha.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
+        let merkle_path = MerklePath::<Node>::deserialize(buf)?;
+        Ok(SpendDescriptionInfo { extsk, diversifier, note, alpha, merkle_path })
+    }
 }
 
 impl fees::InputView<()> for SpendDescriptionInfo {
@@ -89,7 +112,7 @@ impl fees::InputView<()> for SpendDescriptionInfo {
 
 /// A struct containing the information required in order to construct a
 /// MASP output to a transaction.
-#[derive(Clone)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct SaplingOutputInfo {
     /// `None` represents the `ovk = ⊥` case.
     ovk: Option<OutgoingViewingKey>,
@@ -226,15 +249,60 @@ impl SaplingMetadata {
     }
 }
 
-pub struct SaplingBuilder<P> {
+#[derive(Clone, Debug)]
+pub struct SaplingBuilder<P, Key = ExtendedSpendingKey> {
     params: P,
     spend_anchor: Option<bls12_381::Scalar>,
     target_height: BlockHeight,
     value_balance: Amount,
     convert_anchor: Option<bls12_381::Scalar>,
-    spends: Vec<SpendDescriptionInfo>,
+    spends: Vec<SpendDescriptionInfo<Key>>,
     converts: Vec<ConvertDescriptionInfo>,
     outputs: Vec<SaplingOutputInfo>,
+}
+
+impl<P: BorshSerialize, Key: BorshSerialize> BorshSerialize for SaplingBuilder<P, Key> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.params.serialize(writer)?;
+        self.spend_anchor.map(|x| x.to_bytes()).serialize(writer)?;
+        self.target_height.serialize(writer)?;
+        self.value_balance.serialize(writer)?;
+        self.convert_anchor.map(|x| x.to_bytes()).serialize(writer)?;
+        self.spends.serialize(writer)?;
+        self.converts.serialize(writer)?;
+        self.outputs.serialize(writer)
+    }
+}
+
+impl<P: BorshDeserialize, Key: BorshDeserialize> BorshDeserialize for SaplingBuilder<P, Key> {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        let params = P::deserialize(buf)?;
+        let spend_anchor: Option<Option<_>> = Option::<[u8; 32]>::deserialize(buf)?
+            .map(|x| bls12_381::Scalar::from_bytes(&x).into());
+        let spend_anchor = spend_anchor
+            .map(|x| x.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData)))
+            .transpose()?;
+        let target_height = BlockHeight::deserialize(buf)?;
+        let value_balance: Amount = Amount::deserialize(buf)?;
+        let convert_anchor: Option<Option<_>> = Option::<[u8; 32]>::deserialize(buf)?
+            .map(|x| bls12_381::Scalar::from_bytes(&x).into());
+        let convert_anchor = convert_anchor
+            .map(|x| x.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData)))
+            .transpose()?;
+        let spends = Vec::<SpendDescriptionInfo<Key>>::deserialize(buf)?;
+        let converts = Vec::<ConvertDescriptionInfo>::deserialize(buf)?;
+        let outputs = Vec::<SaplingOutputInfo>::deserialize(buf)?;
+        Ok(SaplingBuilder {
+            params,
+            spend_anchor,
+            target_height,
+            value_balance,
+            convert_anchor,
+            spends,
+            converts,
+            outputs,
+        })
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -695,7 +763,7 @@ impl Bundle<Unauthorized> {
 
 /// A struct containing the information required in order to construct a
 /// MASP conversion in a transaction.
-#[derive(Clone)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct ConvertDescriptionInfo {
     allowed: AllowedConversion,
     value: u64,

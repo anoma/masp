@@ -17,6 +17,7 @@ use std::{
     str::FromStr,
 };
 use subtle::CtOption;
+use borsh::{BorshSerialize, BorshDeserialize};
 
 use super::{NullifierDerivingKey, ProofGenerationKey, ViewingKey};
 
@@ -31,7 +32,7 @@ pub enum DecodingError {
 }
 
 /// An outgoing viewing key
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize)]
 pub struct OutgoingViewingKey(pub [u8; 32]);
 
 /// A Sapling expanded spending key

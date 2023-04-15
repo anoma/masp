@@ -5,6 +5,8 @@ use std::error;
 use std::fmt;
 use std::sync::mpsc::Sender;
 
+use borsh::{BorshSerialize, BorshDeserialize};
+
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
 use crate::{
@@ -114,14 +116,16 @@ impl Progress {
 }
 
 /// Generates a [`Transaction`] from its inputs and outputs.
-pub struct Builder<P, R> {
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
+pub struct Builder<P, R, Key = ExtendedSpendingKey, Notifier = Sender<Progress>> {
     params: P,
     rng: R,
     target_height: BlockHeight,
     expiry_height: BlockHeight,
     transparent_builder: TransparentBuilder,
-    sapling_builder: SaplingBuilder<P>,
-    progress_notifier: Option<Sender<Progress>>,
+    sapling_builder: SaplingBuilder<P, Key>,
+    #[borsh_skip]
+    progress_notifier: Option<Notifier>,
 }
 
 impl<P, R> Builder<P, R> {
