@@ -20,7 +20,7 @@ pub trait Authorization: fmt::Debug {
 pub struct Authorized;
 
 impl Authorization for Authorized {
-    type TransparentSig = TransparentAddress;
+    type TransparentSig = ();
 }
 
 pub trait MapAuth<A: Authorization, B: Authorization> {
@@ -43,6 +43,7 @@ impl<A: Authorization> Bundle<A> {
                 .into_iter()
                 .map(|txin| TxIn {
                     asset_type: txin.asset_type,
+                    address: txin.address,
                     transparent_sig: f.map_script_sig(txin.transparent_sig),
                     value: txin.value,
                 })
@@ -96,6 +97,7 @@ impl<A: Authorization> Bundle<A> {
 pub struct TxIn<A: Authorization> {
     pub asset_type: AssetType,
     pub value: i64,
+    pub address: TransparentAddress,
     pub transparent_sig: A::TransparentSig,
 }
 
@@ -118,19 +120,19 @@ impl TxIn<Authorized> {
                 "value out of range",
             ));
         }
-        let transparent_sig = {
+        let address = {
             let mut tmp = [0u8; 20];
             reader.read_exact(&mut tmp)?;
             TransparentAddress(tmp)
         };
 
-        Ok(TxIn { asset_type, value, transparent_sig })
+        Ok(TxIn { asset_type, value, address, transparent_sig: () })
     }
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(self.asset_type.get_identifier())?;
         writer.write_all(&self.value.to_le_bytes())?;
-        writer.write_all(&self.transparent_sig.0)
+        writer.write_all(&self.address.0)
     }
 }
 
@@ -138,7 +140,7 @@ impl TxIn<Authorized> {
 pub struct TxOut {
     pub asset_type: AssetType,
     pub value: i64,
-    pub transparent_address: TransparentAddress,
+    pub address: TransparentAddress,
 }
 
 impl TxOut {
@@ -161,25 +163,28 @@ impl TxOut {
             ));
         }
 
-        let mut tmp = [0u8; 20];
-        reader.read_exact(&mut tmp)?;
-        let transparent_address = TransparentAddress(tmp);
+        let address = {
+            let mut tmp = [0u8; 20];
+            reader.read_exact(&mut tmp)?;
+            TransparentAddress(tmp)
+        };
 
         Ok(TxOut {
             asset_type,
             value,
-            transparent_address,
+            address,
         })
     }
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(self.asset_type.get_identifier())?;
         writer.write_all(&self.value.to_le_bytes())?;
-        writer.write_all(&self.transparent_address.0)
+        writer.write_all(&self.address.0)
     }
+    
     /// Returns the address to which the TxOut was sent, if this is a valid P2SH or P2PKH output.
     pub fn recipient_address(&self) -> TransparentAddress {
-        self.transparent_address
+        self.address
     }
 }
 
@@ -214,7 +219,7 @@ pub mod testing {
     prop_compose! {
         pub fn arb_txin()(amt in arb_nonnegative_amount(), addr in arb_transparent_address()) -> TxIn<Authorized> {
             let (asset_type, value) = amt.components().next().unwrap();
-            TxIn { asset_type: *asset_type, value: *value, transparent_sig: addr }
+            TxIn { asset_type: *asset_type, value: *value, address: addr, transparent_sig: () }
         }
     }
 
@@ -222,7 +227,7 @@ pub mod testing {
         pub fn arb_txout()(amt in arb_nonnegative_amount(), addr in arb_transparent_address()) -> TxOut {
             let (asset_type, value) = amt.components().next().unwrap();
 
-            TxOut { asset_type: *asset_type, value: *value, transparent_address : addr }
+            TxOut { asset_type: *asset_type, value: *value, address : addr }
         }
     }
 

@@ -65,8 +65,10 @@ pub(crate) fn transparent_outputs_hash<T: Borrow<TxOut>>(vout: &[T]) -> Blake2bH
 pub(crate) fn transparent_inputs_hash<TransparentAuth: transparent::Authorization, T: Borrow<TxIn<TransparentAuth>>>(vin: &[T]) -> Blake2bHash {
     let mut h = hasher(ZCASH_INPUTS_HASH_PERSONALIZATION);
     for t_in in vin {
-        h.write(t_in.borrow().asset_type.get_identifier()).unwrap();
-        h.write(&t_in.borrow().value.to_le_bytes()).unwrap();
+        let t_in = t_in.borrow();
+        h.write(t_in.asset_type.get_identifier()).unwrap();
+        h.write(&t_in.value.to_le_bytes()).unwrap();
+        h.write(&t_in.address.0).unwrap();
     }
     h.finalize()
 }
@@ -333,7 +335,7 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
             for txout in &bundle.vout {
                 h.write_all(txout.asset_type.get_identifier()).unwrap();
                 h.write_all(&txout.value.to_le_bytes()).unwrap();
-                h.write_all(&txout.transparent_address.0).unwrap();
+                h.write_all(&txout.address.0).unwrap();
             }
         }
         h.finalize()

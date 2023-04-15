@@ -26,6 +26,6 @@ impl OutputView for TxOut {
     }
 
     fn transparent_address(&self) -> &TransparentAddress {
-        &self.transparent_address
+        &self.address
     }
 }
