@@ -26,10 +26,10 @@ pub mod sapling;
 pub mod transaction;
 pub mod zip32;
 
-pub use group;
-pub use ff;
-pub use jubjub;
 pub use bls12_381;
+pub use ff;
+pub use group;
+pub use jubjub;
 
 #[cfg(test)]
 mod test_vectors;

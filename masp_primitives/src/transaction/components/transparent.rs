@@ -126,7 +126,12 @@ impl TxIn<Authorized> {
             TransparentAddress(tmp)
         };
 
-        Ok(TxIn { asset_type, value, address, transparent_sig: () })
+        Ok(TxIn {
+            asset_type,
+            value,
+            address,
+            transparent_sig: (),
+        })
     }
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
@@ -181,7 +186,7 @@ impl TxOut {
         writer.write_all(&self.value.to_le_bytes())?;
         writer.write_all(&self.address.0)
     }
-    
+
     /// Returns the address to which the TxOut was sent, if this is a valid P2SH or P2PKH output.
     pub fn recipient_address(&self) -> TransparentAddress {
         self.address

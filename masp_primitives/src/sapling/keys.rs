@@ -8,6 +8,7 @@ use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
     keys::prf_expand,
 };
+use borsh::{BorshDeserialize, BorshSerialize};
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
 use std::{
@@ -17,7 +18,6 @@ use std::{
     str::FromStr,
 };
 use subtle::CtOption;
-use borsh::{BorshSerialize, BorshDeserialize};
 
 use super::{NullifierDerivingKey, ProofGenerationKey, ViewingKey};
 

@@ -34,8 +34,8 @@ use crate::{
     },
     zip32::ExtendedSpendingKey,
 };
-use borsh::{BorshDeserialize, BorshSerialize};
 use borsh::maybestd::io::Write;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 /// If there are any shielded inputs, always have at least two shielded outputs, padding
 /// with dummy outputs if necessary. See <https://github.com/zcash/zcash/issues/3615>.
@@ -93,7 +93,13 @@ impl<Key: BorshDeserialize> BorshDeserialize for SpendDescriptionInfo<Key> {
         let alpha: Option<_> = jubjub::Fr::from_bytes(&<[u8; 32]>::deserialize(buf)?).into();
         let alpha = alpha.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
         let merkle_path = MerklePath::<Node>::deserialize(buf)?;
-        Ok(SpendDescriptionInfo { extsk, diversifier, note, alpha, merkle_path })
+        Ok(SpendDescriptionInfo {
+            extsk,
+            diversifier,
+            note,
+            alpha,
+            merkle_path,
+        })
     }
 }
 
@@ -162,8 +168,7 @@ impl SaplingOutputInfo {
         ctx: &mut Pr::SaplingProvingContext,
         rng: &mut R,
     ) -> OutputDescription<GrothProofBytes> {
-        let encryptor =
-            sapling_note_encryption::<P>(self.ovk, self.note.clone(), self.to, self.memo);
+        let encryptor = sapling_note_encryption::<P>(self.ovk, self.note, self.to, self.memo);
 
         let (zkproof, cv) = prover.output_proof(
             ctx,
@@ -267,7 +272,9 @@ impl<P: BorshSerialize, Key: BorshSerialize> BorshSerialize for SaplingBuilder<P
         self.spend_anchor.map(|x| x.to_bytes()).serialize(writer)?;
         self.target_height.serialize(writer)?;
         self.value_balance.serialize(writer)?;
-        self.convert_anchor.map(|x| x.to_bytes()).serialize(writer)?;
+        self.convert_anchor
+            .map(|x| x.to_bytes())
+            .serialize(writer)?;
         self.spends.serialize(writer)?;
         self.converts.serialize(writer)?;
         self.outputs.serialize(writer)
@@ -277,15 +284,15 @@ impl<P: BorshSerialize, Key: BorshSerialize> BorshSerialize for SaplingBuilder<P
 impl<P: BorshDeserialize, Key: BorshDeserialize> BorshDeserialize for SaplingBuilder<P, Key> {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
         let params = P::deserialize(buf)?;
-        let spend_anchor: Option<Option<_>> = Option::<[u8; 32]>::deserialize(buf)?
-            .map(|x| bls12_381::Scalar::from_bytes(&x).into());
+        let spend_anchor: Option<Option<_>> =
+            Option::<[u8; 32]>::deserialize(buf)?.map(|x| bls12_381::Scalar::from_bytes(&x).into());
         let spend_anchor = spend_anchor
             .map(|x| x.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData)))
             .transpose()?;
         let target_height = BlockHeight::deserialize(buf)?;
         let value_balance: Amount = Amount::deserialize(buf)?;
-        let convert_anchor: Option<Option<_>> = Option::<[u8; 32]>::deserialize(buf)?
-            .map(|x| bls12_381::Scalar::from_bytes(&x).into());
+        let convert_anchor: Option<Option<_>> =
+            Option::<[u8; 32]>::deserialize(buf)?.map(|x| bls12_381::Scalar::from_bytes(&x).into());
         let convert_anchor = convert_anchor
             .map(|x| x.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData)))
             .transpose()?;

@@ -5,7 +5,7 @@ use std::error;
 use std::fmt;
 use std::sync::mpsc::Sender;
 
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::{BorshDeserialize, BorshSerialize};
 
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
@@ -29,7 +29,7 @@ use crate::{
         fees::FeeRule,
         sighash::{signature_hash, SignableInput},
         txid::TxIdDigester,
-        Transaction, TransactionData, TxVersion, Unauthorized, TransparentAddress,
+        Transaction, TransactionData, TransparentAddress, TxVersion, Unauthorized,
     },
     zip32::ExtendedSpendingKey,
 };
@@ -440,8 +440,8 @@ mod testing {
 #[cfg(test)]
 mod tests {
     use ff::Field;
-    use rand_core::OsRng;
     use rand::Rng;
+    use rand_core::OsRng;
 
     use crate::{
         asset_type::AssetType,
@@ -492,7 +492,7 @@ mod tests {
     #[test]
     fn binding_sig_present_if_shielded_spend() {
         let mut rng = OsRng;
-        
+
         let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
 
         let extsk = ExtendedSpendingKey::master(&[]);
@@ -538,7 +538,7 @@ mod tests {
     #[test]
     fn fails_on_negative_transparent_output() {
         let mut rng = OsRng;
-        
+
         let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
         let tx_height = TEST_NETWORK
             .activation_height(NetworkUpgrade::MASP)
@@ -622,12 +622,7 @@ mod tests {
         {
             let mut builder = Builder::new(TEST_NETWORK, tx_height);
             builder
-                .add_sapling_spend(
-                    extsk,
-                    *to.diversifier(),
-                    note1.clone(),
-                    witness1.path().unwrap(),
-                )
+                .add_sapling_spend(extsk, *to.diversifier(), note1, witness1.path().unwrap())
                 .unwrap();
             builder
                 .add_sapling_output(ovk, to, zec(), 30000, MemoBytes::empty())

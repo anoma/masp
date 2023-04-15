@@ -1,11 +1,11 @@
 //! Consensus logic and parameters.
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use memuse::DynamicUsage;
 use std::cmp::{Ord, Ordering};
 use std::convert::TryFrom;
 use std::fmt;
 use std::ops::{Add, Bound, RangeBounds, Sub};
-use borsh::{BorshSerialize, BorshDeserialize};
 
 /// A wrapper type representing blockchain heights. Safe conversion from
 /// various integer types, as well as addition and subtraction, are provided.

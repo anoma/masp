@@ -15,10 +15,10 @@ use std::fs::File;
 use std::io::{self, BufReader};
 use std::path::Path;
 
-pub use group;
 pub use bellman;
-pub use jubjub;
 pub use bls12_381;
+pub use group;
+pub use jubjub;
 
 #[cfg(feature = "directories")]
 use directories::BaseDirs;
