@@ -405,6 +405,30 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     }
 }
 
+pub trait MapBuilder<P1, R1, K1, N1, P2, R2, K2, N2>:
+    sapling::builder::MapBuilder<P1, K1, P2, K2>
+{
+    fn map_rng(&self, s: R1) -> R2;
+    fn map_notifier(&self, s: N1) -> N2;
+}
+
+impl<P1, R1, K1, N1> Builder<P1, R1, K1, N1> {
+    pub fn map_builder<P2, R2, K2, N2, F: MapBuilder<P1, R1, K1, N1, P2, R2, K2, N2>>(
+        self,
+        f: F,
+    ) -> Builder<P2, R2, K2, N2> {
+        Builder::<P2, R2, K2, N2> {
+            params: f.map_params(self.params),
+            rng: f.map_rng(self.rng),
+            target_height: self.target_height,
+            expiry_height: self.expiry_height,
+            transparent_builder: self.transparent_builder,
+            progress_notifier: self.progress_notifier.map(|x| f.map_notifier(x)),
+            sapling_builder: self.sapling_builder.map_builder(f),
+        }
+    }
+}
+
 #[cfg(any(test, feature = "test-dependencies"))]
 mod testing {
     use rand::RngCore;

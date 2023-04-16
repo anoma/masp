@@ -777,6 +777,39 @@ pub struct ConvertDescriptionInfo {
     merkle_path: MerklePath<Node>,
 }
 
+pub trait MapBuilder<P1, K1, P2, K2> {
+    fn map_params(&self, s: P1) -> P2;
+    fn map_key(&self, s: K1) -> K2;
+}
+
+impl<P1, K1> SaplingBuilder<P1, K1> {
+    pub fn map_builder<P2, K2, F: MapBuilder<P1, K1, P2, K2>>(
+        self,
+        f: F,
+    ) -> SaplingBuilder<P2, K2> {
+        SaplingBuilder::<P2, K2> {
+            params: f.map_params(self.params),
+            spend_anchor: self.spend_anchor,
+            target_height: self.target_height,
+            value_balance: self.value_balance,
+            convert_anchor: self.convert_anchor,
+            converts: self.converts,
+            outputs: self.outputs,
+            spends: self
+                .spends
+                .into_iter()
+                .map(|x| SpendDescriptionInfo {
+                    extsk: f.map_key(x.extsk),
+                    diversifier: x.diversifier,
+                    note: x.note,
+                    alpha: x.alpha,
+                    merkle_path: x.merkle_path,
+                })
+                .collect(),
+        }
+    }
+}
+
 #[cfg(any(test, feature = "test-dependencies"))]
 pub mod testing {
     use proptest::collection::vec;
