@@ -153,7 +153,7 @@ impl<P, R, K, N> Builder<P, R, K, N> {
 
     /// Returns the set of Sapling inputs currently committed to be consumed
     /// by the transaction.
-    pub fn sapling_inputs(&self) -> &[impl sapling::fees::InputView<()>] {
+    pub fn sapling_inputs(&self) -> &[impl sapling::fees::InputView<(), K>] {
         self.sapling_builder.inputs()
     }
 

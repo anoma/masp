@@ -103,7 +103,7 @@ impl<Key: BorshDeserialize> BorshDeserialize for SpendDescriptionInfo<Key> {
     }
 }
 
-impl<K> fees::InputView<()> for SpendDescriptionInfo<K> {
+impl<K> fees::InputView<(), K> for SpendDescriptionInfo<K> {
     fn note_id(&self) -> &() {
         // The builder does not make use of note identifiers, so we can just return the unit value.
         &()
@@ -115,6 +115,10 @@ impl<K> fees::InputView<()> for SpendDescriptionInfo<K> {
 
     fn asset_type(&self) -> AssetType {
         self.note.asset_type
+    }
+
+    fn key(&self) -> &K {
+        &self.extsk
     }
 }
 
@@ -206,6 +210,10 @@ impl fees::OutputView for SaplingOutputInfo {
 
     fn asset_type(&self) -> AssetType {
         self.note.asset_type
+    }
+
+    fn address(&self) -> PaymentAddress {
+        self.to
     }
 }
 
@@ -349,7 +357,7 @@ impl<P, K> SaplingBuilder<P, K> {
 
     /// Returns the list of Sapling inputs that will be consumed by the transaction being
     /// constructed.
-    pub fn inputs(&self) -> &[impl fees::InputView<()>] {
+    pub fn inputs(&self) -> &[impl fees::InputView<(), K>] {
         &self.spends
     }
 
