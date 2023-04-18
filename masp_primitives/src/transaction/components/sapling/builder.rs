@@ -103,16 +103,18 @@ impl<Key: BorshDeserialize> BorshDeserialize for SpendDescriptionInfo<Key> {
     }
 }
 
-impl fees::InputView<()> for SpendDescriptionInfo {
+impl<K> fees::InputView<()> for SpendDescriptionInfo<K> {
     fn note_id(&self) -> &() {
         // The builder does not make use of note identifiers, so we can just return the unit value.
         &()
     }
 
-    fn value(&self) -> Amount {
-        // An existing note to be spent must have a valid amount value.
-        Amount::from_pair(self.note.asset_type, self.note.value)
-            .expect("Existing note value with invalid asset type or value.")
+    fn value(&self) -> u64 {
+        self.note.value
+    }
+
+    fn asset_type(&self) -> AssetType {
+        self.note.asset_type
     }
 }
 
@@ -198,9 +200,12 @@ impl SaplingOutputInfo {
 }
 
 impl fees::OutputView for SaplingOutputInfo {
-    fn value(&self) -> Amount {
-        Amount::from_pair(self.note.asset_type, self.note.value)
-            .expect("Note values should be checked at construction.")
+    fn value(&self) -> u64 {
+        self.note.value
+    }
+
+    fn asset_type(&self) -> AssetType {
+        self.note.asset_type
     }
 }
 
@@ -328,7 +333,7 @@ impl Authorization for Unauthorized {
     type AuthSig = SpendDescriptionInfo;
 }
 
-impl<P> SaplingBuilder<P> {
+impl<P, K> SaplingBuilder<P, K> {
     pub fn new(params: P, target_height: BlockHeight) -> Self {
         SaplingBuilder {
             params,

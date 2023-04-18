@@ -128,7 +128,7 @@ pub struct Builder<P, R, Key = ExtendedSpendingKey, Notifier = Sender<Progress>>
     progress_notifier: Option<Notifier>,
 }
 
-impl<P, R> Builder<P, R> {
+impl<P, R, K, N> Builder<P, R, K, N> {
     /// Returns the network parameters that the builder has been configured for.
     pub fn params(&self) -> &P {
         &self.params
