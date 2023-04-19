@@ -361,7 +361,7 @@ impl<P, K> SaplingBuilder<P, K> {
         &self.spends
     }
 
-    pub fn converts(&self) -> &[ConvertDescriptionInfo] {
+    pub fn converts(&self) -> &[impl fees::ConvertView] {
         &self.converts
     }
     /// Returns the Sapling outputs that will be produced by the transaction being constructed
@@ -788,6 +788,16 @@ pub struct ConvertDescriptionInfo {
     allowed: AllowedConversion,
     value: u64,
     merkle_path: MerklePath<Node>,
+}
+
+impl fees::ConvertView for ConvertDescriptionInfo {
+    fn value(&self) -> u64 {
+        self.value
+    }
+
+    fn conversion(&self) -> &AllowedConversion {
+        &self.allowed
+    }
 }
 
 pub trait MapBuilder<P1, K1, P2, K2> {

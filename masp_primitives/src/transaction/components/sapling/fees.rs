@@ -3,6 +3,7 @@
 
 use crate::asset_type::AssetType;
 use crate::sapling::PaymentAddress;
+use crate::convert::AllowedConversion;
 
 /// A trait that provides a minimized view of a Sapling input suitable for use in
 /// fee and change calculation.
@@ -15,6 +16,15 @@ pub trait InputView<NoteRef, Key> {
     fn asset_type(&self) -> AssetType;
     /// The spend/view key of the input being spent.
     fn key(&self) -> &Key;
+}
+
+/// A trait that provides a minimized view of a Sapling conversion suitable for use in
+/// fee and change calculation.
+pub trait ConvertView {
+    /// The amount of the conversion being used.
+    fn value(&self) -> u64;
+    /// The allowed conversion being used.
+    fn conversion(&self) -> &AllowedConversion;
 }
 
 /// A trait that provides a minimized view of a Sapling output suitable for use in

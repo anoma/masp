@@ -162,6 +162,12 @@ impl<P, R, K, N> Builder<P, R, K, N> {
     pub fn sapling_outputs(&self) -> &[impl sapling::fees::OutputView] {
         self.sapling_builder.outputs()
     }
+
+    /// Returns the set of Sapling converts currently set to be produced by
+    /// the transaction.
+    pub fn sapling_converts(&self) -> &[impl sapling::fees::ConvertView] {
+        self.sapling_builder.converts()
+    }
 }
 
 impl<P: consensus::Parameters> Builder<P, OsRng> {
