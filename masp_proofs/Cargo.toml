@@ -31,7 +31,7 @@ rand_core = "0.6"
 wagyu-zcash-parameters = { version = "0.2", optional = true }
 masp_primitives = { version = "0.5", path = "../masp_primitives" }
 zcash_primitives = { git = "https://github.com/zcash/librustzcash", rev = "2425a08" }
-zcash_proofs = { git = "https://github.com/zcash/librustzcash", rev = "2425a08" }
+zcash_proofs = { git = "https://github.com/zcash/librustzcash", rev = "2425a08", default-features = false, features = ["local-prover"] }
 
 [dev-dependencies]
 criterion = "0.3"
@@ -42,7 +42,7 @@ default = ["local-prover", "multicore"]
 bundled-prover = ["wagyu-zcash-parameters"]
 download-params = ["minreq"]
 local-prover = ["directories"]
-multicore = ["bellman/multicore"]
+multicore = ["bellman/multicore", "zcash_proofs/multicore"]
 embed-verifying-key = []
 
 [lib]
