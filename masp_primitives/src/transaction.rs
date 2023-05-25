@@ -10,7 +10,6 @@ use blake2b_simd::Hash as Blake2bHash;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ff::PrimeField;
 use memuse::DynamicUsage;
-pub use secp256k1::PublicKey as TransparentAddress;
 use std::{
     fmt::{self, Debug},
     hash::Hash,
@@ -34,6 +33,9 @@ use self::{
     },
     txid::{to_txid, BlockTxCommitmentDigester, TxIdDigester},
 };
+
+#[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash, Debug)]
+pub struct TransparentAddress(pub [u8; 20]);
 
 pub const GROTH_PROOF_SIZE: usize = 48 + 96 + 48;
 pub type GrothProofBytes = [u8; GROTH_PROOF_SIZE];
@@ -147,7 +149,7 @@ pub trait Authorization {
 }
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Unproven;
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Authorized;
 
 impl Authorization for Authorized {
@@ -163,7 +165,7 @@ impl Authorization for Unauthorized {
 }
 
 /// A MASP transaction.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Transaction {
     txid: TxId,
     data: TransactionData<Authorized>,
@@ -183,7 +185,7 @@ impl PartialEq for Transaction {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TransactionData<A: Authorization> {
     version: TxVersion,
     consensus_branch_id: BranchId,
@@ -277,6 +279,32 @@ impl<A: Authorization> TransactionData<A> {
 impl TransactionData<Authorized> {
     pub fn freeze(self) -> io::Result<Transaction> {
         Transaction::from_data(self)
+    }
+}
+
+impl BorshSerialize for Transaction {
+    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl BorshDeserialize for Transaction {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        Self::read(buf, BranchId::MASP)
+    }
+}
+
+impl borsh::BorshSchema for Transaction {
+    fn add_definitions_recursively(
+        _definitions: &mut std::collections::HashMap<
+            borsh::schema::Declaration,
+            borsh::schema::Definition,
+        >,
+    ) {
+    }
+
+    fn declaration() -> borsh::schema::Declaration {
+        "Transaction".into()
     }
 }
 

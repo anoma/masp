@@ -771,7 +771,10 @@ impl<Node: Hashable> BorshDeserialize for MerklePath<Node> {
         // Begin to construct the authentication path
         // Do not use any data in the witness after the expected depth
         let iter = witness[..33 * depth + 8].chunks_exact(33);
-        *witness = iter.remainder();
+        // Update the witness to its final position
+        *witness = &witness[33 * depth + 8..];
+        // Read the position from the witness
+        let position = iter.remainder().read_u64::<LittleEndian>()?;
 
         // The vector works in reverse
         let mut auth_path = iter
@@ -797,9 +800,6 @@ impl<Node: Hashable> BorshDeserialize for MerklePath<Node> {
         if auth_path.len() != depth {
             return Err(std::io::Error::from(std::io::ErrorKind::InvalidData));
         }
-
-        // Read the position from the witness
-        let position = witness.read_u64::<LittleEndian>()?;
 
         // Given the position, let's finish constructing the authentication
         // path

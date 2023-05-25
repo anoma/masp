@@ -5,13 +5,14 @@ use std::error;
 use std::fmt;
 use std::sync::mpsc::Sender;
 
-use secp256k1::PublicKey as TransparentAddress;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
 use crate::{
     asset_type::AssetType,
     consensus::{self, BlockHeight, BranchId},
+    convert::AllowedConversion,
     keys::OutgoingViewingKey,
     memo::MemoBytes,
     merkle_tree::MerklePath,
@@ -28,7 +29,7 @@ use crate::{
         fees::FeeRule,
         sighash::{signature_hash, SignableInput},
         txid::TxIdDigester,
-        Transaction, TransactionData, TxVersion, Unauthorized,
+        Transaction, TransactionData, TransparentAddress, TxVersion, Unauthorized,
     },
     zip32::ExtendedSpendingKey,
 };
@@ -115,17 +116,19 @@ impl Progress {
 }
 
 /// Generates a [`Transaction`] from its inputs and outputs.
-pub struct Builder<P, R> {
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
+pub struct Builder<P, R, Key = ExtendedSpendingKey, Notifier = Sender<Progress>> {
     params: P,
     rng: R,
     target_height: BlockHeight,
     expiry_height: BlockHeight,
     transparent_builder: TransparentBuilder,
-    sapling_builder: SaplingBuilder<P>,
-    progress_notifier: Option<Sender<Progress>>,
+    sapling_builder: SaplingBuilder<P, Key>,
+    #[borsh_skip]
+    progress_notifier: Option<Notifier>,
 }
 
-impl<P, R> Builder<P, R> {
+impl<P, R, K, N> Builder<P, R, K, N> {
     /// Returns the network parameters that the builder has been configured for.
     pub fn params(&self) -> &P {
         &self.params
@@ -150,7 +153,7 @@ impl<P, R> Builder<P, R> {
 
     /// Returns the set of Sapling inputs currently committed to be consumed
     /// by the transaction.
-    pub fn sapling_inputs(&self) -> &[impl sapling::fees::InputView<()>] {
+    pub fn sapling_inputs(&self) -> &[impl sapling::fees::InputView<(), K>] {
         self.sapling_builder.inputs()
     }
 
@@ -158,6 +161,12 @@ impl<P, R> Builder<P, R> {
     /// the transaction.
     pub fn sapling_outputs(&self) -> &[impl sapling::fees::OutputView] {
         self.sapling_builder.outputs()
+    }
+
+    /// Returns the set of Sapling converts currently set to be produced by
+    /// the transaction.
+    pub fn sapling_converts(&self) -> &[impl sapling::fees::ConvertView] {
+        self.sapling_builder.converts()
     }
 }
 
@@ -219,6 +228,20 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
             .add_spend(&mut self.rng, extsk, diversifier, note, merkle_path)
     }
 
+    /// Adds a Sapling note to be spent in this transaction.
+    ///
+    /// Returns an error if the given Merkle path does not have the same anchor as the
+    /// paths for previous Sapling notes.
+    pub fn add_sapling_convert(
+        &mut self,
+        allowed: AllowedConversion,
+        value: u64,
+        merkle_path: MerklePath<Node>,
+    ) -> Result<(), sapling::builder::Error> {
+        self.sapling_builder
+            .add_convert(allowed, value, merkle_path)
+    }
+
     /// Adds a Sapling address to send funds to.
     pub fn add_sapling_output(
         &mut self,
@@ -270,7 +293,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     }
 
     /// Returns the sum of the transparent, Sapling, and TZE value balances.
-    fn value_balance(&self) -> Result<Amount, BalanceError> {
+    pub fn value_balance(&self) -> Result<Amount, BalanceError> {
         let value_balances = [
             self.transparent_builder.value_balance()?,
             self.sapling_builder.value_balance(),
@@ -388,6 +411,30 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     }
 }
 
+pub trait MapBuilder<P1, R1, K1, N1, P2, R2, K2, N2>:
+    sapling::builder::MapBuilder<P1, K1, P2, K2>
+{
+    fn map_rng(&self, s: R1) -> R2;
+    fn map_notifier(&self, s: N1) -> N2;
+}
+
+impl<P1, R1, K1, N1> Builder<P1, R1, K1, N1> {
+    pub fn map_builder<P2, R2, K2, N2, F: MapBuilder<P1, R1, K1, N1, P2, R2, K2, N2>>(
+        self,
+        f: F,
+    ) -> Builder<P2, R2, K2, N2> {
+        Builder::<P2, R2, K2, N2> {
+            params: f.map_params(self.params),
+            rng: f.map_rng(self.rng),
+            target_height: self.target_height,
+            expiry_height: self.expiry_height,
+            transparent_builder: self.transparent_builder,
+            progress_notifier: self.progress_notifier.map(|x| f.map_notifier(x)),
+            sapling_builder: self.sapling_builder.map_builder(f),
+        }
+    }
+}
+
 #[cfg(any(test, feature = "test-dependencies"))]
 mod testing {
     use rand::RngCore;
@@ -423,8 +470,8 @@ mod testing {
 #[cfg(test)]
 mod tests {
     use ff::Field;
+    use rand::Rng;
     use rand_core::OsRng;
-    use secp256k1::Secp256k1;
 
     use crate::{
         asset_type::AssetType,
@@ -436,6 +483,7 @@ mod tests {
             components::amount::{Amount, DEFAULT_FEE, MAX_MONEY},
             sapling::builder::{self as build_s},
             transparent::builder::{self as build_t},
+            TransparentAddress,
         },
         zip32::ExtendedSpendingKey,
     };
@@ -473,7 +521,9 @@ mod tests {
 
     #[test]
     fn binding_sig_present_if_shielded_spend() {
-        let (_, transparent_address) = Secp256k1::new().generate_keypair(&mut OsRng);
+        let mut rng = OsRng;
+
+        let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
 
         let extsk = ExtendedSpendingKey::master(&[]);
         let dfvk = extsk.to_diversifiable_full_viewing_key();
@@ -517,10 +567,9 @@ mod tests {
 
     #[test]
     fn fails_on_negative_transparent_output() {
-        let secret_key =
-            secp256k1::SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-        let transparent_address =
-            secp256k1::PublicKey::from_secret_key(&secp256k1::Secp256k1::new(), &secret_key);
+        let mut rng = OsRng;
+
+        let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
         let tx_height = TEST_NETWORK
             .activation_height(NetworkUpgrade::MASP)
             .unwrap();
@@ -535,7 +584,7 @@ mod tests {
     fn fails_on_negative_change() {
         let mut rng = OsRng;
 
-        let (_, transparent_address) = Secp256k1::new().generate_keypair(&mut OsRng);
+        let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
         // Just use the master key as the ExtendedSpendingKey for this test
         let extsk = ExtendedSpendingKey::master(&[]);
         let tx_height = TEST_NETWORK
@@ -603,12 +652,7 @@ mod tests {
         {
             let mut builder = Builder::new(TEST_NETWORK, tx_height);
             builder
-                .add_sapling_spend(
-                    extsk,
-                    *to.diversifier(),
-                    note1.clone(),
-                    witness1.path().unwrap(),
-                )
+                .add_sapling_spend(extsk, *to.diversifier(), note1, witness1.path().unwrap())
                 .unwrap();
             builder
                 .add_sapling_output(ovk, to, zec(), 30000, MemoBytes::empty())

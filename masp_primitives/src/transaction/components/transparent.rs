@@ -1,11 +1,11 @@
 //! Structs representing the components within Zcash transactions.
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use secp256k1::PublicKey as TransparentAddress;
 use std::fmt::{self, Debug};
 use std::io::{self, Read, Write};
 
 use crate::asset_type::AssetType;
+use crate::transaction::TransparentAddress;
 
 use super::amount::{Amount, BalanceError, MAX_MONEY};
 
@@ -24,12 +24,13 @@ impl Authorization for Authorized {
 }
 
 pub trait MapAuth<A: Authorization, B: Authorization> {
+    fn map_script_sig(&self, s: A::TransparentSig) -> B::TransparentSig;
     fn map_authorization(&self, s: A) -> B;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Bundle<A: Authorization> {
-    pub vin: Vec<TxIn>,
+    pub vin: Vec<TxIn<A>>,
     pub vout: Vec<TxOut>,
     pub authorization: A,
 }
@@ -37,7 +38,16 @@ pub struct Bundle<A: Authorization> {
 impl<A: Authorization> Bundle<A> {
     pub fn map_authorization<B: Authorization, F: MapAuth<A, B>>(self, f: F) -> Bundle<B> {
         Bundle {
-            vin: self.vin,
+            vin: self
+                .vin
+                .into_iter()
+                .map(|txin| TxIn {
+                    asset_type: txin.asset_type,
+                    address: txin.address,
+                    transparent_sig: f.map_script_sig(txin.transparent_sig),
+                    value: txin.value,
+                })
+                .collect(),
             vout: self.vout,
             authorization: f.map_authorization(self.authorization),
         }
@@ -84,12 +94,14 @@ impl<A: Authorization> Bundle<A> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TxIn {
+pub struct TxIn<A: Authorization> {
     pub asset_type: AssetType,
     pub value: i64,
+    pub address: TransparentAddress,
+    pub transparent_sig: A::TransparentSig,
 }
 
-impl TxIn {
+impl TxIn<Authorized> {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let asset_type = {
             let mut tmp = [0u8; 32];
@@ -108,13 +120,24 @@ impl TxIn {
                 "value out of range",
             ));
         }
+        let address = {
+            let mut tmp = [0u8; 20];
+            reader.read_exact(&mut tmp)?;
+            TransparentAddress(tmp)
+        };
 
-        Ok(TxIn { asset_type, value })
+        Ok(TxIn {
+            asset_type,
+            value,
+            address,
+            transparent_sig: (),
+        })
     }
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(self.asset_type.get_identifier())?;
-        writer.write_all(&self.value.to_le_bytes())
+        writer.write_all(&self.value.to_le_bytes())?;
+        writer.write_all(&self.address.0)
     }
 }
 
@@ -122,7 +145,7 @@ impl TxIn {
 pub struct TxOut {
     pub asset_type: AssetType,
     pub value: i64,
-    pub transparent_address: TransparentAddress,
+    pub address: TransparentAddress,
 }
 
 impl TxOut {
@@ -145,26 +168,28 @@ impl TxOut {
             ));
         }
 
-        let mut tmp = [0u8; 33];
-        reader.read_exact(&mut tmp)?;
-        let transparent_address = TransparentAddress::from_slice(&tmp)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad public key"))?;
+        let address = {
+            let mut tmp = [0u8; 20];
+            reader.read_exact(&mut tmp)?;
+            TransparentAddress(tmp)
+        };
 
         Ok(TxOut {
             asset_type,
             value,
-            transparent_address,
+            address,
         })
     }
 
     pub fn write<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(self.asset_type.get_identifier())?;
         writer.write_all(&self.value.to_le_bytes())?;
-        writer.write_all(&self.transparent_address.serialize())
+        writer.write_all(&self.address.0)
     }
+
     /// Returns the address to which the TxOut was sent, if this is a valid P2SH or P2PKH output.
     pub fn recipient_address(&self) -> TransparentAddress {
-        self.transparent_address
+        self.address
     }
 }
 
@@ -186,23 +211,28 @@ pub mod testing {
     use proptest::prelude::*;
 
     use crate::transaction::components::amount::testing::arb_nonnegative_amount;
+    use crate::transaction::TransparentAddress;
 
     use super::{Authorized, Bundle, TxIn, TxOut};
 
     prop_compose! {
-        pub fn arb_txin()(amt in arb_nonnegative_amount()) -> TxIn {
-            let (asset_type, value) = amt.components().next().unwrap();
-            TxIn { asset_type: *asset_type, value: *value }
+        pub fn arb_transparent_address()(value in prop::array::uniform20(prop::num::u8::ANY)) -> TransparentAddress {
+            TransparentAddress(value)
         }
     }
 
     prop_compose! {
-        pub fn arb_txout()(amt in arb_nonnegative_amount()) -> TxOut {
-            let secp = secp256k1::Secp256k1::new();
-            let (_, public_key) = secp.generate_keypair(&mut rand_core::OsRng);
+        pub fn arb_txin()(amt in arb_nonnegative_amount(), addr in arb_transparent_address()) -> TxIn<Authorized> {
+            let (asset_type, value) = amt.components().next().unwrap();
+            TxIn { asset_type: *asset_type, value: *value, address: addr, transparent_sig: () }
+        }
+    }
+
+    prop_compose! {
+        pub fn arb_txout()(amt in arb_nonnegative_amount(), addr in arb_transparent_address()) -> TxOut {
             let (asset_type, value) = amt.components().next().unwrap();
 
-            TxOut { asset_type: *asset_type, value: *value, transparent_address : public_key }
+            TxOut { asset_type: *asset_type, value: *value, address : addr }
         }
     }
 

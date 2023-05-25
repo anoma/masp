@@ -85,8 +85,7 @@ pub struct Node {
 }
 
 impl Node {
-    #[cfg(test)]
-    pub(crate) fn new(repr: [u8; 32]) -> Self {
+    pub fn new(repr: [u8; 32]) -> Self {
         Node { repr }
     }
 
@@ -506,7 +505,9 @@ pub enum Rseed {
 }
 
 /// Typesafe wrapper for nullifier values.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(
+    Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, BorshSerialize, BorshDeserialize,
+)]
 pub struct Nullifier(pub [u8; 32]);
 
 impl Nullifier {
@@ -551,7 +552,7 @@ impl From<NoteValue> for u64 {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub struct Note {
     /// The asset type that the note represents
     pub asset_type: AssetType,

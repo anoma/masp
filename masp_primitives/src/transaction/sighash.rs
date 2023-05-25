@@ -5,7 +5,7 @@ use blake2b_simd::Hash as Blake2bHash;
 use super::{
     components::{
         sapling::{self, GrothProofBytes},
-        transparent, Amount,
+        transparent,
     },
     sighash_v5::v5_signature_hash,
     Authorization, TransactionData, TxDigests, TxVersion,
@@ -55,7 +55,7 @@ pub trait TransparentAuthorizingContext: transparent::Authorization {
     /// so that wallets can commit to the transparent input breakdown
     /// without requiring the full data of the previous transactions
     /// providing these inputs.
-    fn input_amounts(&self) -> Vec<Result<Amount, ()>>;
+    fn input_amounts(&self) -> Vec<(AssetType, i64)>;
 }
 
 /// Computes the signature hash for an input to a transaction, given

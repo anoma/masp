@@ -57,6 +57,7 @@ impl fees::InputView for TransparentInputInfo {
     }
 }
 
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct TransparentBuilder {
     #[cfg(feature = "transparent-inputs")]
     inputs: Vec<TransparentInputInfo>,
@@ -126,7 +127,7 @@ impl TransparentBuilder {
         self.vout.push(TxOut {
             asset_type,
             value,
-            transparent_address: *to,
+            address: *to,
         });
 
         Ok(())
@@ -169,12 +170,14 @@ impl TransparentBuilder {
 
     pub fn build(self) -> Option<transparent::Bundle<Unauthorized>> {
         #[cfg(feature = "transparent-inputs")]
-        let vin: Vec<TxIn> = self
+        let vin: Vec<TxIn<Unauthorized>> = self
             .inputs
             .iter()
-            .map(|i| TxIn {
+            .map(|i| TxIn::<Unauthorized> {
                 asset_type: i.coin.asset_type,
                 value: i.coin.value,
+                address: i.coin.address,
+                transparent_sig: (),
             })
             .collect();
 
@@ -198,18 +201,18 @@ impl TransparentBuilder {
 
 #[cfg(not(feature = "transparent-inputs"))]
 impl TransparentAuthorizingContext for Unauthorized {
-    fn input_amounts(&self) -> Vec<Amount> {
+    fn input_amounts(&self) -> Vec<(AssetType, i64)> {
         vec![]
     }
 }
 
 #[cfg(feature = "transparent-inputs")]
 impl TransparentAuthorizingContext for Unauthorized {
-    fn input_amounts(&self) -> Vec<Result<Amount, ()>> {
+    fn input_amounts(&self) -> Vec<(AssetType, i64)> {
         return self
             .inputs
             .iter()
-            .map(|txin| Amount::from_pair(txin.coin.asset_type, txin.coin.value))
+            .map(|txin| (txin.coin.asset_type, txin.coin.value))
             .collect();
     }
 }
@@ -217,7 +220,16 @@ impl TransparentAuthorizingContext for Unauthorized {
 impl Bundle<Unauthorized> {
     pub fn apply_signatures(self) -> Bundle<Authorized> {
         transparent::Bundle {
-            vin: self.vin,
+            vin: self
+                .vin
+                .iter()
+                .map(|txin| TxIn {
+                    asset_type: txin.asset_type,
+                    address: txin.address,
+                    value: txin.value,
+                    transparent_sig: (),
+                })
+                .collect(),
             vout: self.vout,
             authorization: Authorized,
         }
