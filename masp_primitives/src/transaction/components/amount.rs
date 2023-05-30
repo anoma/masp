@@ -14,8 +14,8 @@ use std::collections::btree_map::{Iter, IntoIter};
 use std::cmp::Ordering;
 use std::hash::Hash;
 
-const COIN: i64 = 1_0000_0000;
-const MAX_MONEY: i64 = 21_000_000 * COIN;
+const COIN: i128 = 1_0000_0000;
+const MAX_MONEY: i128 = 21_000_000 * COIN;
 
 /// A type-safe representation of some quantity of Zcash.
 ///
@@ -31,7 +31,7 @@ const MAX_MONEY: i64 = 21_000_000 * COIN;
 #[derive(
     Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Eq, Hash
 )]
-pub struct Amount<Unit: Hash + Ord + BorshSerialize + BorshDeserialize = AssetType>(BTreeMap<Unit, i64>);
+pub struct Amount<Unit: Hash + Ord + BorshSerialize + BorshDeserialize = AssetType>(BTreeMap<Unit, i128>);
 
 impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> {
     /// Returns a zero-valued Amount.
@@ -46,7 +46,7 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
         atype: Unit,
         amount: Amt
     ) -> Result<Self, ()> {
-        let amount = amount.try_into().map_err(|_| ())?;
+        let amount = amount.try_into().map_err(|_| ())? as i128;
         if amount == 0 {
             Ok(Self::zero())
         } else if 0 <= amount && amount <= MAX_MONEY {
@@ -65,7 +65,7 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
         atype: Unit,
         amount: Amt
     ) -> Result<Self, ()> {
-        let amount = amount.try_into().map_err(|_| ())?;
+        let amount = amount.try_into().map_err(|_| ())? as i128;
         if amount == 0 {
             Ok(Self::zero())
         } else if -MAX_MONEY <= amount && amount <= MAX_MONEY {
@@ -78,17 +78,17 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
     }
 
     /// Returns an iterator over the amount's non-zero asset-types
-    pub fn asset_types(&self) -> Keys<'_, Unit, i64> {
+    pub fn asset_types(&self) -> Keys<'_, Unit, i128> {
         self.0.keys()
     }
 
     /// Returns an iterator over the amount's non-zero components
-    pub fn components(&self) -> Iter<'_, Unit, i64> {
+    pub fn components(&self) -> Iter<'_, Unit, i128> {
         self.0.iter()
     }
 
     /// Returns an iterator over the amount's non-zero components
-    pub fn into_components(self) -> IntoIter<Unit, i64> {
+    pub fn into_components(self) -> IntoIter<Unit, i128> {
         self.0.into_iter()
     }
 
@@ -177,15 +177,15 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> PartialOrd fo
 }
 
 impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize> Index<&Unit> for Amount<Unit> {
-    type Output = i64;
+    type Output = i128;
     /// Query how much of the given asset this amount contains
     fn index(&self, index: &Unit) -> &Self::Output {
         self.0.get(index).unwrap_or(&0)
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> MulAssign<i64> for Amount<Unit> {
-    fn mul_assign(&mut self, rhs: i64) {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> MulAssign<i128> for Amount<Unit> {
+    fn mul_assign(&mut self, rhs: i128) {
         for (_atype, amount) in self.0.iter_mut() {
             let ent = *amount * rhs;
             if -MAX_MONEY <= ent && ent <= MAX_MONEY {
@@ -197,10 +197,10 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> MulAssign<i64
     }
 }
 
-impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i64> for Amount<Unit> {
+impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Mul<i128> for Amount<Unit> {
     type Output = Self;
 
-    fn mul(mut self, rhs: i64) -> Self {
+    fn mul(mut self, rhs: i128) -> Self {
         self *= rhs;
         self
     }

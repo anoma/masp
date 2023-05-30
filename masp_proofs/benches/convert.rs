@@ -9,6 +9,7 @@ use masp_primitives::{asset_type::AssetType, convert::AllowedConversion};
 use masp_proofs::circuit::convert::{Convert, TREE_DEPTH};
 use rand_core::{RngCore, SeedableRng};
 use rand_xorshift::XorShiftRng;
+use masp_primitives::transaction::builder::secp256k1::All;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let mut rng = XorShiftRng::from_seed([
@@ -32,9 +33,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         let output_asset = AssetType::new(format!("asset {}", i + 1).as_bytes()).unwrap();
         let mint_asset = AssetType::new(b"reward").unwrap();
 
-        let spend_value = -(i as i64 + 1);
-        let output_value = i as i64 + 1;
-        let mint_value = i as i64 + 1;
+        let spend_value = -(i as i128 + 1);
+        let output_value = i as i128 + 1;
+        let mint_value = i as i128 + 1;
 
         let allowed_conversion = AllowedConversion {
             assets: vec![

@@ -285,7 +285,7 @@ impl SaplingProvingContext {
     /// and output_proof() must be completed before calling this function.
     pub fn binding_sig(
         &self,
-        assets_and_values: &[(AssetType, i64)],
+        assets_and_values: &[(AssetType, i128)],
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
         // Initialize secure RNG

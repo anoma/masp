@@ -181,7 +181,7 @@ impl SaplingVerificationContext {
             .map(|(asset_type, value_balance)| {
                 // Compute value balance for each asset
                 // Error for bad value balances (-INT64_MAX value)
-                masp_compute_value_balance(*asset_type, *value_balance).ok_or(())
+                masp_compute_value_balance(*asset_type, *value_balance as i128).ok_or(())
             })
             .collect::<Result<Vec<_>, _>>();
 

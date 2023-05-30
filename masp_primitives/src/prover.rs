@@ -71,7 +71,7 @@ pub trait TxProver {
     fn binding_sig(
         &self,
         ctx: &mut Self::SaplingProvingContext,
-        assets_and_values: &[(AssetType, i64)],
+        assets_and_values: &[(AssetType, i128)],
         sighash: &[u8; 32],
     ) -> Result<Signature, ()>;
 }
@@ -172,7 +172,7 @@ pub mod mock {
         fn binding_sig(
             &self,
             _ctx: &mut Self::SaplingProvingContext,
-            _assets_and_values: &[(AssetType, i64)],
+            _assets_and_values: &[(AssetType, i128)],
             _sighash: &[u8; 32],
         ) -> Result<Signature, ()> {
             Err(())
