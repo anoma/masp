@@ -11,9 +11,9 @@ use borsh::maybestd::io::{Error, ErrorKind};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AllowedConversion {
     /// The asset type that the note represents
-    assets: Amount,
+    pub assets: Amount,
     /// Memorize generator because it's expensive to recompute
-    generator: jubjub::ExtendedPoint,
+    pub generator: jubjub::ExtendedPoint,
 }
 
 impl AllowedConversion {

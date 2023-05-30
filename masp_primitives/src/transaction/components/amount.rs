@@ -13,6 +13,7 @@ use std::collections::btree_map::Keys;
 use std::collections::btree_map::{Iter, IntoIter};
 use std::cmp::Ordering;
 use std::hash::Hash;
+use std::i128;
 
 const COIN: i128 = 1_0000_0000;
 const MAX_MONEY: i128 = 21_000_000 * COIN;
@@ -39,10 +40,10 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
         Amount(BTreeMap::new())
     }
 
-    /// Creates a non-negative Amount from an i64.
+    /// Creates a non-negative Amount from an i128.
     ///
     /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
-    pub fn from_nonnegative<Amt: TryInto<i64>>(
+    pub fn from_nonnegative<Amt: TryInto<i128>>(
         atype: Unit,
         amount: Amt
     ) -> Result<Self, ()> {
@@ -58,10 +59,10 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
         }
     }
 
-    /// Creates an Amount from a type convertible to i64.
+    /// Creates an Amount from a type convertible to i128.
     ///
     /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
-    pub fn from_pair<Amt: TryInto<i64>>(
+    pub fn from_pair<Amt: TryInto<i128>>(
         atype: Unit,
         amount: Amt
     ) -> Result<Self, ()> {
@@ -110,7 +111,7 @@ impl Amount<AssetType> {
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
             let mut atype = [0; 32];
-            let mut value = [0; 8];
+            let mut value = [0; 16];
             reader.read_exact(&mut atype)?;
             reader.read_exact(&mut value)?;
             let atype = AssetType::from_identifier(&atype)
@@ -118,7 +119,7 @@ impl Amount<AssetType> {
                     std::io::ErrorKind::InvalidData,
                     "invalid asset type"
                 ))?;
-            Ok((atype, i64::from_le_bytes(value)))
+            Ok((atype, i128::from_le_bytes(value)))
         })?;
         let mut ret = Self::zero();
         for (atype, amt) in vec {
