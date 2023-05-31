@@ -173,22 +173,7 @@ impl ViewingKey {
     }
 
     pub fn ivk(&self) -> SaplingIvk {
-        let mut h = [0; 32];
-        h.copy_from_slice(
-            Blake2sParams::new()
-                .hash_length(32)
-                .personal(constants::CRH_IVK_PERSONALIZATION)
-                .to_state()
-                .update(&self.ak.to_bytes())
-                .update(&self.nk.0.to_bytes())
-                .finalize()
-                .as_bytes(),
-        );
-
-        // Drop the most significant five bits, so it can be interpreted as a scalar.
-        h[31] &= 0b0000_0111;
-
-        SaplingIvk(jubjub::Fr::from_repr(h).unwrap())
+        SaplingIvk(crh_ivk(self.ak.to_bytes(), self.nk.0.to_bytes()))
     }
 
     pub fn to_payment_address(&self, diversifier: Diversifier) -> Option<PaymentAddress> {
