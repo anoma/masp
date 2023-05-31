@@ -118,7 +118,7 @@ impl TransparentBuilder {
         &mut self,
         to: &TransparentAddress,
         asset_type: AssetType,
-        value: i64,
+        value: i128,
     ) -> Result<(), Error> {
         if value < 0 || value > MAX_MONEY {
             return Err(Error::InvalidAmount);
@@ -164,7 +164,7 @@ impl TransparentBuilder {
             .sum::<Result<Amount, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
-        // Cannot panic when subtracting two positive i64
+        // Cannot panic when subtracting two positive i128
         Ok(input_sum - output_sum)
     }
 
@@ -201,14 +201,14 @@ impl TransparentBuilder {
 
 #[cfg(not(feature = "transparent-inputs"))]
 impl TransparentAuthorizingContext for Unauthorized {
-    fn input_amounts(&self) -> Vec<(AssetType, i64)> {
+    fn input_amounts(&self) -> Vec<(AssetType, i128)> {
         vec![]
     }
 }
 
 #[cfg(feature = "transparent-inputs")]
 impl TransparentAuthorizingContext for Unauthorized {
-    fn input_amounts(&self) -> Vec<(AssetType, i64)> {
+    fn input_amounts(&self) -> Vec<(AssetType, i128)> {
         return self
             .inputs
             .iter()

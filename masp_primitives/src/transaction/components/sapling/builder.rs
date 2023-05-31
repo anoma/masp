@@ -438,7 +438,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         }
 
         let allowed_amt: Amount = allowed.clone().into();
-        self.value_balance += allowed_amt * value.try_into().unwrap();
+        self.value_balance += allowed_amt * value;
 
         self.converts.push(ConvertDescriptionInfo {
             allowed,

@@ -96,23 +96,19 @@ impl<A: Authorization> Bundle<A> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxIn<A: Authorization> {
     pub asset_type: AssetType,
-    pub value: i64,
+    pub value: i128,
     pub address: TransparentAddress,
     pub transparent_sig: A::TransparentSig,
 }
 
 impl TxIn<Authorized> {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let asset_type = {
-            let mut tmp = [0u8; 32];
-            reader.read_exact(&mut tmp)?;
-            AssetType::from_identifier(&tmp)
-        }
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid asset identifier"))?;
+        let asset_type = AssetType::read(reader)?;
         let value = {
-            let mut tmp = [0u8; 8];
+            assert_eq!(core::mem::size_of::<u64>(), 8);
+            let mut tmp = [0u8; core::mem::size_of::<u64>()];
             reader.read_exact(&mut tmp)?;
-            i64::from_le_bytes(tmp)
+            u64::from_le_bytes(tmp).into()
         };
         if value < 0 || value > MAX_MONEY {
             return Err(io::Error::new(
@@ -144,22 +140,18 @@ impl TxIn<Authorized> {
 #[derive(Clone, Debug, Hash, PartialOrd, PartialEq, Ord, Eq)]
 pub struct TxOut {
     pub asset_type: AssetType,
-    pub value: i64,
+    pub value: i128,
     pub address: TransparentAddress,
 }
 
 impl TxOut {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let asset_type = {
-            let mut tmp = [0u8; 32];
-            reader.read_exact(&mut tmp)?;
-            AssetType::from_identifier(&tmp)
-        }
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid asset identifier"))?;
+        let asset_type = AssetType::read(reader)?;
         let value = {
-            let mut tmp = [0u8; 8];
+            assert_eq!(core::mem::size_of::<u64>(), 8);
+            let mut tmp = [0u8; core::mem::size_of::<u64>()];
             reader.read_exact(&mut tmp)?;
-            i64::from_le_bytes(tmp)
+            u64::from_le_bytes(tmp).into()
         };
         if value < 0 || value > MAX_MONEY {
             return Err(io::Error::new(

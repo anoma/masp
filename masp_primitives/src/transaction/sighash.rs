@@ -55,7 +55,7 @@ pub trait TransparentAuthorizingContext: transparent::Authorization {
     /// so that wallets can commit to the transparent input breakdown
     /// without requiring the full data of the previous transactions
     /// providing these inputs.
-    fn input_amounts(&self) -> Vec<(AssetType, i64)>;
+    fn input_amounts(&self) -> Vec<(AssetType, i128)>;
 }
 
 /// Computes the signature hash for an input to a transaction, given

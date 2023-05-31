@@ -2,8 +2,8 @@
 //! of a transaction.
 
 use super::TxOut;
-use crate::transaction::TransparentAddress;
 use crate::asset_type::AssetType;
+use crate::transaction::TransparentAddress;
 
 /// This trait provides a minimized view of a transparent input suitable for use in
 /// fee and change computation.
@@ -16,7 +16,7 @@ pub trait InputView {
 /// fee and change computation.
 pub trait OutputView {
     /// Returns the value of the output being created.
-    fn value(&self) -> i64;
+    fn value(&self) -> i128;
     /// Returns the asset type of the output being created.
     fn asset_type(&self) -> AssetType;
     /// Returns the script corresponding to the newly created output.
@@ -24,7 +24,7 @@ pub trait OutputView {
 }
 
 impl OutputView for TxOut {
-    fn value(&self) -> i64 {
+    fn value(&self) -> i128 {
         self.value
     }
 
