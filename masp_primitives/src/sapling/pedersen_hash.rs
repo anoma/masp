@@ -1,4 +1,6 @@
 //! Implementation of the Pedersen hash function used in Sapling.
+#[cfg(test)]
+pub(crate) mod test_vectors;
 
 use byteorder::{ByteOrder, LittleEndian};
 use ff::PrimeField;
