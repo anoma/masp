@@ -15,8 +15,7 @@ use std::cmp::Ordering;
 use std::hash::Hash;
 use std::i128;
 
-const COIN: i128 = 1_0000_0000;
-const MAX_MONEY: i128 = 21_000_000 * COIN;
+pub const MAX_MONEY: i128 = u64::MAX as i128;
 
 /// A type-safe representation of some quantity of Zcash.
 ///
