@@ -11,6 +11,7 @@ pub mod redjubjub;
 pub mod tree;
 pub mod util;
 pub mod value;
+pub mod spec;
 
 use group::GroupEncoding;
 use rand_core::{CryptoRng, RngCore};
