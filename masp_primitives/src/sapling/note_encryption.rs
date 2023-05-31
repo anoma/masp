@@ -18,7 +18,9 @@ use masp_note_encryption::{
 use crate::{
     consensus::{self, BlockHeight, NetworkUpgrade::MASP},
     memo::MemoBytes,
-    sapling::{keys::OutgoingViewingKey, Diversifier, Note, PaymentAddress, Rseed, SaplingIvk},
+    sapling::{
+        address::PaymentAddress, keys::OutgoingViewingKey, Diversifier, Note, Rseed, SaplingIvk,
+    },
     transaction::{components::sapling::OutputDescription, GrothProofBytes},
 };
 

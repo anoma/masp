@@ -1,5 +1,6 @@
 //! Structs and constants specific to the Sapling shielded pool.
 
+pub mod address;
 pub mod group_hash;
 pub mod keys;
 pub mod note;
@@ -52,8 +53,9 @@ pub(crate) fn spend_sig_internal<R: RngCore>(
     rsk.sign(&data_to_be_signed, rng, SPENDING_KEY_GENERATOR)
 }
 
+pub use crate::sapling::address::PaymentAddress;
 pub use crate::sapling::keys::{
-    Diversifier, NullifierDerivingKey, PaymentAddress, ProofGenerationKey, SaplingIvk, ViewingKey,
+    Diversifier, NullifierDerivingKey, ProofGenerationKey, SaplingIvk, ViewingKey,
 };
 pub use crate::sapling::value::ValueCommitment;
 

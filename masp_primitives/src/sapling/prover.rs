@@ -11,7 +11,7 @@ use crate::{
     transaction::components::{Amount, GROTH_PROOF_SIZE},
 };
 
-use super::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed};
+use super::{address::PaymentAddress, Diversifier, ProofGenerationKey, Rseed};
 
 /// Interface for creating zero-knowledge proofs for shielded transactions.
 pub trait TxProver {

@@ -5,7 +5,7 @@
 use memuse::{self, DynamicUsage};
 use std::convert::{TryFrom, TryInto};
 
-use crate::sapling::{Diversifier, NullifierDerivingKey, PaymentAddress, ViewingKey};
+use crate::sapling::{Diversifier, NullifierDerivingKey, ViewingKey};
 
 pub mod sapling;
 

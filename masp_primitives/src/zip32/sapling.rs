@@ -5,14 +5,16 @@
 //! [section 4.2.2]: https://zips.z.cash/protocol/protocol.pdf#saplingkeycomponents
 
 use super::{
-    ChainCode, ChildIndex, Diversifier, DiversifierIndex, NullifierDerivingKey, PaymentAddress,
-    Scope, ViewingKey,
+    ChainCode, ChildIndex, Diversifier, DiversifierIndex, NullifierDerivingKey, Scope, ViewingKey,
 };
 use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
     keys::{prf_expand, prf_expand_vec},
-    sapling::keys::{DecodingError, ExpandedSpendingKey, FullViewingKey, OutgoingViewingKey},
-    sapling::SaplingIvk,
+    sapling::{
+        address::PaymentAddress,
+        keys::{DecodingError, ExpandedSpendingKey, FullViewingKey, OutgoingViewingKey},
+        SaplingIvk,
+    },
 };
 use aes::Aes256;
 use blake2b_simd::Params as Blake2bParams;
