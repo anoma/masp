@@ -1,11 +1,10 @@
 use super::{
-    keys::Diversifier,
+    keys::{Diversifier, DiversifiedTransmissionKey},
     note::{Note, Rseed},
     //value::NoteValue,
 };
 use crate::asset_type::AssetType;
 use borsh::{BorshDeserialize, BorshSerialize};
-use group::{Group, GroupEncoding};
 use std::{
     cmp::Ordering,
     fmt::{Display, Formatter},
@@ -22,7 +21,7 @@ use std::{
 /// and not the identity).
 #[derive(Clone, Copy, Debug)]
 pub struct PaymentAddress {
-    pk_d: jubjub::SubgroupPoint,
+    pk_d: DiversifiedTransmissionKey,
     diversifier: Diversifier,
 }
 
@@ -38,24 +37,26 @@ impl PaymentAddress {
     /// Constructs a PaymentAddress from a diversifier and a Jubjub point.
     ///
     /// Returns None if `pk_d` is the identity.
-    pub fn from_parts(diversifier: Diversifier, pk_d: jubjub::SubgroupPoint) -> Option<Self> {
-        if pk_d.is_identity().into() {
-            None
-        } else {
-            Some(PaymentAddress { pk_d, diversifier })
-        }
+    pub fn from_parts(diversifier: Diversifier, pk_d: DiversifiedTransmissionKey) -> Option<Self> {
+        // Check that the diversifier is valid
+        diversifier.g_d()?;
+
+        Self::from_parts_unchecked(diversifier, pk_d)
     }
 
     /// Constructs a PaymentAddress from a diversifier and a Jubjub point.
     ///
-    /// Only for test code, as this explicitly bypasses the invariant.
-    #[cfg(test)]
-    #[allow(dead_code)]
+    /// Returns None if `pk_d` is the identity. The caller must check that `diversifier`
+    /// is valid for Sapling.
     pub(crate) fn from_parts_unchecked(
         diversifier: Diversifier,
-        pk_d: jubjub::SubgroupPoint,
-    ) -> Self {
-        PaymentAddress { pk_d, diversifier }
+        pk_d: DiversifiedTransmissionKey,
+    ) -> Option<Self> {
+        if pk_d.is_identity() {
+            None
+        } else {
+            Some(PaymentAddress { pk_d, diversifier })
+        }
     }
 
     /// Parses a PaymentAddress from bytes.
@@ -68,7 +69,7 @@ impl PaymentAddress {
         // Check that the diversifier is valid
         diversifier.g_d()?;
 
-        let pk_d = jubjub::SubgroupPoint::from_bytes(bytes[11..43].try_into().unwrap());
+        let pk_d = DiversifiedTransmissionKey::from_bytes(bytes[11..43].try_into().unwrap());
         if pk_d.is_some().into() {
             PaymentAddress::from_parts(diversifier, pk_d.unwrap())
         } else {
@@ -90,7 +91,7 @@ impl PaymentAddress {
     }
 
     /// Returns `pk_d` for this `PaymentAddress`.
-    pub fn pk_d(&self) -> &jubjub::SubgroupPoint {
+    pub fn pk_d(&self) -> &DiversifiedTransmissionKey {
         &self.pk_d
     }
 

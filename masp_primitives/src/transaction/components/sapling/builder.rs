@@ -11,7 +11,7 @@ use crate::{
     asset_type::AssetType,
     consensus::{self, BlockHeight},
     convert::AllowedConversion,
-    keys::OutgoingViewingKey,
+    keys::{OutgoingViewingKey, },
     memo::MemoBytes,
     merkle_tree::MerklePath,
     sapling::{
@@ -21,6 +21,7 @@ use crate::{
         spend_sig_internal,
         util::generate_random_rseed_internal,
         Diversifier, Node, Note, PaymentAddress,
+        keys::{SaplingIvk}, NoteValue
     },
     transaction::{
         builder::Progress,
@@ -637,41 +638,21 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                 } else {
                     // This is a dummy output
                     let (dummy_to, dummy_note) = {
-                        let (diversifier, g_d) = {
-                            let mut diversifier;
-                            let g_d;
+                        let payment_address = {
+                            let mut diversifier = Diversifier([0; 11]);
                             loop {
-                                let mut d = [0; 11];
-                                rng.fill_bytes(&mut d);
-                                diversifier = Diversifier(d);
-                                if let Some(val) = diversifier.g_d() {
-                                    g_d = val;
-                                    break;
+                                rng.fill_bytes(&mut diversifier.0);
+                                let dummy_ivk = SaplingIvk(jubjub::Fr::random(&mut rng));
+                                if let Some(addr) = dummy_ivk.to_payment_address(diversifier) {
+                                    break addr;
                                 }
-                            }
-                            (diversifier, g_d)
-                        };
-                        let (pk_d, payment_address) = loop {
-                            let dummy_ivk = jubjub::Fr::random(&mut rng);
-                            let pk_d = g_d * dummy_ivk;
-                            if let Some(addr) = PaymentAddress::from_parts(diversifier, pk_d) {
-                                break (pk_d, addr);
                             }
                         };
 
                         let rseed =
                             generate_random_rseed_internal(&params, target_height, &mut rng);
 
-                        (
-                            payment_address,
-                            Note {
-                                g_d,
-                                pk_d,
-                                rseed,
-                                value: 0,
-                                asset_type: AssetType::new(b"dummy").unwrap(),
-                            },
-                        )
+                        (payment_address, Note::from_parts(payment_address, NoteValue::from_raw(0), rseed))
                     };
 
                     let esk = dummy_note.generate_or_derive_esk_internal(&mut rng);

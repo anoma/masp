@@ -19,6 +19,7 @@ use crate::{
     consensus::{self, BlockHeight, NetworkUpgrade::MASP},
     memo::MemoBytes,
     sapling::{
+        keys::DiversifiedTransmissionKey,
         address::PaymentAddress, keys::OutgoingViewingKey, Diversifier, Note, Rseed, SaplingIvk,
     },
     transaction::{components::sapling::OutputDescription, GrothProofBytes},
@@ -120,7 +121,7 @@ fn sapling_parse_note_plaintext_without_memo<F, P: consensus::Parameters>(
     get_validated_pk_d: F,
 ) -> Option<(Note, PaymentAddress)>
 where
-    F: FnOnce(&Diversifier) -> Option<jubjub::SubgroupPoint>,
+    F: FnOnce(&Diversifier) -> Option<DiversifiedTransmissionKey>,
 {
     assert!(plaintext.len() >= COMPACT_NOTE_SIZE);
 
@@ -186,7 +187,7 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
     type SymmetricKey = Blake2bHash;
     type Note = Note;
     type Recipient = PaymentAddress;
-    type DiversifiedTransmissionKey = jubjub::SubgroupPoint;
+    type DiversifiedTransmissionKey = DiversifiedTransmissionKey;
     type IncomingViewingKey = PreparedIncomingViewingKey;
     type OutgoingViewingKey = OutgoingViewingKey;
     type ValueCommitment = jubjub::ExtendedPoint;
@@ -222,7 +223,7 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
         esk: &Self::EphemeralSecretKey,
         pk_d: &Self::DiversifiedTransmissionKey,
     ) -> Self::SharedSecret {
-        sapling_ka_agree(esk, pk_d.into())
+        esk.agree(pk_d)
     }
 
     fn ka_agree_dec(
@@ -308,7 +309,7 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
         plaintext: &[u8],
     ) -> Option<(Self::Note, Self::Recipient)> {
         sapling_parse_note_plaintext_without_memo(self, plaintext, |diversifier| {
-            Some(&PreparedBaseSubgroup::new(diversifier.g_d()?) * &ivk.0)
+            DiversifiedTransmissionKey::derive(ivk, diversifier)
         })
     }
 
@@ -333,7 +334,7 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
     }
 
     fn extract_pk_d(op: &OutPlaintextBytes) -> Option<Self::DiversifiedTransmissionKey> {
-        jubjub::SubgroupPoint::from_bytes(
+        DiversifiedTransmissionKey::from_bytes(
             op.0[0..32].try_into().expect("slice is the correct length"),
         )
         .into()
@@ -697,7 +698,7 @@ mod tests {
             )
             .unwrap();
 
-        let pk_d = jubjub::SubgroupPoint::from_bytes(&op[0..32].try_into().unwrap()).unwrap();
+        let pk_d = DiversifiedTransmissionKey::from_bytes(&op[0..32].try_into().unwrap()).unwrap();
 
         let esk = jubjub::Fr::from_repr(op[32..OUT_PLAINTEXT_SIZE].try_into().unwrap()).unwrap();
 

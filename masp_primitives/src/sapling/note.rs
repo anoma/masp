@@ -18,6 +18,8 @@ use crate::sapling::{
     Node, Nullifier, NullifierDerivingKey,
 };
 
+use super::keys::DiversifiedTransmissionKey;
+
 pub mod commitment;
 pub mod nullifier;
 
@@ -41,7 +43,7 @@ pub struct Note {
     /// The diversified base of the address, GH(d)
     pub g_d: jubjub::SubgroupPoint,
     /// The public key of the address, g_d^ivk
-    pub pk_d: jubjub::SubgroupPoint,
+    pub pk_d: DiversifiedTransmissionKey,
     /// rseed
     pub rseed: Rseed,
 }
@@ -203,7 +205,7 @@ impl BorshDeserialize for Note {
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "g_d not in field"))?;
         // Read diversified transmission key
         let pk_d_bytes = <[u8; 32]>::deserialize(buf)?;
-        let pk_d = Option::from(jubjub::SubgroupPoint::from_bytes(&pk_d_bytes))
+        let pk_d = Option::from(DiversifiedTransmissionKey::from_bytes(&pk_d_bytes))
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "pk_d not in field"))?;
         // Read note plaintext lead byte
         let rseed_type = buf.read_u8()?;

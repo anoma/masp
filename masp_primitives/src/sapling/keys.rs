@@ -345,11 +345,9 @@ pub struct SaplingIvk(pub jubjub::Fr);
 
 impl SaplingIvk {
     pub fn to_payment_address(&self, diversifier: Diversifier) -> Option<PaymentAddress> {
-        diversifier.g_d().and_then(|g_d| {
-            let pk_d = g_d * self.0;
-
-            PaymentAddress::from_parts(diversifier, pk_d)
-        })
+        let prepared_ivk = PreparedIncomingViewingKey::new(self);
+        DiversifiedTransmissionKey::derive(&prepared_ivk, &diversifier)
+            .and_then(|pk_d| PaymentAddress::from_parts(diversifier, pk_d))
     }
 
     pub fn to_repr(&self) -> [u8; 32] {
