@@ -7,6 +7,7 @@ pub mod pedersen_hash;
 pub mod prover;
 pub mod redjubjub;
 pub mod util;
+pub mod note;
 
 use bitvec::{order::Lsb0, view::AsBits};
 use blake2s_simd::Params as Blake2sParams;
@@ -504,32 +505,7 @@ pub enum Rseed {
     AfterZip212([u8; 32]),
 }
 
-/// Typesafe wrapper for nullifier values.
-#[derive(
-    Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, BorshSerialize, BorshDeserialize,
-)]
-pub struct Nullifier(pub [u8; 32]);
-
-impl Nullifier {
-    pub fn from_slice(bytes: &[u8]) -> Result<Nullifier, TryFromSliceError> {
-        bytes.try_into().map(Nullifier)
-    }
-
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-}
-impl AsRef<[u8]> for Nullifier {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl ConstantTimeEq for Nullifier {
-    fn ct_eq(&self, other: &Self) -> Choice {
-        self.0.ct_eq(&other.0)
-    }
-}
+pub use crate::sapling::note::nullifier::Nullifier;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NoteValue(u64);
