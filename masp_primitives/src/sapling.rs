@@ -9,11 +9,12 @@ pub mod prover;
 pub mod redjubjub;
 pub mod tree;
 pub mod util;
+pub mod value;
 
 use blake2s_simd::Params as Blake2sParams;
 use borsh::{BorshDeserialize, BorshSerialize};
 use ff::PrimeField;
-use group::{cofactor::CofactorGroup, Group, GroupEncoding};
+use group::{Group, GroupEncoding};
 use rand_core::{CryptoRng, RngCore};
 use std::{
     cmp::Ordering,
@@ -69,20 +70,7 @@ pub(crate) fn spend_sig_internal<R: RngCore>(
     rsk.sign(&data_to_be_signed, rng, SPENDING_KEY_GENERATOR)
 }
 
-#[derive(Clone)]
-pub struct ValueCommitment {
-    pub asset_generator: jubjub::ExtendedPoint,
-    pub value: u64,
-    pub randomness: jubjub::Fr,
-}
-
-impl ValueCommitment {
-    pub fn commitment(&self) -> jubjub::SubgroupPoint {
-        (CofactorGroup::clear_cofactor(&self.asset_generator) * jubjub::Fr::from(self.value))
-            + (constants::VALUE_COMMITMENT_RANDOMNESS_GENERATOR * self.randomness)
-    }
-}
-
+pub use crate::sapling::value::ValueCommitment;
 #[derive(Clone)]
 pub struct ProofGenerationKey {
     pub ak: jubjub::SubgroupPoint,
