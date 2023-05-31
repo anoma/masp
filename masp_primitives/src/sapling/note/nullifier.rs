@@ -1,13 +1,9 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 /// Typesafe wrapper for nullifier values.
 use std::array::TryFromSliceError;
-use borsh::{BorshDeserialize, BorshSerialize};
 use subtle::{Choice, ConstantTimeEq};
 
 //use super::NoteCommitment;
-use crate::sapling::{
-    //keys::NullifierDerivingKey,
-    //spec::{mixing_pedersen_hash, prf_nf},
-};
 
 #[derive(
     Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, BorshSerialize, BorshDeserialize,
