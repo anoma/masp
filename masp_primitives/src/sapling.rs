@@ -8,10 +8,10 @@ pub mod note_encryption;
 pub mod pedersen_hash;
 pub mod prover;
 pub mod redjubjub;
+pub mod spec;
 pub mod tree;
 pub mod util;
 pub mod value;
-pub mod spec;
 
 use group::GroupEncoding;
 use rand_core::{CryptoRng, RngCore};
