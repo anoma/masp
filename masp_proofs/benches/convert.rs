@@ -34,9 +34,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         let output_asset = AssetType::new(format!("asset {}", i + 1).as_bytes()).unwrap();
         let mint_asset = AssetType::new(b"reward").unwrap();
 
-        let spend_value = -(i as i64 + 1);
-        let output_value = i as i64 + 1;
-        let mint_value = i as i64 + 1;
+        let spend_value = -(i as i128 + 1);
+        let output_value = i as i128 + 1;
+        let mint_value = i as i128 + 1;
 
         let allowed_conversion: AllowedConversion = (Amount::from_pair(spend_asset, spend_value)
             .unwrap()
