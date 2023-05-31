@@ -14,7 +14,7 @@ use std::io::{self, Read, Write};
 use std::iter::repeat;
 use zcash_encoding::{Optional, Vector};
 
-use crate::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
+use crate::sapling::tree::SAPLING_COMMITMENT_TREE_DEPTH;
 
 /// A hashable node within a Merkle tree.
 pub trait Hashable: Clone + Copy {
