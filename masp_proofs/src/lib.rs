@@ -42,22 +42,22 @@ mod downloadreader;
 // Circuit names
 
 /// The MASP spend parameters file name.
-const MASP_SPEND_NAME: &str = "masp-spend.params";
+pub const MASP_SPEND_NAME: &str = "masp-spend.params";
 
 /// The MASP output parameters file name.
-const MASP_OUTPUT_NAME: &str = "masp-output.params";
+pub const MASP_OUTPUT_NAME: &str = "masp-output.params";
 
 /// The MASP convert parameters file name.
-const MASP_CONVERT_NAME: &str = "masp-convert.params";
+pub const MASP_CONVERT_NAME: &str = "masp-convert.params";
 
 // Circuit hashes
-const MASP_SPEND_HASH: &str = "196e7c717f25e16653431559ce2c8816e750a4490f98696e3c031efca37e25e0647182b7b013660806db11eb2b1e365fb2d6a0f24dbbd9a4a8314fef10a7cba2";
-const MASP_OUTPUT_HASH: &str = "eafc3b1746cccc8b9eed2b69395692c5892f6aca83552a07dceb2dcbaa64dcd0e22434260b3aa3b049b633a08b008988cbe0d31effc77e2bc09bfab690a23724";
-const MASP_CONVERT_HASH: &str = "dc4aaf3c3ce056ab448b6c4a7f43c1d68502c2902ea89ab8769b1524a2e8ace9a5369621a73ee1daa52aec826907a19974a37874391cf8f11bbe0b0420de1ab7";
+pub const MASP_SPEND_HASH: &str = "196e7c717f25e16653431559ce2c8816e750a4490f98696e3c031efca37e25e0647182b7b013660806db11eb2b1e365fb2d6a0f24dbbd9a4a8314fef10a7cba2";
+pub const MASP_OUTPUT_HASH: &str = "eafc3b1746cccc8b9eed2b69395692c5892f6aca83552a07dceb2dcbaa64dcd0e22434260b3aa3b049b633a08b008988cbe0d31effc77e2bc09bfab690a23724";
+pub const MASP_CONVERT_HASH: &str = "dc4aaf3c3ce056ab448b6c4a7f43c1d68502c2902ea89ab8769b1524a2e8ace9a5369621a73ee1daa52aec826907a19974a37874391cf8f11bbe0b0420de1ab7";
 // Circuit parameter file sizes
-const MASP_SPEND_BYTES: u64 = 49848572;
-const MASP_CONVERT_BYTES: u64 = 22570940;
-const MASP_OUTPUT_BYTES: u64 = 16398620;
+pub const MASP_SPEND_BYTES: u64 = 49848572;
+pub const MASP_CONVERT_BYTES: u64 = 22570940;
+pub const MASP_OUTPUT_BYTES: u64 = 16398620;
 
 #[cfg(feature = "download-params")]
 const DOWNLOAD_URL: &str =
