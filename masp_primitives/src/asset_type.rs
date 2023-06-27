@@ -3,7 +3,10 @@ use crate::{
         ASSET_IDENTIFIER_LENGTH, ASSET_IDENTIFIER_PERSONALIZATION, GH_FIRST_BLOCK,
         VALUE_COMMITMENT_GENERATOR_PERSONALIZATION,
     },
-    sapling::ValueCommitment,
+    sapling::{
+        value::{NoteValue, ValueCommitTrapdoor},
+        ValueCommitment,
+    },
 };
 use blake2s_simd::Params as Blake2sParams;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -138,12 +141,12 @@ impl AssetType {
     }
 
     /// Construct a value commitment from given value and randomness
-    pub fn value_commitment(&self, value: u64, randomness: jubjub::Fr) -> ValueCommitment {
-        ValueCommitment {
-            asset_generator: self.asset_generator(),
-            value,
-            randomness,
-        }
+    pub fn value_commitment(
+        &self,
+        value: NoteValue,
+        randomness: ValueCommitTrapdoor,
+    ) -> ValueCommitment {
+        ValueCommitment::derive(self.value_commitment_generator(), value, randomness)
     }
 
     pub fn get_nonce(&self) -> Option<u8> {

@@ -6,12 +6,11 @@ use blake2b_simd::{Hash as Blake2bHash, Params, State};
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{LittleEndian, WriteBytesExt};
 use ff::PrimeField;
-use group::GroupEncoding;
 
 use crate::consensus::{BlockHeight, BranchId};
 
 use super::{
-    sapling::{self, OutputDescription, SpendDescription},
+    sapling::{self, OutputDescription, SpendDescription, ConvertDescription},
     transparent::{self, TxIn, TxOut},
     Authorization, Authorized, TransactionDigest, TransparentDigests, TxDigests, TxId, TxVersion,
 };
@@ -32,6 +31,9 @@ const ZCASH_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdOutputsHash";
 const ZCASH_SAPLING_SPENDS_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSSpendsHash";
 const ZCASH_SAPLING_SPENDS_COMPACT_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSSpendCHash";
 const ZCASH_SAPLING_SPENDS_NONCOMPACT_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSSpendNHash";
+
+const ZCASH_SAPLING_CONVERT_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSConverHash";
+const ZCASH_SAPLING_CONVERT_NONCOMPACT_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSConveNHash";
 
 const ZCASH_SAPLING_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSOutputHash";
 const ZCASH_SAPLING_OUTPUTS_COMPACT_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSOutC__Hash";
@@ -94,15 +96,36 @@ pub(crate) fn hash_sapling_spends<A: sapling::Authorization + PartialEq>(
         let mut nh = hasher(ZCASH_SAPLING_SPENDS_NONCOMPACT_HASH_PERSONALIZATION);
         for s_spend in shielded_spends {
             // we build the hash of nullifiers separately for compact blocks.
-            ch.write_all(s_spend.nullifier.as_ref()).unwrap();
+            ch.write_all(s_spend.nullifier().as_ref()).unwrap();
 
-            nh.write_all(&s_spend.cv.to_bytes()).unwrap();
-            nh.write_all(&s_spend.anchor.to_repr()).unwrap();
-            s_spend.rk.write(&mut nh).unwrap();
+            nh.write_all(&s_spend.cv().to_bytes()).unwrap();
+            nh.write_all(&s_spend.anchor().to_repr()).unwrap();
+            s_spend.rk().write(&mut nh).unwrap();
         }
 
         let compact_digest = ch.finalize();
         h.write_all(compact_digest.as_bytes()).unwrap();
+        let noncompact_digest = nh.finalize();
+        h.write_all(noncompact_digest.as_bytes()).unwrap();
+    }
+    h.finalize()
+}
+
+/// Write disjoint parts of each MASP shielded convert to a pair of hashes:
+/// * \[(cv, anchor, zkproof)*\] - personalized with ZCASH_SAPLING_CONVERT_NONCOMPACT_HASH_PERSONALIZATION
+///
+/// Then, hash these together personalized by ZCASH_SAPLING_CONVERT_HASH_PERSONALIZATION
+pub(crate) fn hash_sapling_converts<Proof: Clone + PartialEq>(
+    shielded_converts: &[ConvertDescription<Proof>],
+) -> Blake2bHash {
+    let mut h = hasher(ZCASH_SAPLING_CONVERT_HASH_PERSONALIZATION);
+    if !shielded_converts.is_empty() {
+        let mut nh = hasher(ZCASH_SAPLING_CONVERT_NONCOMPACT_HASH_PERSONALIZATION);
+        for s_convert in shielded_converts {
+            nh.write_all(&s_convert.cv().to_bytes()).unwrap();
+            nh.write_all(&s_convert.anchor().to_repr()).unwrap();
+        }
+
         let noncompact_digest = nh.finalize();
         h.write_all(noncompact_digest.as_bytes()).unwrap();
     }
@@ -126,15 +149,15 @@ pub(crate) fn hash_sapling_outputs<Proof: Clone>(
         let mut mh = hasher(ZCASH_SAPLING_OUTPUTS_MEMOS_HASH_PERSONALIZATION);
         let mut nh = hasher(ZCASH_SAPLING_OUTPUTS_NONCOMPACT_HASH_PERSONALIZATION);
         for s_out in shielded_outputs {
-            ch.write_all(s_out.cmu.to_repr().as_ref()).unwrap();
-            ch.write_all(s_out.ephemeral_key.as_ref()).unwrap();
-            ch.write_all(&s_out.enc_ciphertext[..52]).unwrap();
+            ch.write_all(s_out.cmu().to_bytes().as_ref()).unwrap();
+            ch.write_all(s_out.ephemeral_key().as_ref()).unwrap();
+            ch.write_all(&s_out.enc_ciphertext()[..masp_note_encryption::COMPACT_NOTE_SIZE]).unwrap();
 
-            mh.write_all(&s_out.enc_ciphertext[52..564]).unwrap();
+            mh.write_all(&s_out.enc_ciphertext()[masp_note_encryption::COMPACT_NOTE_SIZE..masp_note_encryption::NOTE_PLAINTEXT_SIZE]).unwrap();
 
-            nh.write_all(&s_out.cv.to_bytes()).unwrap();
-            nh.write_all(&s_out.enc_ciphertext[564..]).unwrap();
-            nh.write_all(&s_out.out_ciphertext).unwrap();
+            nh.write_all(&s_out.cv().to_bytes()).unwrap();
+            nh.write_all(&s_out.enc_ciphertext()[masp_note_encryption::NOTE_PLAINTEXT_SIZE..]).unwrap();
+            nh.write_all(&s_out.out_ciphertext()[..]).unwrap();
         }
 
         h.write_all(ch.finalize().as_bytes()).unwrap();
@@ -194,11 +217,14 @@ fn hash_sapling_txid_data<
     bundle: &sapling::Bundle<A>,
 ) -> Blake2bHash {
     let mut h = hasher(ZCASH_SAPLING_HASH_PERSONALIZATION);
-    if !(bundle.shielded_spends.is_empty() && bundle.shielded_outputs.is_empty()) {
-        h.write_all(hash_sapling_spends(&bundle.shielded_spends).as_bytes())
+    if !(bundle.shielded_spends().is_empty() && bundle.shielded_outputs().is_empty() && bundle.shielded_converts().is_empty()) {
+        h.write_all(hash_sapling_spends(&bundle.shielded_spends()).as_bytes())
             .unwrap();
 
-        h.write_all(hash_sapling_outputs(&bundle.shielded_outputs).as_bytes())
+            h.write_all(hash_sapling_converts(&bundle.shielded_converts()).as_bytes())
+            .unwrap();
+
+        h.write_all(hash_sapling_outputs(&bundle.shielded_outputs()).as_bytes())
             .unwrap();
 
         bundle.value_balance.serialize(&mut h).unwrap();
@@ -337,6 +363,11 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
     ) -> Blake2bHash {
         let mut h = hasher(ZCASH_TRANSPARENT_SCRIPTS_HASH_PERSONALIZATION);
         if let Some(bundle) = transparent_bundle {
+            for txin in &bundle.vin {
+                h.write_all(txin.asset_type.get_identifier()).unwrap();
+                h.write_all(&txin.value.to_le_bytes()).unwrap();
+                h.write_all(&txin.address.0).unwrap();
+            }
             for txout in &bundle.vout {
                 h.write_all(txout.asset_type.get_identifier()).unwrap();
                 h.write_all(&txout.value.to_le_bytes()).unwrap();
@@ -352,23 +383,23 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
     ) -> Blake2bHash {
         let mut h = hasher(ZCASH_SAPLING_SIGS_HASH_PERSONALIZATION);
         if let Some(bundle) = sapling_bundle {
-            for spend in &bundle.shielded_spends {
-                h.write_all(&spend.zkproof).unwrap();
+            for spend in bundle.shielded_spends() {
+                h.write_all(spend.zkproof()).unwrap();
             }
 
-            for spend in &bundle.shielded_spends {
-                spend.spend_auth_sig.write(&mut h).unwrap();
+            for spend in bundle.shielded_spends() {
+                spend.spend_auth_sig().write(&mut h).unwrap();
             }
 
-            for convert in &bundle.shielded_converts {
-                h.write_all(&convert.zkproof).unwrap();
+            for convert in bundle.shielded_converts() {
+                h.write_all(convert.zkproof()).unwrap();
             }
 
-            for output in &bundle.shielded_outputs {
-                h.write_all(&output.zkproof).unwrap();
+            for output in bundle.shielded_outputs() {
+                h.write_all(output.zkproof()).unwrap();
             }
 
-            bundle.authorization.binding_sig.write(&mut h).unwrap();
+            bundle.authorization().binding_sig.write(&mut h).unwrap();
         }
         h.finalize()
     }

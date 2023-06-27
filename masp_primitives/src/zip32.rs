@@ -5,7 +5,7 @@
 use memuse::{self, DynamicUsage};
 use std::convert::{TryFrom, TryInto};
 
-use crate::sapling::{Diversifier, NullifierDerivingKey, ViewingKey};
+use crate::sapling::{Diversifier, NullifierDerivingKey, PaymentAddress, ViewingKey};
 
 pub mod sapling;
 
@@ -134,6 +134,7 @@ memuse::impl_no_dynamic_usage!(Scope);
 #[cfg(test)]
 mod tests {
     use super::DiversifierIndex;
+    use assert_matches::assert_matches;
     use std::convert::TryFrom;
 
     #[test]
@@ -151,7 +152,7 @@ mod tests {
         let too_big = DiversifierIndex([
             0xff, 0xff, 0xff, 0xff, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ]);
-        assert!(matches!(u32::try_from(too_big), Err(_)));
+        assert_matches!(u32::try_from(too_big), Err(_));
     }
 }
 

@@ -14,7 +14,7 @@ use std::io::{self, Read, Write};
 use std::iter::repeat;
 use zcash_encoding::{Optional, Vector};
 
-use crate::sapling::tree::SAPLING_COMMITMENT_TREE_DEPTH;
+use crate::sapling::tree::NOTE_COMMITMENT_TREE_DEPTH;
 
 /// A hashable node within a Merkle tree.
 pub trait Hashable: Clone + Copy {
@@ -111,7 +111,7 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
         // This capacity is sufficient to hold a Merkle tree (where an empty node
         // is added onto some rows to ensure that they are of even size) with the
         // given number of leaves. This follows from the identity ceil(ceil(x/m)/n)=ceil(x/(mn))
-        let mut tree = Vec::with_capacity(leafs.len() * 2 + SAPLING_COMMITMENT_TREE_DEPTH - 1);
+        let mut tree = Vec::with_capacity(leafs.len() * 2 + NOTE_COMMITMENT_TREE_DEPTH - 1);
         tree.extend_from_slice(leafs);
         // Infer the rest of the tree
         Self::complete(tree, 0, leafs.len(), 0, leafs.len())
@@ -139,7 +139,7 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
         let mut prev_start = 0;
         let mut prev_width = (subtrees.len() - 1) * prev_first_width + prev_last_width;
         let leafs = prev_width;
-        let mut tree = Vec::with_capacity(leafs * 2 + SAPLING_COMMITMENT_TREE_DEPTH - 1);
+        let mut tree = Vec::with_capacity(leafs * 2 + NOTE_COMMITMENT_TREE_DEPTH - 1);
         loop {
             // Need to make sure that right child is present for parent
             if prev_last_width % 2 == 1 && prev_first_width > 1 {
@@ -181,7 +181,7 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
         leafs: usize,
     ) -> Self {
         // Add higher and higher rows of the Merkle tree
-        for height in heightp..SAPLING_COMMITMENT_TREE_DEPTH {
+        for height in heightp..NOTE_COMMITMENT_TREE_DEPTH {
             if prev_width % 2 == 1 {
                 // Add a dummy for the right-most parent's right child
                 prev_width += 1;
@@ -207,7 +207,7 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
         self.0
             .last()
             .cloned()
-            .unwrap_or_else(|| Node::empty_root(SAPLING_COMMITMENT_TREE_DEPTH))
+            .unwrap_or_else(|| Node::empty_root(NOTE_COMMITMENT_TREE_DEPTH))
     }
     /// Construct a merkle path to the given position in commitment tree
     pub fn path(&self, mut pos: usize) -> MerklePath<Node> {
@@ -218,7 +218,7 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
         let mut start = 0;
         let mut width = self.1;
 
-        for height in 0..SAPLING_COMMITMENT_TREE_DEPTH {
+        for height in 0..NOTE_COMMITMENT_TREE_DEPTH {
             if width % 2 == 1 {
                 width += 1;
             }
@@ -403,7 +403,7 @@ impl<Node: Hashable> CommitmentTree<Node> {
     ///
     /// Returns an error if the tree is full.
     pub fn append(&mut self, node: Node) -> Result<(), ()> {
-        self.append_inner(node, SAPLING_COMMITMENT_TREE_DEPTH)
+        self.append_inner(node, NOTE_COMMITMENT_TREE_DEPTH)
     }
 
     fn append_inner(&mut self, node: Node, depth: usize) -> Result<(), ()> {
@@ -442,7 +442,7 @@ impl<Node: Hashable> CommitmentTree<Node> {
 
     /// Returns the current root of the tree.
     pub fn root(&self) -> Node {
-        self.root_inner(SAPLING_COMMITMENT_TREE_DEPTH, PathFiller::empty())
+        self.root_inner(NOTE_COMMITMENT_TREE_DEPTH, PathFiller::empty())
     }
 
     fn root_inner(&self, depth: usize, mut filler: PathFiller<Node>) -> Node {
@@ -614,7 +614,7 @@ impl<Node: Hashable> IncrementalWitness<Node> {
     ///
     /// Returns an error if the tree is full.
     pub fn append(&mut self, node: Node) -> Result<(), ()> {
-        self.append_inner(node, SAPLING_COMMITMENT_TREE_DEPTH)
+        self.append_inner(node, NOTE_COMMITMENT_TREE_DEPTH)
     }
 
     fn append_inner(&mut self, node: Node, depth: usize) -> Result<(), ()> {
@@ -651,7 +651,7 @@ impl<Node: Hashable> IncrementalWitness<Node> {
 
     /// Returns the current root of the tree corresponding to the witness.
     pub fn root(&self) -> Node {
-        self.root_inner(SAPLING_COMMITMENT_TREE_DEPTH)
+        self.root_inner(NOTE_COMMITMENT_TREE_DEPTH)
     }
 
     fn root_inner(&self, depth: usize) -> Node {
@@ -660,7 +660,7 @@ impl<Node: Hashable> IncrementalWitness<Node> {
 
     /// Returns the current witness, or None if the tree is empty.
     pub fn path(&self) -> Option<MerklePath<Node>> {
-        self.path_inner(SAPLING_COMMITMENT_TREE_DEPTH)
+        self.path_inner(NOTE_COMMITMENT_TREE_DEPTH)
     }
 
     fn path_inner(&self, depth: usize) -> Option<MerklePath<Node>> {
@@ -728,7 +728,7 @@ impl<Node: Hashable> MerklePath<Node> {
 
     /// Reads a Merkle path from its serialized form.
     pub fn from_slice(witness: &[u8]) -> Result<Self, ()> {
-        Self::from_slice_with_depth(witness, SAPLING_COMMITMENT_TREE_DEPTH)
+        Self::from_slice_with_depth(witness, NOTE_COMMITMENT_TREE_DEPTH)
     }
 
     fn from_slice_with_depth(mut witness: &[u8], depth: usize) -> Result<Self, ()> {

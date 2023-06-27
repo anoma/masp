@@ -4,24 +4,24 @@ use core::fmt;
 use std::sync::mpsc::Sender;
 
 use ff::Field;
-use group::GroupEncoding;
 use rand::{seq::SliceRandom, RngCore};
 
 use crate::{
     asset_type::AssetType,
     consensus::{self, BlockHeight},
     convert::AllowedConversion,
-    keys::{OutgoingViewingKey, },
+    keys::OutgoingViewingKey,
     memo::MemoBytes,
     merkle_tree::MerklePath,
     sapling::{
+        keys::SaplingIvk,
         note_encryption::sapling_note_encryption,
         prover::TxProver,
         redjubjub::{PrivateKey, Signature},
         spend_sig_internal,
         util::generate_random_rseed_internal,
-        Diversifier, Node, Note, PaymentAddress,
-        keys::{SaplingIvk}, NoteValue
+        value::{NoteValue},
+        Diversifier, MerklePath, Node, Note, PaymentAddress,
     },
     transaction::{
         builder::Progress,
@@ -68,15 +68,15 @@ impl fmt::Display for Error {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct SpendDescriptionInfo<Key = ExtendedSpendingKey> {
-    extsk: Key,
+pub struct SpendDescriptionInfo {
+    extsk: ExtendedSpendingKey,
     diversifier: Diversifier,
     note: Note,
     alpha: jubjub::Fr,
     merkle_path: MerklePath<Node>,
 }
 
-impl<Key: BorshSerialize> BorshSerialize for SpendDescriptionInfo<Key> {
+impl BorshSerialize for SpendDescriptionInfo {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
         self.extsk.serialize(writer)?;
         self.diversifier.serialize(writer)?;
@@ -86,9 +86,9 @@ impl<Key: BorshSerialize> BorshSerialize for SpendDescriptionInfo<Key> {
     }
 }
 
-impl<Key: BorshDeserialize> BorshDeserialize for SpendDescriptionInfo<Key> {
+impl BorshDeserialize for SpendDescriptionInfo {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        let extsk = Key::deserialize(buf)?;
+        let extsk = ExtendedSpendingKey::deserialize(buf)?;
         let diversifier = Diversifier::deserialize(buf)?;
         let note = Note::deserialize(buf)?;
         let alpha: Option<_> = jubjub::Fr::from_bytes(&<[u8; 32]>::deserialize(buf)?).into();
@@ -104,22 +104,18 @@ impl<Key: BorshDeserialize> BorshDeserialize for SpendDescriptionInfo<Key> {
     }
 }
 
-impl<K> fees::InputView<(), K> for SpendDescriptionInfo<K> {
+impl fees::InputView<()> for SpendDescriptionInfo {
     fn note_id(&self) -> &() {
         // The builder does not make use of note identifiers, so we can just return the unit value.
         &()
     }
 
-    fn value(&self) -> u64 {
-        self.note.value
+    fn value(&self) -> NoteValue {
+        self.note.value()
     }
 
     fn asset_type(&self) -> AssetType {
-        self.note.asset_type
-    }
-
-    fn key(&self) -> &K {
-        &self.extsk
+        self.note.asset_type()
     }
 }
 
@@ -129,7 +125,6 @@ impl<K> fees::InputView<(), K> for SpendDescriptionInfo<K> {
 pub struct SaplingOutputInfo {
     /// `None` represents the `ovk = ⊥` case.
     ovk: Option<OutgoingViewingKey>,
-    to: PaymentAddress,
     note: Note,
     memo: MemoBytes,
 }
@@ -143,9 +138,9 @@ impl SaplingOutputInfo {
         ovk: Option<OutgoingViewingKey>,
         to: PaymentAddress,
         asset_type: AssetType,
-        value: u64,
+        value: NoteValue,
         memo: MemoBytes,
-    ) -> Result<Self, Error> {
+    ) -> Self {
         let g_d = to.g_d().ok_or(Error::InvalidAddress)?;
         if value > MAX_MONEY.try_into().unwrap() {
             return Err(Error::InvalidAmount);
@@ -153,20 +148,9 @@ impl SaplingOutputInfo {
 
         let rseed = generate_random_rseed_internal(params, target_height, rng);
 
-        let note = Note {
-            g_d,
-            pk_d: *to.pk_d(),
-            value,
-            rseed,
-            asset_type,
-        };
+        let note = Note::from_parts(asset_type, to, value, rseed);
 
-        Ok(SaplingOutputInfo {
-            ovk,
-            to,
-            note,
-            memo,
-        })
+        SaplingOutputInfo { ovk, note, memo }
     }
 
     fn build<P: consensus::Parameters, Pr: TxProver, R: RngCore>(
@@ -175,15 +159,16 @@ impl SaplingOutputInfo {
         ctx: &mut Pr::SaplingProvingContext,
         rng: &mut R,
     ) -> OutputDescription<GrothProofBytes> {
-        let encryptor = sapling_note_encryption::<P>(self.ovk, self.note, self.to, self.memo);
+        let encryptor =
+            sapling_note_encryption::<R, P>(self.ovk, self.note.clone(), self.memo, rng);
 
         let (zkproof, cv) = prover.output_proof(
             ctx,
-            *encryptor.esk(),
-            self.to,
+            encryptor.esk().0,
+            self.note.recipient(),
             self.note.rcm(),
-            self.note.asset_type,
-            self.note.value,
+            self.note.asset_type(),
+            self.note.value().inner(),
         );
 
         let cmu = self.note.cmu();
@@ -191,12 +176,12 @@ impl SaplingOutputInfo {
         let enc_ciphertext = encryptor.encrypt_note_plaintext();
         let out_ciphertext = encryptor.encrypt_outgoing_plaintext(&cv, &cmu, rng);
 
-        let epk = *encryptor.epk();
+        let epk = encryptor.epk();
 
         OutputDescription {
             cv,
             cmu,
-            ephemeral_key: epk.to_bytes().into(),
+            ephemeral_key: epk.to_bytes(),
             enc_ciphertext,
             out_ciphertext,
             zkproof,
@@ -205,12 +190,12 @@ impl SaplingOutputInfo {
 }
 
 impl fees::OutputView for SaplingOutputInfo {
-    fn value(&self) -> u64 {
-        self.note.value
+    fn value(&self) -> NoteValue {
+        self.note.value()
     }
 
     fn asset_type(&self) -> AssetType {
-        self.note.asset_type
+        self.note.asset_type()
     }
 
     fn address(&self) -> PaymentAddress {
@@ -269,18 +254,18 @@ impl SaplingMetadata {
 }
 
 #[derive(Clone, Debug)]
-pub struct SaplingBuilder<P, Key = ExtendedSpendingKey> {
+pub struct SaplingBuilder<P> {
     params: P,
     spend_anchor: Option<bls12_381::Scalar>,
     target_height: BlockHeight,
     value_balance: Amount,
     convert_anchor: Option<bls12_381::Scalar>,
-    spends: Vec<SpendDescriptionInfo<Key>>,
+    spends: Vec<SpendDescriptionInfo>,
     converts: Vec<ConvertDescriptionInfo>,
     outputs: Vec<SaplingOutputInfo>,
 }
 
-impl<P: BorshSerialize, Key: BorshSerialize> BorshSerialize for SaplingBuilder<P, Key> {
+impl<P: BorshSerialize> BorshSerialize for SaplingBuilder<P> {
     fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
         self.params.serialize(writer)?;
         self.spend_anchor.map(|x| x.to_bytes()).serialize(writer)?;
@@ -295,7 +280,7 @@ impl<P: BorshSerialize, Key: BorshSerialize> BorshSerialize for SaplingBuilder<P
     }
 }
 
-impl<P: BorshDeserialize, Key: BorshDeserialize> BorshDeserialize for SaplingBuilder<P, Key> {
+impl<P: BorshDeserialize> BorshDeserialize for SaplingBuilder<P> {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
         let params = P::deserialize(buf)?;
         let spend_anchor: Option<Option<_>> =
@@ -310,7 +295,7 @@ impl<P: BorshDeserialize, Key: BorshDeserialize> BorshDeserialize for SaplingBui
         let convert_anchor = convert_anchor
             .map(|x| x.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData)))
             .transpose()?;
-        let spends = Vec::<SpendDescriptionInfo<Key>>::deserialize(buf)?;
+        let spends = Vec::<SpendDescriptionInfo>::deserialize(buf)?;
         let converts = Vec::<ConvertDescriptionInfo>::deserialize(buf)?;
         let outputs = Vec::<SaplingOutputInfo>::deserialize(buf)?;
         Ok(SaplingBuilder {
@@ -338,11 +323,13 @@ impl std::fmt::Debug for Unauthorized {
 }
 
 impl Authorization for Unauthorized {
-    type Proof = GrothProofBytes;
+    type SpendProof = GrothProofBytes;
+    type ConvertProof = GrothProofBytes;
+    type OutputProof = GrothProofBytes;
     type AuthSig = SpendDescriptionInfo;
 }
 
-impl<P, K> SaplingBuilder<P, K> {
+impl<P> SaplingBuilder<P> {
     pub fn new(params: P, target_height: BlockHeight) -> Self {
         SaplingBuilder {
             params,
@@ -358,7 +345,7 @@ impl<P, K> SaplingBuilder<P, K> {
 
     /// Returns the list of Sapling inputs that will be consumed by the transaction being
     /// constructed.
-    pub fn inputs(&self) -> &[impl fees::InputView<(), K>] {
+    pub fn inputs(&self) -> &[impl fees::InputView<()>] {
         &self.spends
     }
 
@@ -370,9 +357,34 @@ impl<P, K> SaplingBuilder<P, K> {
         &self.outputs
     }
 
+    /// Returns the number of outputs that will be present in the Sapling bundle built by
+    /// this builder.
+    ///
+    /// This may be larger than the number of outputs that have been added to the builder,
+    /// depending on whether padding is going to be applied.
+    pub(in crate::transaction) fn bundle_output_count(&self) -> usize {
+        // This matches the padding behaviour in `Self::build`.
+        match self.spends.len() {
+            0 => self.outputs.len(),
+            _ => std::cmp::max(MIN_SHIELDED_OUTPUTS, self.outputs.len()),
+        }
+    }
+
+    /// Returns the net value represented by the spends and outputs added to this builder,
+    /// or an error if the values added to this builder overflow the range of a Zcash
+    /// monetary amount.
+    fn try_value_balance(&self) -> Result<Amount, Error> {
+        self.value_balance
+            .try_into()
+            .map_err(|_| ())
+            .and_then(Amount::from_i64)
+            .map_err(|()| Error::InvalidAmount)
+    }
+
     /// Returns the net value represented by the spends and outputs added to this builder.
     pub fn value_balance(&self) -> Amount {
-        self.value_balance.clone()
+        self.try_value_balance()
+            .expect("we check this when mutating self.value_balance")
     }
 }
 
@@ -390,7 +402,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         merkle_path: MerklePath<Node>,
     ) -> Result<(), Error> {
         // Consistency check: all anchors must equal the first one
-        let node = note.commitment();
+        let node = Node::from_cmu(&note.cmu());
         if let Some(anchor) = self.spend_anchor {
             let path_root: bls12_381::Scalar = merkle_path.root(node).into();
             if path_root != anchor {
@@ -402,8 +414,9 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
 
         let alpha = jubjub::Fr::random(&mut rng);
 
-        self.value_balance +=
-            Amount::from_pair(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?;
+        self.value_balance += Amount::from_pair(note.asset_type(), note.value().inner())
+            .map_err(|_| Error::InvalidAmount)?;
+        self.try_value_balance()?;
 
         self.spends.push(SpendDescriptionInfo {
             extsk,
@@ -458,7 +471,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         ovk: Option<OutgoingViewingKey>,
         to: PaymentAddress,
         asset_type: AssetType,
-        value: u64,
+        value: NoteValue,
         memo: MemoBytes,
     ) -> Result<(), Error> {
         let output = SaplingOutputInfo::new_internal(
@@ -473,7 +486,8 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         )?;
 
         self.value_balance -=
-            Amount::from_pair(asset_type, value).map_err(|_| Error::InvalidAmount)?;
+            Amount::from_pair(asset_type, value.inner()).map_err(|_| Error::InvalidAmount)?;
+        self.try_value_balance()?;
 
         self.outputs.push(output);
 
@@ -488,6 +502,8 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         target_height: BlockHeight,
         progress_notifier: Option<&Sender<Progress>>,
     ) -> Result<Option<Bundle<Unauthorized>>, Error> {
+        let value_balance = self.try_value_balance()?;
+
         // Record initial positions of spends and outputs
         let params = self.params;
         let mut indexed_spends: Vec<_> = self.spends.into_iter().enumerate().collect();
@@ -546,10 +562,10 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                             ctx,
                             proof_generation_key,
                             spend.diversifier,
-                            spend.note.rseed,
+                            *spend.note.rseed(),
                             spend.alpha,
-                            spend.note.asset_type,
-                            spend.note.value,
+                            spend.note.asset_type(),
+                            spend.note.value().inner(),
                             anchor,
                             spend.merkle_path.clone(),
                         )
@@ -652,19 +668,29 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                         let rseed =
                             generate_random_rseed_internal(&params, target_height, &mut rng);
 
-                        (payment_address, Note::from_parts(payment_address, NoteValue::from_raw(0), rseed))
+                        (
+                            payment_address,
+                            Note::from_parts(payment_address, NoteValue::from_raw(0), rseed),
+                        )
                     };
 
                     let esk = dummy_note.generate_or_derive_esk_internal(&mut rng);
-                    let epk = dummy_note.g_d * esk;
+                    let epk = esk.derive_public(
+                        dummy_note
+                            .recipient()
+                            .diversifier()
+                            .g_d()
+                            .expect("checked at construction")
+                            .into(),
+                    );
 
                     let (zkproof, cv) = prover.output_proof(
                         ctx,
-                        esk,
-                        dummy_to,
+                        esk.0,
+                        dummy_note.recipient(),
                         dummy_note.rcm(),
-                        dummy_note.asset_type,
-                        dummy_note.value,
+                        dummy_note.asset_type(),
+                        dummy_note.value().inner(),
                     );
 
                     let cmu = dummy_note.cmu();
@@ -677,7 +703,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                     OutputDescription {
                         cv,
                         cmu,
-                        ephemeral_key: epk.to_bytes().into(),
+                        ephemeral_key: epk.to_bytes(),
                         enc_ciphertext,
                         out_ciphertext,
                         zkproof,
@@ -767,12 +793,12 @@ impl Bundle<Unauthorized> {
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct ConvertDescriptionInfo {
     allowed: AllowedConversion,
-    value: u64,
+    value: NoteValue,
     merkle_path: MerklePath<Node>,
 }
 
 impl fees::ConvertView for ConvertDescriptionInfo {
-    fn value(&self) -> u64 {
+    fn value(&self) -> NoteValue {
         self.value
     }
 
@@ -781,17 +807,16 @@ impl fees::ConvertView for ConvertDescriptionInfo {
     }
 }
 
-pub trait MapBuilder<P1, K1, P2, K2> {
+pub trait MapBuilder<P1, P2> {
     fn map_params(&self, s: P1) -> P2;
-    fn map_key(&self, s: K1) -> K2;
 }
 
-impl<P1, K1> SaplingBuilder<P1, K1> {
-    pub fn map_builder<P2, K2, F: MapBuilder<P1, K1, P2, K2>>(
+impl<P1> SaplingBuilder<P1> {
+    pub fn map_builder<P2, F: MapBuilder<P1, P2>>(
         self,
         f: F,
-    ) -> SaplingBuilder<P2, K2> {
-        SaplingBuilder::<P2, K2> {
+    ) -> SaplingBuilder<P2> {
+        SaplingBuilder::<P2> {
             params: f.map_params(self.params),
             spend_anchor: self.spend_anchor,
             target_height: self.target_height,
@@ -836,6 +861,9 @@ pub mod testing {
             sapling::{Authorized, Bundle},
         },
         zip32::sapling::testing::arb_extended_spending_key,
+    };
+    use incrementalmerkletree::{
+        frontier::testing::arb_commitment_tree, witness::IncrementalWitness,
     };
 
     use super::SaplingBuilder;

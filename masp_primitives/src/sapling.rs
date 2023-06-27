@@ -1,6 +1,6 @@
 //! Structs and constants specific to the Sapling shielded pool.
 
-pub mod address;
+mod address;
 pub mod group_hash;
 pub mod keys;
 pub mod note;
@@ -8,7 +8,7 @@ pub mod note_encryption;
 pub mod pedersen_hash;
 pub mod prover;
 pub mod redjubjub;
-pub mod spec;
+mod spec;
 pub mod tree;
 pub mod util;
 pub mod value;
@@ -21,7 +21,12 @@ use crate::{constants::SPENDING_KEY_GENERATOR, transaction::components::amount::
 
 use self::redjubjub::{PrivateKey, PublicKey, Signature};
 
-pub use crate::sapling::tree::{Node, SAPLING_COMMITMENT_TREE_DEPTH};
+pub use address::PaymentAddress;
+pub use keys::{Diversifier, NullifierDerivingKey, ProofGenerationKey, SaplingIvk, ViewingKey};
+pub use note::{nullifier::Nullifier, Note, Rseed};
+pub use tree::{
+    merkle_hash, CommitmentTree, IncrementalWitness, MerklePath, Node, NOTE_COMMITMENT_TREE_DEPTH,
+};
 
 /// Create the spendAuthSig for a Sapling SpendDescription.
 pub fn spend_sig<R: RngCore + CryptoRng>(
@@ -54,14 +59,8 @@ pub(crate) fn spend_sig_internal<R: RngCore>(
     rsk.sign(&data_to_be_signed, rng, SPENDING_KEY_GENERATOR)
 }
 
-pub use crate::sapling::address::PaymentAddress;
-pub use crate::sapling::keys::{
-    Diversifier, NullifierDerivingKey, ProofGenerationKey, SaplingIvk, ViewingKey,
-};
 pub use crate::sapling::value::ValueCommitment;
 
-pub use crate::sapling::note::nullifier::Nullifier;
-pub use crate::sapling::note::Rseed;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NoteValue(u64);
@@ -83,8 +82,6 @@ impl From<NoteValue> for u64 {
         value.0
     }
 }
-pub use crate::sapling::note::Note;
-
 #[cfg(any(test, feature = "test-dependencies"))]
 pub mod testing {
     use proptest::prelude::*;

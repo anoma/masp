@@ -3,15 +3,15 @@
 use crate::{
     asset_type::AssetType,
     convert::AllowedConversion,
-    merkle_tree::MerklePath,
     sapling::{
+        self,
         redjubjub::{PublicKey, Signature},
-        Node,
+        value::ValueCommitment,
     },
     transaction::components::{Amount, GROTH_PROOF_SIZE},
 };
 
-use super::{address::PaymentAddress, Diversifier, ProofGenerationKey, Rseed};
+use super::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed};
 
 /// Interface for creating zero-knowledge proofs for shielded transactions.
 pub trait TxProver {
@@ -37,13 +37,14 @@ pub trait TxProver {
         asset_type: AssetType,
         value: u64,
         anchor: bls12_381::Scalar,
-        merkle_path: MerklePath<Node>,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()>;
+        merkle_path: sapling::MerklePath,
+    ) -> Result<([u8; GROTH_PROOF_SIZE], ValueCommitment, PublicKey), ()>;
 
     /// Create the value commitment and proof for a MASP OutputDescription,
     /// while accumulating its value commitment randomness inside the context for later
     /// use.
     ///
+    /// [`OutputDescription`]: crate::transaction::components::OutputDescription
     fn output_proof(
         &self,
         ctx: &mut Self::SaplingProvingContext,
@@ -52,7 +53,7 @@ pub trait TxProver {
         rcm: jubjub::Fr,
         asset_type: AssetType,
         value: u64,
-    ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint);
+    ) -> ([u8; GROTH_PROOF_SIZE], ValueCommitment);
 
     /// Create the value commitment, and proof for a MASP ConvertDescription,
     /// while accumulating its value commitment randomness inside
@@ -64,7 +65,7 @@ pub trait TxProver {
         allowed_conversion: AllowedConversion,
         value: u64,
         anchor: bls12_381::Scalar,
-        merkle_path: MerklePath<Node>,
+        merkle_path: sapling::MerklePath,
     ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), ()>;
 
     /// Create the `bindingSig` for a Sapling transaction. All calls to
@@ -83,19 +84,20 @@ pub mod mock {
     use ff::Field;
     use rand_core::OsRng;
 
+    use super::TxProver;
     use crate::{
         asset_type::AssetType,
         constants::SPENDING_KEY_GENERATOR,
         convert::AllowedConversion,
         merkle_tree::MerklePath,
         sapling::{
+            self,
             redjubjub::{PublicKey, Signature},
+            value::{NoteValue, ValueCommitTrapdoor, ValueCommitment},
             Diversifier, Node, PaymentAddress, ProofGenerationKey, Rseed,
         },
         transaction::components::{Amount, GROTH_PROOF_SIZE},
     };
-
-    use super::TxProver;
 
     pub struct MockTxProver;
 
@@ -114,14 +116,13 @@ pub mod mock {
             asset_type: AssetType,
             value: u64,
             _anchor: bls12_381::Scalar,
-            _merkle_path: MerklePath<Node>,
-        ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()> {
+            _merkle_path: sapling::MerklePath,
+        ) -> Result<([u8; GROTH_PROOF_SIZE], ValueCommitment, PublicKey), ()> {
             let mut rng = OsRng;
 
-            let cv = asset_type
-                .value_commitment(value, jubjub::Fr::random(&mut rng))
-                .commitment()
-                .into();
+            let value = NoteValue::from_raw(value);
+            let rcv = ValueCommitTrapdoor::random(&mut rng);
+            let cv = ValueCommitment::derive(asset_type, value, rcv);
 
             let rk =
                 PublicKey(proof_generation_key.ak.into()).randomize(ar, SPENDING_KEY_GENERATOR);
@@ -137,13 +138,12 @@ pub mod mock {
             _rcm: jubjub::Fr,
             asset_type: AssetType,
             value: u64,
-        ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint) {
+        ) -> ([u8; GROTH_PROOF_SIZE], ValueCommitment) {
             let mut rng = OsRng;
 
-            let cv = asset_type
-                .value_commitment(value, jubjub::Fr::random(&mut rng))
-                .commitment()
-                .into();
+            let value = NoteValue::from_raw(value);
+            let rcv = ValueCommitTrapdoor::random(&mut rng);
+            let cv = ValueCommitment::derive(asset_type, value, rcv);
 
             ([0u8; GROTH_PROOF_SIZE], cv)
         }
@@ -154,7 +154,7 @@ pub mod mock {
             allowed_conversion: AllowedConversion,
             value: u64,
             _anchor: bls12_381::Scalar,
-            _merkle_path: MerklePath<Node>,
+            _merkle_path: sapling::MerklePath,
         ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), ()> {
             let mut rng = OsRng;
 
@@ -169,7 +169,7 @@ pub mod mock {
         fn binding_sig(
             &self,
             _ctx: &mut Self::SaplingProvingContext,
-            _value: &Amount,
+            _value_balance: &Amount,
             _sighash: &[u8; 32],
         ) -> Result<Signature, ()> {
             Err(())

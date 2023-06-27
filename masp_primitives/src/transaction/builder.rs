@@ -6,7 +6,6 @@ use std::fmt;
 use std::sync::mpsc::Sender;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 
 use crate::{
@@ -15,14 +14,13 @@ use crate::{
     convert::AllowedConversion,
     keys::OutgoingViewingKey,
     memo::MemoBytes,
-    merkle_tree::MerklePath,
-    sapling::{prover::TxProver, Diversifier, Node, Note, PaymentAddress},
+    sapling::{self, prover::TxProver, value::NoteValue, Diversifier, Note, PaymentAddress},
     transaction::{
         components::{
             amount::{Amount, BalanceError, MAX_MONEY},
             sapling::{
-                self,
-                builder::{SaplingBuilder, SaplingMetadata},
+                builder::{self as sapling_builder, SaplingBuilder, SaplingMetadata},
+                fees as sapling_fees,
             },
             transparent::{self, builder::TransparentBuilder},
         },
@@ -37,7 +35,10 @@ use crate::{
 #[cfg(feature = "transparent-inputs")]
 use crate::transaction::components::transparent::TxOut;
 
-const DEFAULT_TX_EXPIRY_DELTA: u32 = 20;
+/// Since Blossom activation, the default transaction expiry delta should be 40 blocks.
+/// <https://zips.z.cash/zip-0203#changes-for-blossom>
+const DEFAULT_TX_EXPIRY_DELTA: u32 = 40;
+
 /// Errors that can occur during transaction construction.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error<FeeError> {
@@ -54,7 +55,7 @@ pub enum Error<FeeError> {
     /// An error occurred in constructing the transparent parts of a transaction.
     TransparentBuild(transparent::builder::Error),
     /// An error occurred in constructing the Sapling parts of a transaction.
-    SaplingBuild(sapling::builder::Error),
+    SaplingBuild(sapling_builder::Error),
 }
 
 impl<FE: fmt::Display> fmt::Display for Error<FE> {
@@ -117,18 +118,18 @@ impl Progress {
 
 /// Generates a [`Transaction`] from its inputs and outputs.
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
-pub struct Builder<P, R, Key = ExtendedSpendingKey, Notifier = Sender<Progress>> {
+pub struct Builder<P, R> {
     params: P,
     rng: R,
     target_height: BlockHeight,
     expiry_height: BlockHeight,
     transparent_builder: TransparentBuilder,
-    sapling_builder: SaplingBuilder<P, Key>,
+    sapling_builder: SaplingBuilder<P>,
     #[borsh_skip]
-    progress_notifier: Option<Notifier>,
+    progress_notifier: Option<Sender<Progress>>,
 }
 
-impl<P, R, K, N> Builder<P, R, K, N> {
+impl<P, R> Builder<P, R> {
     /// Returns the network parameters that the builder has been configured for.
     pub fn params(&self) -> &P {
         &self.params
@@ -153,19 +154,19 @@ impl<P, R, K, N> Builder<P, R, K, N> {
 
     /// Returns the set of Sapling inputs currently committed to be consumed
     /// by the transaction.
-    pub fn sapling_inputs(&self) -> &[impl sapling::fees::InputView<(), K>] {
+    pub fn sapling_inputs(&self) -> &[impl sapling_fees::InputView<()>] {
         self.sapling_builder.inputs()
     }
 
     /// Returns the set of Sapling outputs currently set to be produced by
     /// the transaction.
-    pub fn sapling_outputs(&self) -> &[impl sapling::fees::OutputView] {
+    pub fn sapling_outputs(&self) -> &[impl sapling_fees::OutputView] {
         self.sapling_builder.outputs()
     }
 
     /// Returns the set of Sapling converts currently set to be produced by
     /// the transaction.
-    pub fn sapling_converts(&self) -> &[impl sapling::fees::ConvertView] {
+    pub fn sapling_converts(&self) -> &[impl sapling_fees::ConvertView] {
         self.sapling_builder.converts()
     }
 }
@@ -190,7 +191,7 @@ impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
     /// # Default values
     ///
     /// The expiry height will be set to the given height plus the default transaction
-    /// expiry delta (20 blocks).
+    /// expiry delta.
     pub fn new_with_rng(params: P, target_height: BlockHeight, rng: R) -> Builder<P, R> {
         Self::new_internal(params, rng, target_height)
     }
@@ -222,8 +223,8 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         extsk: ExtendedSpendingKey,
         diversifier: Diversifier,
         note: Note,
-        merkle_path: MerklePath<Node>,
-    ) -> Result<(), sapling::builder::Error> {
+        merkle_path: sapling::MerklePath,
+    ) -> Result<(), sapling_builder::Error> {
         self.sapling_builder
             .add_spend(&mut self.rng, extsk, diversifier, note, merkle_path)
     }
@@ -236,8 +237,8 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         &mut self,
         allowed: AllowedConversion,
         value: u64,
-        merkle_path: MerklePath<Node>,
-    ) -> Result<(), sapling::builder::Error> {
+        merkle_path: sapling::MerklePath,
+    ) -> Result<(), sapling_builder::Error> {
         self.sapling_builder
             .add_convert(allowed, value, merkle_path)
     }
@@ -250,12 +251,18 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         asset_type: AssetType,
         value: u64,
         memo: MemoBytes,
-    ) -> Result<(), sapling::builder::Error> {
+    ) -> Result<(), sapling_builder::Error> {
         if value > MAX_MONEY.try_into().unwrap() {
-            return Err(sapling::builder::Error::InvalidAmount);
+            return Err(sapling_builder::Error::InvalidAmount);
         }
-        self.sapling_builder
-            .add_output(&mut self.rng, ovk, to, asset_type, value, memo)
+        self.sapling_builder.add_output(
+            &mut self.rng,
+            ovk,
+            to,
+            asset_type,
+            NoteValue::from_raw(value.into()),
+            memo,
+        )
     }
 
     /// Adds a transparent coin to be spent in this transaction.
@@ -293,7 +300,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     }
 
     /// Returns the sum of the transparent, Sapling, and TZE value balances.
-    pub fn value_balance(&self) -> Result<Amount, BalanceError> {
+    fn value_balance(&self) -> Result<Amount, BalanceError> {
         let value_balances = [
             self.transparent_builder.value_balance()?,
             self.sapling_builder.value_balance(),
@@ -315,9 +322,11 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
             .fee_required(
                 &self.params,
                 self.target_height,
+                self.transparent_builder.inputs(),
                 self.transparent_builder.outputs(),
                 self.sapling_builder.inputs().len(),
-                self.sapling_builder.outputs().len(),
+                self.sapling_builder.converts().len(),
+                self.sapling_builder.bundle_output_count(),
             )
             .map_err(Error::Fee)?;
         self.build_internal(prover, fee)
@@ -411,19 +420,18 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     }
 }
 
-pub trait MapBuilder<P1, R1, K1, N1, P2, R2, K2, N2>:
-    sapling::builder::MapBuilder<P1, K1, P2, K2>
+pub trait MapBuilder<P1, R1, P2, R2>:
+    sapling_builder::MapBuilder<P1, P2>
 {
     fn map_rng(&self, s: R1) -> R2;
-    fn map_notifier(&self, s: N1) -> N2;
 }
 
-impl<P1, R1, K1, N1> Builder<P1, R1, K1, N1> {
-    pub fn map_builder<P2, R2, K2, N2, F: MapBuilder<P1, R1, K1, N1, P2, R2, K2, N2>>(
+impl<P1, R1> Builder<P1, R1> {
+    pub fn map_builder<P2, R2, F: MapBuilder<P1, R1, P2, R2>>(
         self,
         f: F,
-    ) -> Builder<P2, R2, K2, N2> {
-        Builder::<P2, R2, K2, N2> {
+    ) -> Builder<P2, R2> {
+        Builder::<P2, R2> {
             params: f.map_params(self.params),
             rng: f.map_rng(self.rng),
             target_height: self.target_height,
@@ -454,7 +462,7 @@ mod testing {
         /// # Default values
         ///
         /// The expiry height will be set to the given height plus the default transaction
-        /// expiry delta (20 blocks).
+        /// expiry delta.
         ///
         /// WARNING: DO NOT USE IN PRODUCTION
         pub fn test_only_new_with_rng(params: P, height: BlockHeight, rng: R) -> Builder<P, R> {
@@ -525,27 +533,22 @@ mod tests {
 
     #[test]
     fn binding_sig_present_if_shielded_spend() {
-        let mut rng = OsRng;
-
-        let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
-
         let extsk = ExtendedSpendingKey::master(&[]);
         let dfvk = extsk.to_diversifiable_full_viewing_key();
         let to = dfvk.default_address().1;
 
         let mut rng = OsRng;
+        let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
 
-        let note1 = to
-            .create_note(
-                zec(),
-                50000,
-                Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)),
-            )
-            .unwrap();
-        let cmu1 = note1.commitment();
-        let mut tree = CommitmentTree::empty();
+        let note1 = to.create_note(
+            zec(),
+            50000,
+            Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)),
+        );
+        let cmu1 = Node::from_cmu(&note1.cmu());
+        let mut tree = CommitmentTree::<Node, 32>::empty();
         tree.append(cmu1).unwrap();
-        let witness1 = IncrementalWitness::from_tree(&tree);
+        let witness1 = IncrementalWitness::from_tree(tree);
 
         let tx_height = TEST_NETWORK
             .activation_height(NetworkUpgrade::MASP)
@@ -572,7 +575,6 @@ mod tests {
     #[test]
     fn fails_on_negative_transparent_output() {
         let mut rng = OsRng;
-
         let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
         let tx_height = TEST_NETWORK
             .activation_height(NetworkUpgrade::MASP)
@@ -639,24 +641,27 @@ mod tests {
             );
         }
 
-        let note1 = to
-            .create_note(
-                zec(),
-                50999,
-                Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)),
-            )
-            .unwrap();
-        let cmu1 = note1.commitment();
-        let mut tree = CommitmentTree::empty();
+        let note1 = to.create_note(
+            zec(),
+            50999,
+            Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)),
+        );
+        let cmu1 = Node::from_cmu(&note1.cmu());
+        let mut tree = CommitmentTree::<Node, 32>::empty();
         tree.append(cmu1).unwrap();
-        let mut witness1 = IncrementalWitness::from_tree(&tree);
+        let mut witness1 = IncrementalWitness::from_tree(tree.clone());
 
         // Fail if there is insufficient input
-        // 0.0003 z-ZEC out, 0.0002 t-ZEC out, 0.00001 t-ZEC fee, 0.00050999 z-ZEC in
+        // 0.0003 z-ZEC out, 0.0002 t-ZEC out, 0.0001 t-ZEC fee, 0.00059999 z-ZEC in
         {
             let mut builder = Builder::new(TEST_NETWORK, tx_height);
             builder
-                .add_sapling_spend(extsk, *to.diversifier(), note1, witness1.path().unwrap())
+                .add_sapling_spend(
+                    extsk,
+                    *to.diversifier(),
+                    note1.clone(),
+                    witness1.path().unwrap(),
+                )
                 .unwrap();
             builder
                 .add_sapling_output(ovk, to, zec(), 30000, MemoBytes::empty())
@@ -672,13 +677,11 @@ mod tests {
             );
         }
 
-        let note2 = to
-            .create_note(zec(), 1, Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)))
-            .unwrap();
-        let cmu2 = note2.commitment();
+        let note2 = to.create_note(zec(), 1, Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)));
+        let cmu2 = Node::from_cmu(&note2.cmu());
         tree.append(cmu2).unwrap();
         witness1.append(cmu2).unwrap();
-        let witness2 = IncrementalWitness::from_tree(&tree);
+        let witness2 = IncrementalWitness::from_tree(tree);
 
         // Succeeds if there is sufficient input
         // 0.0003 z-ZEC out, 0.0002 t-ZEC out, 0.0001 t-ZEC fee, 0.0006 z-ZEC in
@@ -688,7 +691,12 @@ mod tests {
         {
             let mut builder = Builder::new(TEST_NETWORK, tx_height);
             builder
-                .add_sapling_spend(extsk, *to.diversifier(), note1, witness1.path().unwrap())
+                .add_sapling_spend(
+                    extsk.clone(),
+                    *to.diversifier(),
+                    note1,
+                    witness1.path().unwrap(),
+                )
                 .unwrap();
             builder
                 .add_sapling_spend(extsk, *to.diversifier(), note2, witness2.path().unwrap())
@@ -701,7 +709,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 builder.mock_build(),
-                Err(Error::SaplingBuild(build_s::Error::BindingSig))
+                Err(Error::SaplingBuild(sapling_builder::Error::BindingSig))
             )
         }
     }

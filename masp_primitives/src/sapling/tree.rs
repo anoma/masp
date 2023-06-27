@@ -9,12 +9,30 @@ use std::io::{self, Read, Write};
 use crate::{
     merkle_tree::{HashSer, Hashable},
     sapling::{
+        note::ExtractedNoteCommitment,
         pedersen_hash::{pedersen_hash, Personalization},
-        Note,
     },
 };
 
-pub const SAPLING_COMMITMENT_TREE_DEPTH: usize = 32;
+pub const NOTE_COMMITMENT_TREE_DEPTH: usize = 32;
+/*pub type CommitmentTree =
+    incrementalmerkletree::frontier::CommitmentTree<Node, NOTE_COMMITMENT_TREE_DEPTH>;
+pub type IncrementalWitness =
+    incrementalmerkletree::witness::IncrementalWitness<Node, NOTE_COMMITMENT_TREE_DEPTH>;
+pub type MerklePath = incrementalmerkletree::MerklePath<Node, NOTE_COMMITMENT_TREE_DEPTH>;
+*/
+
+lazy_static! {
+    static ref UNCOMMITTED_SAPLING: bls12_381::Scalar = bls12_381::Scalar::one();
+    /*static ref EMPTY_ROOTS: Vec<Node> = {
+        let mut v = vec![Node::empty_leaf()];
+        for d in 0..NOTE_COMMITMENT_TREE_DEPTH {
+            let next = Node::combine(d.into(), &v[usize::from(d)], &v[usize::from(d)]);
+            v.push(next);
+        }
+        v
+    };*/
+}
 
 /// Compute a parent node in the Sapling commitment tree given its two children.
 pub fn merkle_hash(depth: usize, lhs: &[u8; 32], rhs: &[u8; 32]) -> [u8; 32] {
@@ -57,8 +75,16 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn new(repr: [u8; 32]) -> Self {
+    #[cfg(test)]
+    pub(crate) fn new(repr: [u8; 32]) -> Self {
         Node { repr }
+    }
+
+    /// Creates a tree leaf from the given Sapling note commitment.
+    pub fn from_cmu(value: &ExtractedNoteCommitment) -> Self {
+        Node {
+            repr: value.to_bytes(),
+        }
     }
 
     /// Constructs a new note commitment tree node from a [`bls12_381::Scalar`]
@@ -72,7 +98,7 @@ impl Node {
 impl incrementalmerkletree::Hashable for Node {
     fn empty_leaf() -> Self {
         Node {
-            repr: Note::uncommitted().to_repr(),
+            repr: UNCOMMITTED_SAPLING.to_repr(),
         }
     }
 
@@ -109,10 +135,25 @@ impl From<Node> for bls12_381::Scalar {
 lazy_static! {
     static ref EMPTY_ROOTS: Vec<Node> = {
         let mut v = vec![Node::blank()];
-        for d in 0..SAPLING_COMMITMENT_TREE_DEPTH {
+        for d in 0..NOTE_COMMITMENT_TREE_DEPTH {
             let next = Node::combine(d, &v[d], &v[d]);
             v.push(next);
         }
         v
     };
+}
+
+#[cfg(any(test, feature = "test-dependencies"))]
+pub(super) mod testing {
+    use proptest::prelude::*;
+
+    use super::Node;
+
+    prop_compose! {
+        pub fn arb_node()(value in prop::array::uniform32(prop::num::u8::ANY)) -> Node {
+            Node {
+                repr: value
+            }
+        }
+    }
 }

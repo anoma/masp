@@ -1,14 +1,17 @@
 use crate::asset_type::AssetType;
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::cmp::Ordering;
-use std::collections::btree_map::Keys;
-use std::collections::btree_map::{IntoIter, Iter};
-use std::collections::BTreeMap;
-use std::convert::TryInto;
-use std::hash::Hash;
-use std::io::{Read, Write};
-use std::iter::Sum;
-use std::ops::{Add, AddAssign, Index, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::{
+    cmp::Ordering,
+    collections::{
+        btree_map::{IntoIter, Iter, Keys},
+        BTreeMap,
+    },
+    convert::TryInto,
+    hash::Hash,
+    io::{Read, Write},
+    iter::Sum,
+    ops::{Add, AddAssign, Index, Mul, MulAssign, Neg, Sub, SubAssign},
+};
 use zcash_encoding::Vector;
 
 pub const MAX_MONEY: i128 = u64::MAX as i128;
@@ -25,6 +28,7 @@ pub static ref DEFAULT_FEE: Amount = Amount::from_pair(zec(), 1000).unwrap();
 /// particular, a `Transaction` containing serialized invalid Amounts will be rejected
 /// by the network consensus rules.
 ///
+/// [`Transaction`]: crate::transaction::Transaction
 #[derive(Clone, Default, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
 pub struct Amount<Unit: Hash + Ord + BorshSerialize + BorshDeserialize = AssetType>(
     pub BTreeMap<Unit, i128>,
@@ -57,7 +61,7 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
         let amount = amount.try_into().map_err(|_| ())?;
         if amount == 0 {
             Ok(Self::zero())
-        } else if 0 <= amount && amount <= MAX_MONEY {
+        } else if (0..=MAX_MONEY).contains(&amount) {
             let mut ret = BTreeMap::new();
             ret.insert(atype, amount);
             Ok(Amount(ret))
@@ -65,6 +69,7 @@ impl<Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone> Amount<Unit> 
             Err(())
         }
     }
+
     /// Creates an Amount from a type convertible to i128.
     ///
     /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.

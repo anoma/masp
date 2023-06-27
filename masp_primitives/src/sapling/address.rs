@@ -1,7 +1,7 @@
 use super::{
-    keys::{Diversifier, DiversifiedTransmissionKey},
+    keys::{DiversifiedTransmissionKey, Diversifier},
     note::{Note, Rseed},
-    //value::NoteValue,
+    value::NoteValue,
 };
 use crate::asset_type::AssetType;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -13,12 +13,13 @@ use std::{
     str::FromStr,
 };
 
-/// A Sapling payment address.
+/// A MASP payment address.
 ///
 /// # Invariants
 ///
-/// `pk_d` is guaranteed to be prime-order (i.e. in the prime-order subgroup of Jubjub,
-/// and not the identity).
+/// - `diversifier` is guaranteed to be valid for MASP (only 50% of diversifiers are).
+/// - `pk_d` is guaranteed to be prime-order (i.e. in the prime-order subgroup of Jubjub,
+///  and not the identity).
 #[derive(Clone, Copy, Debug)]
 pub struct PaymentAddress {
     pk_d: DiversifiedTransmissionKey,
@@ -36,7 +37,10 @@ impl Eq for PaymentAddress {}
 impl PaymentAddress {
     /// Constructs a PaymentAddress from a diversifier and a Jubjub point.
     ///
-    /// Returns None if `pk_d` is the identity.
+    /// Returns None if `diversifier` is not valid for MASP, or `pk_d` is the identity.
+    /// Note that we cannot verify in this constructor that `pk_d` is derived from
+    /// `diversifier`, so addresses for which these values have no known relationship
+    /// (and therefore no-one can receive funds at them) can still be constructed.
     pub fn from_parts(diversifier: Diversifier, pk_d: DiversifiedTransmissionKey) -> Option<Self> {
         // Check that the diversifier is valid
         diversifier.g_d()?;
@@ -66,11 +70,10 @@ impl PaymentAddress {
             tmp.copy_from_slice(&bytes[0..11]);
             Diversifier(tmp)
         };
-        // Check that the diversifier is valid
-        diversifier.g_d()?;
 
         let pk_d = DiversifiedTransmissionKey::from_bytes(bytes[11..43].try_into().unwrap());
         if pk_d.is_some().into() {
+            // The remaining invariants are checked here.
             PaymentAddress::from_parts(diversifier, pk_d.unwrap())
         } else {
             None
@@ -95,18 +98,12 @@ impl PaymentAddress {
         &self.pk_d
     }
 
-    pub fn g_d(&self) -> Option<jubjub::SubgroupPoint> {
-        self.diversifier.g_d()
+    pub(crate) fn g_d(&self) -> jubjub::SubgroupPoint {
+        self.diversifier.g_d().expect("checked at construction")
     }
 
-    pub fn create_note(&self, asset_type: AssetType, value: u64, rseed: Rseed) -> Option<Note> {
-        self.g_d().map(|g_d| Note {
-            asset_type,
-            value,
-            rseed,
-            g_d,
-            pk_d: self.pk_d,
-        })
+    pub fn create_note(&self, asset_type: AssetType, value: u64, rseed: Rseed) -> Note {
+        Note::from_parts(asset_type, *self, NoteValue::from_raw(value), rseed)
     }
 }
 
@@ -155,5 +152,24 @@ impl BorshDeserialize for PaymentAddress {
         let pa = res.ok_or_else(|| io::Error::from(io::ErrorKind::InvalidData))?;
         *buf = &buf[43..];
         Ok(pa)
+    }
+}
+
+#[cfg(any(test, feature = "test-dependencies"))]
+pub(super) mod testing {
+    use proptest::prelude::*;
+
+    use super::{
+        super::keys::{testing::arb_incoming_viewing_key, Diversifier, SaplingIvk},
+        PaymentAddress,
+    };
+
+    pub fn arb_payment_address() -> impl Strategy<Value = PaymentAddress> {
+        arb_incoming_viewing_key().prop_flat_map(|ivk: SaplingIvk| {
+            any::<[u8; 11]>().prop_filter_map(
+                "Sampled diversifier must generate a valid MASP payment address.",
+                move |d| ivk.to_payment_address(Diversifier(d)),
+            )
+        })
     }
 }

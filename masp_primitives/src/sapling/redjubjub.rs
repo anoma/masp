@@ -3,9 +3,6 @@
 //!
 //! [RedJubjub]: https://zips.z.cash/protocol/protocol.pdf#concretereddsa
 
-use crate::transaction::components::sapling::read_point;
-
-use super::util::hash_to_scalar;
 use borsh::{BorshDeserialize, BorshSerialize};
 use ff::{Field, PrimeField};
 use group::GroupEncoding;
@@ -17,6 +14,7 @@ use std::{
     io::{self, Read, Write},
     ops::{AddAssign, MulAssign, Neg},
 };
+use super::util::hash_to_scalar;
 
 fn read_scalar<R: Read>(mut reader: R) -> io::Result<jubjub::Fr> {
     let mut s_repr = [0u8; 32];
@@ -59,7 +57,7 @@ impl Hash for PublicKey {
 
 impl BorshDeserialize for PublicKey {
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Ok(Self(read_point(buf, "public key")?))
+        Ok(PublicKey::read(buf)?)
     }
 }
 

@@ -1,12 +1,13 @@
 use crate::{
     sapling::{
         pedersen_hash::{pedersen_hash, Personalization},
+        value::{NoteValue, ValueCommitTrapdoor},
         Node, ValueCommitment,
     },
     transaction::components::amount::Amount,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-use group::{Curve, GroupEncoding};
+use group::{cofactor::CofactorGroup, Curve, GroupEncoding};
 use std::{
     io::{self, Write},
     iter::Sum,
@@ -57,12 +58,16 @@ impl AllowedConversion {
     }
 
     /// Computes the value commitment for a given amount and randomness
-    pub fn value_commitment(&self, value: u64, randomness: jubjub::Fr) -> ValueCommitment {
-        ValueCommitment {
-            asset_generator: self.generator,
+    pub fn value_commitment(
+        &self,
+        value: NoteValue,
+        randomness: ValueCommitTrapdoor,
+    ) -> ValueCommitment {
+        ValueCommitment::derive(
+            CofactorGroup::clear_cofactor(&self.generator),
             value,
             randomness,
-        }
+        )
     }
     /// Returns [`self.cmu`] in the correct representation for inclusion in the MASP
     /// AllowedConversions commitment tree.

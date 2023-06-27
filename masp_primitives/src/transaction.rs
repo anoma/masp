@@ -1,5 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
-
+//! Structs and methods for handling Zcash transactions.
 pub mod builder;
 pub mod components;
 pub mod fees;
@@ -33,6 +32,7 @@ use self::{
     },
     txid::{to_txid, BlockTxCommitmentDigester, TxIdDigester},
 };
+use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash, Debug)]
 pub struct TransparentAddress(pub [u8; 20]);
@@ -501,18 +501,21 @@ impl Transaction {
         writer.write_u32::<LittleEndian>(u32::from(self.expiry_height))?;
         Ok(())
     }
+    pub fn write_v5_sapling<W: Write>(&self, writer: W) -> io::Result<()> {
+        Self::write_v5_sapling_inner(self.sapling_bundle.as_ref(), writer)
+    }
 
-    pub fn write_v5_sapling<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        if let Some(bundle) = &self.sapling_bundle {
-            Vector::write(&mut writer, &bundle.shielded_spends, |w, e| {
+    pub fn write_v5_sapling_inner<W: Write>(sapling_bundle: Option<&sapling::Bundle<sapling::Authorized>>, mut writer: W) -> io::Result<()> {
+        if let Some(bundle) = sapling_bundle {
+            Vector::write(&mut writer, bundle.shielded_spends(), |w, e| {
                 e.write_v5_without_witness_data(w)
             })?;
 
-            Vector::write(&mut writer, &bundle.shielded_converts, |w, e| {
+            Vector::write(&mut writer, bundle.shielded_converts(), |w, e| {
                 e.write_v5_without_witness_data(w)
             })?;
 
-            Vector::write(&mut writer, &bundle.shielded_outputs, |w, e| {
+            Vector::write(&mut writer, bundle.shielded_outputs(), |w, e| {
                 e.write_v5_without_proof(w)
             })?;
 
@@ -522,33 +525,33 @@ impl Transaction {
             {
                 bundle.value_balance.write(&mut writer)?;
             }
-            if !bundle.shielded_spends.is_empty() {
-                writer.write_all(bundle.shielded_spends[0].anchor.to_repr().as_ref())?;
+            if !bundle.shielded_spends().is_empty() {
+                writer.write_all(bundle.shielded_spends()[0].anchor().to_repr().as_ref())?;
             }
-            if !bundle.shielded_converts.is_empty() {
-                writer.write_all(bundle.shielded_converts[0].anchor.to_repr().as_ref())?;
+            if !bundle.shielded_converts().is_empty() {
+                writer.write_all(bundle.shielded_converts()[0].anchor().to_repr().as_ref())?;
             }
 
             Array::write(
                 &mut writer,
-                bundle.shielded_spends.iter().map(|s| s.zkproof),
+                bundle.shielded_spends().iter().map(|s| &s.zkproof()[..]),
                 |w, e| w.write_all(e),
             )?;
             Array::write(
                 &mut writer,
-                bundle.shielded_spends.iter().map(|s| s.spend_auth_sig),
+                bundle.shielded_spends().iter().map(|s| s.spend_auth_sig()),
                 |w, e| e.write(w),
             )?;
 
             Array::write(
                 &mut writer,
-                bundle.shielded_converts.iter().map(|s| s.zkproof),
+                bundle.shielded_converts().iter().map(|s| &s.zkproof()[..]),
                 |w, e| w.write_all(e),
             )?;
 
             Array::write(
                 &mut writer,
-                bundle.shielded_outputs.iter().map(|s| s.zkproof),
+                bundle.shielded_outputs().iter().map(|s| &s.zkproof()[..]),
                 |w, e| w.write_all(e),
             )?;
 

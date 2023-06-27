@@ -1,27 +1,21 @@
 use crate::asset_type::AssetType;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use group::{ff::Field, GroupEncoding};
 use rand_core::{CryptoRng, RngCore};
 use std::io::{self};
 
-use blake2s_simd::Params as Blake2sParams;
-
-use crate::{
-    constants::{self},
-    keys::prf_expand,
-};
-use ff::{Field, PrimeField};
-use group::{Curve, GroupEncoding};
-
-use crate::sapling::{
-    pedersen_hash::{pedersen_hash, Personalization},
-    Node, Nullifier, NullifierDerivingKey,
+use super::{
+    keys::EphemeralSecretKey, value::NoteValue, Nullifier, NullifierDerivingKey, PaymentAddress,
 };
 
-use super::keys::DiversifiedTransmissionKey;
+use crate::keys::prf_expand;
+use ff::PrimeField;
 
-pub mod commitment;
-pub mod nullifier;
+mod commitment;
+pub use self::commitment::{ExtractedNoteCommitment, NoteCommitment};
+
+pub(super) mod nullifier;
 
 /// Enum for note randomness before and after [ZIP 212](https://zips.z.cash/zip-0212).
 ///
@@ -34,31 +28,89 @@ pub enum Rseed {
     AfterZip212([u8; 32]),
 }
 
+impl Rseed {
+    /// Defined in [Zcash Protocol Spec § 4.7.2: Sending Notes (Sapling)][saplingsend].
+    ///
+    /// [saplingsend]: https://zips.z.cash/protocol/protocol.pdf#saplingsend
+    pub(crate) fn rcm(&self) -> commitment::NoteCommitTrapdoor {
+        commitment::NoteCommitTrapdoor(match self {
+            Rseed::BeforeZip212(rcm) => *rcm,
+            Rseed::AfterZip212(rseed) => {
+                jubjub::Fr::from_bytes_wide(prf_expand(rseed, &[0x04]).as_array())
+            }
+        })
+    }
+}
+
+/// A discrete amount of funds received by an address.
 #[derive(Clone, Debug, Copy)]
 pub struct Note {
     /// The asset type that the note represents
-    pub asset_type: AssetType,
-    /// The value of the note
-    pub value: u64,
-    /// The diversified base of the address, GH(d)
-    pub g_d: jubjub::SubgroupPoint,
-    /// The public key of the address, g_d^ivk
-    pub pk_d: DiversifiedTransmissionKey,
-    /// rseed
-    pub rseed: Rseed,
+    asset_type: AssetType,
+    /// The recipient of the funds.
+    recipient: PaymentAddress,
+    /// The value of this note.
+    value: NoteValue,
+    /// The seed randomness for various note components.
+    rseed: Rseed,
 }
 
 impl PartialEq for Note {
     fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
-            && self.asset_type == other.asset_type
-            && self.g_d == other.g_d
-            && self.pk_d == other.pk_d
-            && self.rcm() == other.rcm()
+        // Notes are canonically defined by their commitments.
+        self.cmu().eq(&other.cmu())
     }
 }
 
+impl Eq for Note {}
+
 impl Note {
+    /// Creates a note from its component parts.
+    ///
+    /// # Caveats
+    ///
+    /// This low-level constructor enforces that the provided arguments produce an
+    /// internally valid `Note`. However, it allows notes to be constructed in a way that
+    /// violates required security checks for note decryption, as specified in
+    /// [Section 4.19] of the Zcash Protocol Specification. Users of this constructor
+    /// should only call it with note components that have been fully validated by
+    /// decrypting a received note according to [Section 4.19].
+    ///
+    /// [Section 4.19]: https://zips.z.cash/protocol/protocol.pdf#saplingandorchardinband
+    pub fn from_parts(
+        asset_type: AssetType,
+        recipient: PaymentAddress,
+        value: NoteValue,
+        rseed: Rseed,
+    ) -> Self {
+        Note {
+            asset_type,
+            recipient,
+            value,
+            rseed,
+        }
+    }
+
+    /// Returns the asset type of this note
+    pub fn asset_type(&self) -> AssetType {
+        self.asset_type
+    }
+
+    /// Returns the recipient of this note.
+    pub fn recipient(&self) -> PaymentAddress {
+        self.recipient
+    }
+
+    /// Returns the value of this note.
+    pub fn value(&self) -> NoteValue {
+        self.value
+    }
+
+    /// Returns the rseed value of this note.
+    pub fn rseed(&self) -> &Rseed {
+        &self.rseed
+    }
+
     pub fn uncommitted() -> bls12_381::Scalar {
         // The smallest u-coordinate that is not on the curve
         // is one.
@@ -66,101 +118,60 @@ impl Note {
     }
 
     /// Computes the note commitment, returning the full point.
-    fn cm_full_point(&self) -> jubjub::SubgroupPoint {
-        // Calculate the note contents, as bytes
-        let mut note_contents = vec![];
-
-        // Write the asset generator, cofactor not cleared
-        note_contents.extend_from_slice(&self.asset_type.asset_generator().to_bytes());
-
-        // Writing the value in little endian
-        note_contents.write_u64::<LittleEndian>(self.value).unwrap();
-
-        // Write g_d
-        note_contents.extend_from_slice(&self.g_d.to_bytes());
-
-        // Write pk_d
-        note_contents.extend_from_slice(&self.pk_d.to_bytes());
-
-        assert_eq!(note_contents.len(), 32 + 32 + 32 + 8);
-
-        // Compute the Pedersen hash of the note contents
-        let hash_of_contents = pedersen_hash(
-            Personalization::NoteCommitment,
-            note_contents
-                .into_iter()
-                .flat_map(|byte| (0..8).map(move |i| ((byte >> i) & 1) == 1)),
-        );
-
-        // Compute final commitment
-        (constants::NOTE_COMMITMENT_RANDOMNESS_GENERATOR * self.rcm()) + hash_of_contents
+    fn cm_full_point(&self) -> NoteCommitment {
+        NoteCommitment::derive(
+            self.asset_type.asset_generator().to_bytes(),
+            self.recipient.g_d().to_bytes(),
+            self.recipient.pk_d().to_bytes(),
+            self.value,
+            self.rseed.rcm(),
+        )
     }
 
     /// Computes the nullifier given the nullifier deriving key and
     /// note position
     pub fn nf(&self, nk: &NullifierDerivingKey, position: u64) -> Nullifier {
-        // Compute rho = cm + position.G
-        let rho = self.cm_full_point()
-            + (constants::NULLIFIER_POSITION_GENERATOR * jubjub::Fr::from(position));
-
-        // Compute nf = BLAKE2s(nk | rho)
-        Nullifier::from_slice(
-            Blake2sParams::new()
-                .hash_length(32)
-                .personal(constants::PRF_NF_PERSONALIZATION)
-                .to_state()
-                .update(&nk.0.to_bytes())
-                .update(&rho.to_bytes())
-                .finalize()
-                .as_bytes(),
-        )
-        .unwrap()
+        Nullifier::derive(nk, self.cm_full_point(), position)
     }
 
     /// Computes the note commitment
-    pub fn cmu(&self) -> bls12_381::Scalar {
-        // The commitment is in the prime order subgroup, so mapping the
-        // commitment to the u-coordinate is an injective encoding.
-        jubjub::ExtendedPoint::from(self.cm_full_point())
-            .to_affine()
-            .get_u()
+    pub fn cmu(&self) -> ExtractedNoteCommitment {
+        self.cm_full_point().into()
     }
 
+    /// Defined in [Zcash Protocol Spec § 4.7.2: Sending Notes (Sapling)][saplingsend].
+    ///
+    /// [saplingsend]: https://zips.z.cash/protocol/protocol.pdf#saplingsend
     pub fn rcm(&self) -> jubjub::Fr {
-        match self.rseed {
-            Rseed::BeforeZip212(rcm) => rcm,
-            Rseed::AfterZip212(rseed) => {
-                jubjub::Fr::from_bytes_wide(prf_expand(&rseed, &[0x04]).as_array())
-            }
-        }
+        self.rseed.rcm().0
     }
 
-    pub fn generate_or_derive_esk<R: RngCore + CryptoRng>(&self, rng: &mut R) -> jubjub::Fr {
+    /// Derives `esk` from the internal `Rseed` value, or generates a random value if this
+    /// note was created with a v1 (i.e. pre-ZIP 212) note plaintext.
+    pub fn generate_or_derive_esk<R: RngCore + CryptoRng>(
+        &self,
+        rng: &mut R,
+    ) -> EphemeralSecretKey {
         self.generate_or_derive_esk_internal(rng)
     }
 
-    pub(crate) fn generate_or_derive_esk_internal<R: RngCore>(&self, rng: &mut R) -> jubjub::Fr {
+    pub(crate) fn generate_or_derive_esk_internal<R: RngCore>(
+        &self,
+        rng: &mut R,
+    ) -> EphemeralSecretKey {
         match self.derive_esk() {
-            None => jubjub::Fr::random(rng),
+            None => EphemeralSecretKey(jubjub::Fr::random(rng)),
             Some(esk) => esk,
         }
     }
 
     /// Returns the derived `esk` if this note was created after ZIP 212 activated.
-    pub fn derive_esk(&self) -> Option<jubjub::Fr> {
+    pub(crate) fn derive_esk(&self) -> Option<EphemeralSecretKey> {
         match self.rseed {
             Rseed::BeforeZip212(_) => None,
-            Rseed::AfterZip212(rseed) => Some(jubjub::Fr::from_bytes_wide(
+            Rseed::AfterZip212(rseed) => Some(EphemeralSecretKey(jubjub::Fr::from_bytes_wide(
                 prf_expand(&rseed, &[0x05]).as_array(),
-            )),
-        }
-    }
-
-    /// Returns [`self.cmu`] in the correct representation for inclusion in the Sapling
-    /// note commitment tree.
-    pub fn commitment(&self) -> Node {
-        Node {
-            repr: self.cmu().to_repr(),
+            ))),
         }
     }
 }
@@ -170,11 +181,9 @@ impl BorshSerialize for Note {
         // Write asset type
         self.asset_type.serialize(writer)?;
         // Write note value
-        writer.write_u64::<LittleEndian>(self.value)?;
-        // Write diversified base
-        writer.write_all(&self.g_d.to_bytes())?;
-        // Write diversified transmission key
-        writer.write_all(&self.pk_d.to_bytes())?;
+        writer.write_u64::<LittleEndian>(self.value.inner())?;
+        // Write recipient
+        self.recipient.serialize(writer)?;
         match self.rseed {
             Rseed::BeforeZip212(rcm) => {
                 // Write note plaintext lead byte
@@ -200,13 +209,7 @@ impl BorshDeserialize for Note {
         // Read note value
         let value = buf.read_u64::<LittleEndian>()?;
         // Read diversified base
-        let g_d_bytes = <[u8; 32]>::deserialize(buf)?;
-        let g_d = Option::from(jubjub::SubgroupPoint::from_bytes(&g_d_bytes))
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "g_d not in field"))?;
-        // Read diversified transmission key
-        let pk_d_bytes = <[u8; 32]>::deserialize(buf)?;
-        let pk_d = Option::from(DiversifiedTransmissionKey::from_bytes(&pk_d_bytes))
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "pk_d not in field"))?;
+        let recipient = PaymentAddress::deserialize(buf)?;
         // Read note plaintext lead byte
         let rseed_type = buf.read_u8()?;
         // Read rseed
@@ -221,10 +224,36 @@ impl BorshDeserialize for Note {
         // Finally construct note object
         Ok(Note {
             asset_type,
-            value,
-            g_d,
-            pk_d,
+            value: NoteValue::from_raw(value),
+            recipient,
             rseed,
         })
+    }
+}
+
+#[cfg(any(test, feature = "test-dependencies"))]
+pub(super) mod testing {
+    use proptest::prelude::*;
+
+    use crate::asset_type::testing::arb_asset_type;
+
+    use super::{
+        super::{testing::arb_payment_address, value::NoteValue},
+        Note, Rseed,
+    };
+
+    prop_compose! {
+        pub fn arb_note(value: NoteValue)(
+            asset_type in arb_asset_type(),
+            recipient in arb_payment_address(),
+            rseed in prop::array::uniform32(prop::num::u8::ANY).prop_map(Rseed::AfterZip212)
+        ) -> Note {
+            Note {
+                asset_type,
+                recipient,
+                value,
+                rseed
+            }
+        }
     }
 }

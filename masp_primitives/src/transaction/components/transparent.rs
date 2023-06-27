@@ -4,8 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use std::fmt::{self, Debug};
 use std::io::{self, Read, Write};
 
-use crate::asset_type::AssetType;
-use crate::transaction::TransparentAddress;
+use crate::{asset_type::AssetType, transaction::TransparentAddress};
 
 use super::amount::{Amount, BalanceError, MAX_MONEY};
 
@@ -233,10 +232,10 @@ pub mod testing {
             vin in vec(arb_txin(), 0..10),
             vout in vec(arb_txout(), 0..10),
         ) -> Option<Bundle<Authorized>> {
-            if vout.is_empty() {
+            if vin.is_empty() && vout.is_empty() {
                 None
             } else {
-                Some(Bundle {vin, vout, authorization: Authorized })
+                Some(Bundle { vin, vout, authorization: Authorized })
             }
         }
     }

@@ -4,18 +4,6 @@
 //!
 //! [section 4.2.2]: https://zips.z.cash/protocol/protocol.pdf#saplingkeycomponents
 
-use super::{
-    ChainCode, ChildIndex, Diversifier, DiversifierIndex, NullifierDerivingKey, Scope, ViewingKey,
-};
-use crate::{
-    constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
-    keys::{prf_expand, prf_expand_vec},
-    sapling::{
-        address::PaymentAddress,
-        keys::{DecodingError, ExpandedSpendingKey, FullViewingKey, OutgoingViewingKey},
-        SaplingIvk,
-    },
-};
 use aes::Aes256;
 use blake2b_simd::Params as Blake2bParams;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -27,6 +15,16 @@ use std::{
     io::{self, Error, ErrorKind, Read, Write},
     ops::AddAssign,
     str::FromStr,
+};
+use super::{
+    ChainCode, ChildIndex, Diversifier, DiversifierIndex, NullifierDerivingKey, PaymentAddress,
+    Scope, ViewingKey,
+};
+use crate::{
+    constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
+    keys::{prf_expand, prf_expand_vec},
+    sapling::keys::{DecodingError, ExpandedSpendingKey, FullViewingKey, OutgoingViewingKey},
+    sapling::SaplingIvk,
 };
 
 pub const ZIP32_SAPLING_MASTER_PERSONALIZATION: &[u8; 16] = b"MASP_IP32Sapling";
@@ -1803,13 +1801,13 @@ mod tests {
         let m = ExtendedSpendingKey::master(&seed);
         let m_1 = m.derive_child(i1);
         let m_1_2h = ExtendedSpendingKey::from_path(&m, &[i1, i2h]);
-        let m_1_2hv = ExtendedFullViewingKey::from(&m_1_2h);
+        let m_1_2hv = m_1_2h.to_extended_full_viewing_key();
         let m_1_2hv_3 = m_1_2hv.derive_child(i3).unwrap();
 
         let xfvks = [
-            ExtendedFullViewingKey::from(&m),
-            ExtendedFullViewingKey::from(&m_1),
-            ExtendedFullViewingKey::from(&m_1_2h),
+            m.to_extended_full_viewing_key(),
+            m_1.to_extended_full_viewing_key(),
+            m_1_2h.to_extended_full_viewing_key(),
             m_1_2hv, // Appears twice so we can de-duplicate test code below
             m_1_2hv_3,
         ];
@@ -1828,6 +1826,7 @@ mod tests {
             let mut ser = vec![];
             xsk.write(&mut ser).unwrap();
             assert_eq!(&ser[..], &tv.xsk.unwrap()[..]);
+
             let internal_xsk = xsk.derive_internal();
             assert_eq!(internal_xsk.expsk.ask.to_repr().as_ref(), tv.ask.unwrap());
             assert_eq!(

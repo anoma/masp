@@ -93,7 +93,7 @@ impl TransparentBuilder {
         #[cfg(not(feature = "transparent-inputs"))]
         {
             let invalid: &[InvalidTransparentInput] = &[];
-            return invalid;
+            invalid
         }
     }
 

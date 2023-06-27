@@ -32,8 +32,6 @@ use group::{Curve, Group, GroupEncoding};
 use masp_note_encryption::EphemeralKeyBytes;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
-use crate::sapling::group_hash::group_hash;
-use blake2s_simd::Params as Blake2sParams;
 use borsh::{BorshDeserialize, BorshSerialize};
 
 /// Errors that can occur in the decoding of Sapling spending keys.
@@ -132,6 +130,7 @@ impl ExpandedSpendingKey {
         result
     }
 }
+
 #[derive(Clone)]
 pub struct ProofGenerationKey {
     pub ak: jubjub::SubgroupPoint,
@@ -250,7 +249,8 @@ impl Ord for ViewingKey {
         self.to_bytes().cmp(&other.to_bytes())
     }
 }
-/// A Sapling key that provides the capability to view incoming and outgoing transactions.
+
+/// A MASP key that provides the capability to view incoming and outgoing transactions.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct FullViewingKey {
     pub vk: ViewingKey,
@@ -381,7 +381,7 @@ pub struct Diversifier(pub [u8; 11]);
 
 impl Diversifier {
     pub fn g_d(&self) -> Option<jubjub::SubgroupPoint> {
-        group_hash(&self.0, constants::KEY_DIVERSIFICATION_PERSONALIZATION)
+        diversify_hash(&self.0)
     }
 }
 
@@ -438,6 +438,23 @@ impl ConditionallySelectable for DiversifiedTransmissionKey {
         DiversifiedTransmissionKey(jubjub::SubgroupPoint::conditional_select(
             &a.0, &b.0, choice,
         ))
+    }
+}
+
+impl BorshSerialize for DiversifiedTransmissionKey {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+        writer.write_all(&self.0.to_bytes())
+    }
+}
+impl BorshDeserialize for DiversifiedTransmissionKey {
+    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+        let bytes = <[u8; 32]>::deserialize(buf)?;
+        Option::from(DiversifiedTransmissionKey::from_bytes(&bytes)).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "DiversifiedTransmissionKey not in field",
+            )
+        })
     }
 }
 
@@ -575,13 +592,14 @@ impl SharedSecret {
             .finalize()
     }
 }
+
 #[cfg(any(test, feature = "test-dependencies"))]
 pub mod testing {
     use proptest::collection::vec;
-    use proptest::prelude::{any, prop_compose};
+    use proptest::prelude::*;
     use std::fmt::{self, Debug, Formatter};
 
-    use super::{ExpandedSpendingKey, FullViewingKey};
+    use super::{ExpandedSpendingKey, FullViewingKey, SaplingIvk};
 
     impl Debug for ExpandedSpendingKey {
         fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -606,9 +624,8 @@ pub mod testing {
     }
 
     prop_compose! {
-        pub fn arb_shielded_addr()(extsk in arb_extended_spending_key()) -> PaymentAddress {
-            let extfvk = ExtendedFullViewingKey::from(&extsk);
-            extfvk.default_address().1
+        pub fn arb_incoming_viewing_key()(fvk in arb_full_viewing_key()) -> SaplingIvk {
+            fvk.vk.ivk()
         }
     }
 }
