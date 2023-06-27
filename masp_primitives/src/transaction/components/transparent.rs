@@ -105,10 +105,10 @@ impl TxIn<Authorized> {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let asset_type = AssetType::read(reader)?;
         let value = {
-            assert_eq!(core::mem::size_of::<i128>(), 16);
-            let mut tmp = [0u8; core::mem::size_of::<i128>()];
+            assert_eq!(core::mem::size_of::<u64>(), 8);
+            let mut tmp = [0u8; core::mem::size_of::<u64>()];
             reader.read_exact(&mut tmp)?;
-            i128::from_le_bytes(tmp).into()
+            u64::from_le_bytes(tmp).into()
         };
         if value < 0 || value > MAX_MONEY {
             return Err(io::Error::new(
@@ -148,10 +148,10 @@ impl TxOut {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let asset_type = AssetType::read(reader)?;
         let value = {
-            assert_eq!(core::mem::size_of::<i128>(), 16);
-            let mut tmp = [0u8; core::mem::size_of::<i128>()];
+            assert_eq!(core::mem::size_of::<u64>(), 8);
+            let mut tmp = [0u8; core::mem::size_of::<u64>()];
             reader.read_exact(&mut tmp)?;
-            i128::from_le_bytes(tmp).into()
+            u64::from_le_bytes(tmp).into()
         };
         if value < 0 || value > MAX_MONEY {
             return Err(io::Error::new(
