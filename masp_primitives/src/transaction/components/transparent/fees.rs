@@ -2,8 +2,8 @@
 //! of a transaction.
 
 use super::TxOut;
-use crate::transaction::TransparentAddress;
 use crate::asset_type::AssetType;
+use crate::transaction::TransparentAddress;
 
 /// This trait provides a minimized view of a transparent input suitable for use in
 /// fee and change computation.

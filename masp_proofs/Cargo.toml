@@ -36,7 +36,6 @@ tracing = "0.1"
 blake2b_simd = "1"
 directories = { version = "4", optional = true }
 redjubjub = "0.5"
-wagyu-zcash-parameters = { version = "0.2", optional = true }
 getrandom = { version = "0.2", features = ["js"] }
 itertools = "0.10.1"
 
@@ -50,7 +49,7 @@ pprof = { version = "0.11", features = ["criterion", "flamegraph"] } # MSRV 1.56
 
 [features]
 default = ["local-prover", "multicore"]
-bundled-prover = ["wagyu-zcash-parameters"]
+bundled-prover = []
 download-params = ["minreq", "directories"]
 local-prover = ["directories"]
 multicore = ["bellman/multicore"]
