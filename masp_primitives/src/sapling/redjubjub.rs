@@ -216,7 +216,7 @@ pub struct BatchEntry<'a> {
 // TODO: #82: This is a naive implementation currently,
 // and doesn't use multiexp.
 pub fn batch_verify<'a, R: RngCore>(
-    mut rng: &mut R,
+    rng: &mut R,
     batch: &[BatchEntry<'a>],
     p_g: SubgroupPoint,
 ) -> bool {
@@ -237,7 +237,7 @@ pub fn batch_verify<'a, R: RngCore>(
 
         let mut c = h_star(&entry.sig.rbar[..], entry.msg);
 
-        let z = jubjub::Fr::random(&mut rng);
+        let z = jubjub::Fr::random(&mut *rng);
 
         s.mul_assign(&z);
         s = s.neg();
