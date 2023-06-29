@@ -25,7 +25,7 @@ use crate::{
     transaction::{
         builder::Progress,
         components::{
-            amount::{Amount, MAX_MONEY},
+            amount::{Amount, I64Amt, I128Amt, TryFromNt, FromNt, MAX_MONEY},
             sapling::{
                 fees, Authorization, Authorized, Bundle, ConvertDescription, GrothProofBytes,
                 OutputDescription, SpendDescription,
@@ -272,7 +272,7 @@ pub struct SaplingBuilder<P, Key = ExtendedSpendingKey> {
     params: P,
     spend_anchor: Option<bls12_381::Scalar>,
     target_height: BlockHeight,
-    value_balance: Amount,
+    value_balance: Amount<AssetType, i128>,
     convert_anchor: Option<bls12_381::Scalar>,
     spends: Vec<SpendDescriptionInfo<Key>>,
     converts: Vec<ConvertDescriptionInfo>,
@@ -303,7 +303,7 @@ impl<P: BorshDeserialize, Key: BorshDeserialize> BorshDeserialize for SaplingBui
             .map(|x| x.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData)))
             .transpose()?;
         let target_height = BlockHeight::deserialize(buf)?;
-        let value_balance: Amount = Amount::deserialize(buf)?;
+        let value_balance = Amount::<AssetType, i128>::deserialize(buf)?;
         let convert_anchor: Option<Option<_>> =
             Option::<[u8; 32]>::deserialize(buf)?.map(|x| bls12_381::Scalar::from_bytes(&x).into());
         let convert_anchor = convert_anchor
@@ -369,9 +369,19 @@ impl<P, K> SaplingBuilder<P, K> {
         &self.outputs
     }
 
+    /// Returns the net value represented by the spends and outputs added to this builder,
+    /// or an error if the values added to this builder overflow the range of a Zcash
+    /// monetary amount.
+    fn try_value_balance(&self) -> Result<I64Amt, Error> {
+        TryFromNt(self.value_balance.clone())
+            .try_into()
+            .map_err(|_| Error::InvalidAmount)
+    }
+
     /// Returns the net value represented by the spends and outputs added to this builder.
-    pub fn value_balance(&self) -> Amount {
-        self.value_balance.clone()
+    pub fn value_balance(&self) -> I64Amt {
+        self.try_value_balance()
+            .expect("we check this when mutating self.value_balance")
     }
 }
 
@@ -402,7 +412,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         let alpha = jubjub::Fr::random(&mut rng);
 
         self.value_balance +=
-            Amount::from_pair(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?;
+            I128Amt::from(FromNt(Amount::from_pair(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?));
 
         self.spends.push(SpendDescriptionInfo {
             extsk,
@@ -437,8 +447,8 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
             self.convert_anchor = Some(merkle_path.root(node).into())
         }
 
-        let allowed_amt: Amount = allowed.clone().into();
-        self.value_balance += allowed_amt * value.try_into().unwrap();
+        let allowed_amt: I64Amt = allowed.clone().into();
+        self.value_balance += I128Amt::from(FromNt(allowed_amt * (value as i64)));
 
         self.converts.push(ConvertDescriptionInfo {
             allowed,
@@ -472,7 +482,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         )?;
 
         self.value_balance -=
-            Amount::from_pair(asset_type, value).map_err(|_| Error::InvalidAmount)?;
+            I128Amt::from(FromNt(Amount::from_pair(asset_type, value).map_err(|_| Error::InvalidAmount)?));
 
         self.outputs.push(output);
 
@@ -488,6 +498,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         progress_notifier: Option<&Sender<Progress>>,
     ) -> Result<Option<Bundle<Unauthorized>>, Error> {
         // Record initial positions of spends and outputs
+        let value_balance = self.try_value_balance()?;
         let params = self.params;
         let mut indexed_spends: Vec<_> = self.spends.into_iter().enumerate().collect();
         let mut indexed_converts: Vec<_> = self.converts.into_iter().enumerate().collect();
@@ -723,7 +734,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                 shielded_spends,
                 shielded_converts,
                 shielded_outputs,
-                value_balance: self.value_balance,
+                value_balance,
                 authorization: Unauthorized { tx_metadata },
             })
         };

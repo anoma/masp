@@ -7,7 +7,7 @@ use std::io::{self, Read, Write};
 use crate::asset_type::AssetType;
 use crate::transaction::TransparentAddress;
 
-use super::amount::{Amount, BalanceError, MAX_MONEY};
+use super::amount::{Amount, BalanceError, I64Amt, MAX_MONEY};
 
 pub mod builder;
 pub mod fees;
@@ -58,7 +58,7 @@ impl<A: Authorization> Bundle<A> {
     /// transferred out of the transparent pool into shielded pools or to fees; a negative value
     /// means that the containing transaction has funds being transferred into the transparent pool
     /// from the shielded pools.
-    pub fn value_balance<E, F>(&self) -> Result<Amount, E>
+    pub fn value_balance<E, F>(&self) -> Result<I64Amt, E>
     where
         E: From<BalanceError>,
     {
@@ -72,7 +72,7 @@ impl<A: Authorization> Bundle<A> {
                     Err(())
                 }
             })
-            .sum::<Result<Amount, ()>>()
+            .sum::<Result<I64Amt, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
         let output_sum = self
@@ -85,7 +85,7 @@ impl<A: Authorization> Bundle<A> {
                     Err(())
                 }
             })
-            .sum::<Result<Amount, ()>>()
+            .sum::<Result<I64Amt, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
         // Cannot panic when subtracting two positive i64

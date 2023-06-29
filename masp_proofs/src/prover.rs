@@ -11,7 +11,7 @@ use masp_primitives::{
         redjubjub::{PublicKey, Signature},
         Diversifier, Node, PaymentAddress, ProofGenerationKey, Rseed,
     },
-    transaction::components::{Amount, GROTH_PROOF_SIZE},
+    transaction::components::{I64Amt, GROTH_PROOF_SIZE},
 };
 use std::path::Path;
 
@@ -247,7 +247,7 @@ impl TxProver for LocalTxProver {
     fn binding_sig(
         &self,
         ctx: &mut Self::SaplingProvingContext,
-        assets_and_values: &Amount, //&[(AssetType, i64)],
+        assets_and_values: &I64Amt, //&[(AssetType, i64)],
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
         ctx.binding_sig(assets_and_values, sighash)

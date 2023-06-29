@@ -3,7 +3,7 @@ use bls12_381::Bls12;
 use masp_primitives::{
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
     sapling::redjubjub::{PublicKey, Signature},
-    transaction::components::Amount,
+    transaction::components::I64Amt,
 };
 
 use super::SaplingVerificationContextInner;
@@ -98,7 +98,7 @@ impl SaplingVerificationContext {
     /// have been checked before calling this function.
     pub fn final_check(
         &self,
-        value_balance: Amount,
+        value_balance: I64Amt,
         sighash_value: &[u8; 32],
         binding_sig: Signature,
     ) -> bool {

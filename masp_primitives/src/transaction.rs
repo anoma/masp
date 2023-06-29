@@ -25,7 +25,7 @@ use crate::{
 
 use self::{
     components::{
-        amount::Amount,
+        amount::{Amount, I64Amt},
         sapling::{
             self, ConvertDescriptionV5, OutputDescriptionV5, SpendDescription, SpendDescriptionV5,
         },
@@ -269,7 +269,7 @@ impl<A: Authorization> TransactionData<A> {
 }
 
 impl<A: Authorization> TransactionData<A> {
-    pub fn sapling_value_balance(&self) -> Amount {
+    pub fn sapling_value_balance(&self) -> I64Amt {
         self.sapling_bundle
             .as_ref()
             .map_or(Amount::zero(), |b| b.value_balance.clone())
@@ -355,7 +355,7 @@ impl Transaction {
         })
     }
 
-    fn read_amount<R: Read>(mut reader: R) -> io::Result<Amount> {
+    fn read_amount<R: Read>(mut reader: R) -> io::Result<I64Amt> {
         Amount::read(&mut reader).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::InvalidData,

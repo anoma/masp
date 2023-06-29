@@ -8,7 +8,7 @@ use crate::{
         redjubjub::{PublicKey, Signature},
         Node,
     },
-    transaction::components::{Amount, GROTH_PROOF_SIZE},
+    transaction::components::{I64Amt, GROTH_PROOF_SIZE},
 };
 
 use super::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed};
@@ -73,7 +73,7 @@ pub trait TxProver {
     fn binding_sig(
         &self,
         ctx: &mut Self::SaplingProvingContext,
-        amount: &Amount,
+        amount: &I64Amt,
         sighash: &[u8; 32],
     ) -> Result<Signature, ()>;
 }
@@ -92,7 +92,7 @@ pub mod mock {
             redjubjub::{PublicKey, Signature},
             Diversifier, Node, PaymentAddress, ProofGenerationKey, Rseed,
         },
-        transaction::components::{Amount, GROTH_PROOF_SIZE},
+        transaction::components::{I64Amt, GROTH_PROOF_SIZE},
     };
 
     use super::TxProver;
@@ -169,7 +169,7 @@ pub mod mock {
         fn binding_sig(
             &self,
             _ctx: &mut Self::SaplingProvingContext,
-            _value: &Amount,
+            _value: &I64Amt,
             _sighash: &[u8; 32],
         ) -> Result<Signature, ()> {
             Err(())

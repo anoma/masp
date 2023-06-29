@@ -6,7 +6,7 @@ use crate::{
     asset_type::AssetType,
     transaction::{
         components::{
-            amount::{Amount, BalanceError, MAX_MONEY},
+            amount::{Amount, BalanceError, I64Amt, MAX_MONEY},
             transparent::{self, fees, Authorization, Authorized, Bundle, TxIn, TxOut},
         },
         sighash::TransparentAuthorizingContext,
@@ -133,7 +133,7 @@ impl TransparentBuilder {
         Ok(())
     }
 
-    pub fn value_balance(&self) -> Result<Amount, BalanceError> {
+    pub fn value_balance(&self) -> Result<I64Amt, BalanceError> {
         #[cfg(feature = "transparent-inputs")]
         let input_sum = self
             .inputs
@@ -145,7 +145,7 @@ impl TransparentBuilder {
                     Err(())
                 }
             })
-            .sum::<Result<Amount, ()>>()
+            .sum::<Result<I64Amt, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
         #[cfg(not(feature = "transparent-inputs"))]
@@ -161,7 +161,7 @@ impl TransparentBuilder {
                     Err(())
                 }
             })
-            .sum::<Result<Amount, ()>>()
+            .sum::<Result<I64Amt, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
         // Cannot panic when subtracting two positive i64

@@ -3,7 +3,7 @@ use crate::{
         pedersen_hash::{pedersen_hash, Personalization},
         Node, ValueCommitment,
     },
-    transaction::components::amount::Amount,
+    transaction::components::amount::{Amount, I64Amt},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use group::{Curve, GroupEncoding};
@@ -16,7 +16,7 @@ use std::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AllowedConversion {
     /// The asset type that the note represents
-    assets: Amount,
+    assets: I64Amt,
     /// Memorize generator because it's expensive to recompute
     generator: jubjub::ExtendedPoint,
 }
@@ -71,15 +71,15 @@ impl AllowedConversion {
     }
 }
 
-impl From<AllowedConversion> for Amount {
-    fn from(allowed_conversion: AllowedConversion) -> Amount {
+impl From<AllowedConversion> for I64Amt {
+    fn from(allowed_conversion: AllowedConversion) -> I64Amt {
         allowed_conversion.assets
     }
 }
 
-impl From<Amount> for AllowedConversion {
+impl From<I64Amt> for AllowedConversion {
     /// Produces an asset generator without cofactor cleared
-    fn from(assets: Amount) -> Self {
+    fn from(assets: I64Amt) -> Self {
         let mut asset_generator = jubjub::ExtendedPoint::identity();
         for (asset, value) in assets.components() {
             // Compute the absolute value (failing if -i64::MAX is
@@ -199,11 +199,11 @@ mod tests {
     #[test]
     fn test_homomorphism() {
         // Left operand
-        let a = Amount::from_pair(zec(), 5).unwrap()
-            + Amount::from_pair(btc(), 6).unwrap()
-            + Amount::from_pair(xan(), 7).unwrap();
+        let a = Amount::from_pair(zec(), 5i64).unwrap()
+            + Amount::from_pair(btc(), 6i64).unwrap()
+            + Amount::from_pair(xan(), 7i64).unwrap();
         // Right operand
-        let b = Amount::from_pair(zec(), 2).unwrap() + Amount::from_pair(xan(), 10).unwrap();
+        let b = Amount::from_pair(zec(), 2i64).unwrap() + Amount::from_pair(xan(), 10i64).unwrap();
         // Test homomorphism
         assert_eq!(
             AllowedConversion::from(a.clone() + b.clone()),
@@ -213,9 +213,9 @@ mod tests {
     #[test]
     fn test_serialization() {
         // Make conversion
-        let a: AllowedConversion = (Amount::from_pair(zec(), 5).unwrap()
-            + Amount::from_pair(btc(), 6).unwrap()
-            + Amount::from_pair(xan(), 7).unwrap())
+        let a: AllowedConversion = (Amount::from_pair(zec(), 5i64).unwrap()
+            + Amount::from_pair(btc(), 6i64).unwrap()
+            + Amount::from_pair(xan(), 7i64).unwrap())
         .into();
         // Serialize conversion
         let mut data = Vec::new();

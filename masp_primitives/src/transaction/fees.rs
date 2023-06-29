@@ -2,7 +2,7 @@
 
 use crate::{
     consensus::{self, BlockHeight},
-    transaction::components::{amount::Amount, transparent::fees as transparent},
+    transaction::components::{amount::I64Amt, transparent::fees as transparent},
 };
 
 pub mod fixed;
@@ -24,5 +24,5 @@ pub trait FeeRule {
         transparent_outputs: &[impl transparent::OutputView],
         sapling_input_count: usize,
         sapling_output_count: usize,
-    ) -> Result<Amount, Self::Error>;
+    ) -> Result<I64Amt, Self::Error>;
 }

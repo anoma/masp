@@ -23,7 +23,7 @@ use crate::{
     },
 };
 
-use super::{amount::Amount, GROTH_PROOF_SIZE};
+use super::{amount::I64Amt, GROTH_PROOF_SIZE};
 
 pub type GrothProofBytes = [u8; GROTH_PROOF_SIZE];
 
@@ -90,7 +90,7 @@ pub struct Bundle<A: Authorization + PartialEq + BorshSerialize + BorshDeseriali
     pub shielded_spends: Vec<SpendDescription<A>>,
     pub shielded_converts: Vec<ConvertDescription<A::Proof>>,
     pub shielded_outputs: Vec<OutputDescription<A::Proof>>,
-    pub value_balance: Amount,
+    pub value_balance: I64Amt,
     pub authorization: A,
 }
 

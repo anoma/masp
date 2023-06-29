@@ -19,7 +19,7 @@ use crate::{
     sapling::{prover::TxProver, Diversifier, Node, Note, PaymentAddress},
     transaction::{
         components::{
-            amount::{Amount, BalanceError, MAX_MONEY},
+            amount::{Amount, BalanceError, I64Amt, MAX_MONEY},
             sapling::{
                 self,
                 builder::{SaplingBuilder, SaplingMetadata},
@@ -43,10 +43,10 @@ const DEFAULT_TX_EXPIRY_DELTA: u32 = 20;
 pub enum Error<FeeError> {
     /// Insufficient funds were provided to the transaction builder; the given
     /// additional amount is required in order to construct the transaction.
-    InsufficientFunds(Amount),
+    InsufficientFunds(I64Amt),
     /// The transaction has inputs in excess of outputs and fees; the user must
     /// add a change output.
-    ChangeRequired(Amount),
+    ChangeRequired(I64Amt),
     /// An error occurred in computing the fees for a transaction.
     Fee(FeeError),
     /// An overflow or underflow occurred when computing value balances
@@ -293,13 +293,13 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     }
 
     /// Returns the sum of the transparent, Sapling, and TZE value balances.
-    pub fn value_balance(&self) -> Result<Amount, BalanceError> {
+    pub fn value_balance(&self) -> Result<I64Amt, BalanceError> {
         let value_balances = [
             self.transparent_builder.value_balance()?,
             self.sapling_builder.value_balance(),
         ];
 
-        Ok(value_balances.into_iter().sum::<Amount>())
+        Ok(value_balances.into_iter().sum::<I64Amt>())
     }
 
     /// Builds a transaction from the configured spends and outputs.
@@ -326,7 +326,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     fn build_internal<FE>(
         self,
         prover: &impl TxProver,
-        fee: Amount,
+        fee: I64Amt,
     ) -> Result<(Transaction, SaplingMetadata), Error<FE>> {
         let consensus_branch_id = BranchId::for_height(&self.params, self.target_height);
 

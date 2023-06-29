@@ -36,6 +36,9 @@ sha2 = "0.9"
 # - Metrics
 memuse = "0.2.1"
 
+# - Checked arithmetic
+num-traits = "0.2.14"
+
 # - Secret management
 subtle = "2.2.3"
 

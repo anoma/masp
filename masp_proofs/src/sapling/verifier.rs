@@ -5,7 +5,7 @@ use bls12_381::Bls12;
 use group::{Curve, GroupEncoding};
 use masp_primitives::{
     sapling::redjubjub::{PublicKey, Signature},
-    transaction::components::Amount,
+    transaction::components::I64Amt,
 };
 
 use super::masp_compute_value_balance;
@@ -172,7 +172,7 @@ impl SaplingVerificationContextInner {
     /// have been checked before calling this function.
     fn final_check(
         &self,
-        value_balance: Amount,
+        value_balance: I64Amt,
         sighash_value: &[u8; 32],
         binding_sig: Signature,
         binding_sig_verifier: impl FnOnce(PublicKey, [u8; 64], Signature) -> bool,
