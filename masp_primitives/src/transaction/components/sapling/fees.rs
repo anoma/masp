@@ -2,8 +2,8 @@
 //! of a transaction.
 
 use crate::asset_type::AssetType;
-use crate::sapling::PaymentAddress;
 use crate::convert::AllowedConversion;
+use crate::sapling::PaymentAddress;
 
 /// A trait that provides a minimized view of a Sapling input suitable for use in
 /// fee and change calculation.

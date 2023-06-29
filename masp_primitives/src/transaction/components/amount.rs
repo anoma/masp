@@ -35,13 +35,12 @@ pub type I128Amt = Amount<AssetType, i128>;
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
 pub struct Amount<
-        Unit: Hash + Ord + BorshSerialize + BorshDeserialize,
+    Unit: Hash + Ord + BorshSerialize + BorshDeserialize,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq,
-    > (
-    pub BTreeMap<Unit, Magnitude>,
-);
+>(pub BTreeMap<Unit, Magnitude>);
 
-impl<Unit, Magnitude> memuse::DynamicUsage for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> memuse::DynamicUsage for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd,
 {
@@ -58,7 +57,8 @@ impl<Unit, Magnitude> memuse::DynamicUsage for Amount<Unit, Magnitude> where
     }
 }
 
-impl<Unit, Magnitude> Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd,
 {
@@ -78,7 +78,8 @@ impl<Unit, Magnitude> Amount<Unit, Magnitude> where
     }
 }
 
-impl<Unit, Magnitude> Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default,
 {
@@ -97,7 +98,7 @@ impl<Unit, Magnitude> Amount<Unit, Magnitude> where
 
     /// Filters out everything but the given AssetType from this Amount
     pub fn project(&self, index: Unit) -> Self {
-        let val = self.0.get(&index).copied().unwrap_or(Magnitude::default());
+        let val = self.0.get(&index).copied().unwrap_or_default();
         Self::from_pair(index, val).unwrap()
     }
 
@@ -107,7 +108,8 @@ impl<Unit, Magnitude> Amount<Unit, Magnitude> where
     }
 }
 
-impl<Unit, Magnitude> Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy,
 {
@@ -174,9 +176,11 @@ impl Amount<AssetType, i64> {
     }
 }
 
-impl<Unit, Magnitude> From<Unit> for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> From<Unit> for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize,
-    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + From<bool> {
+    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + From<bool>,
+{
     fn from(atype: Unit) -> Self {
         let mut ret = BTreeMap::new();
         ret.insert(atype, true.into());
@@ -184,10 +188,11 @@ impl<Unit, Magnitude> From<Unit> for Amount<Unit, Magnitude> where
     }
 }
 
-impl<Unit, Magnitude> PartialOrd for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> PartialOrd for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd,
-    Self: Sub<Self, Output = Self>
+    Self: Sub<Self, Output = Self>,
 {
     /// One Amount is more than or equal to another if each corresponding
     /// coordinate is more than the other's.
@@ -207,7 +212,8 @@ impl<Unit, Magnitude> PartialOrd for Amount<Unit, Magnitude> where
 
 macro_rules! impl_index {
     ($struct_type:ty) => {
-        impl<Unit> Index<&Unit> for Amount<Unit, $struct_type> where
+        impl<Unit> Index<&Unit> for Amount<Unit, $struct_type>
+        where
             Unit: Hash + Ord + BorshSerialize + BorshDeserialize,
         {
             type Output = $struct_type;
@@ -216,7 +222,7 @@ macro_rules! impl_index {
                 self.0.get(index).unwrap_or(&0)
             }
         }
-    }
+    };
 }
 
 impl_index!(i64);
@@ -225,68 +231,124 @@ impl_index!(u64);
 
 impl_index!(i128);
 
-impl<Unit, Magnitude> MulAssign<Magnitude> for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> MulAssign<Magnitude> for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd + CheckedMul,
+    Magnitude: BorshSerialize
+        + BorshDeserialize
+        + PartialEq
+        + Eq
+        + Copy
+        + Default
+        + PartialOrd
+        + CheckedMul,
 {
     fn mul_assign(&mut self, rhs: Magnitude) {
         *self = self.clone() * rhs;
     }
 }
 
-impl<Unit, Magnitude> Mul<Magnitude> for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> Mul<Magnitude> for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd + CheckedMul,
+    Magnitude: BorshSerialize
+        + BorshDeserialize
+        + PartialEq
+        + Eq
+        + Copy
+        + Default
+        + PartialOrd
+        + CheckedMul,
 {
     type Output = Amount<Unit, Magnitude>;
 
     fn mul(self, rhs: Magnitude) -> Self::Output {
         let mut comps = BTreeMap::new();
         for (atype, amount) in self.0.iter() {
-            comps.insert(atype.clone(), amount.checked_mul(&rhs).expect("overflow detected"));
+            comps.insert(
+                atype.clone(),
+                amount.checked_mul(&rhs).expect("overflow detected"),
+            );
         }
         comps.retain(|_, v| *v != Magnitude::default());
         Amount(comps)
     }
 }
 
-impl<Unit, Magnitude> AddAssign<&Amount<Unit, Magnitude>> for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> AddAssign<&Amount<Unit, Magnitude>> for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd + CheckedAdd,
+    Magnitude: BorshSerialize
+        + BorshDeserialize
+        + PartialEq
+        + Eq
+        + Copy
+        + Default
+        + PartialOrd
+        + CheckedAdd,
 {
     fn add_assign(&mut self, rhs: &Amount<Unit, Magnitude>) {
         *self = self.clone() + rhs;
     }
 }
 
-impl<Unit, Magnitude> AddAssign<Amount<Unit, Magnitude>> for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> AddAssign<Amount<Unit, Magnitude>> for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd + CheckedAdd,
+    Magnitude: BorshSerialize
+        + BorshDeserialize
+        + PartialEq
+        + Eq
+        + Copy
+        + Default
+        + PartialOrd
+        + CheckedAdd,
 {
     fn add_assign(&mut self, rhs: Amount<Unit, Magnitude>) {
         *self += &rhs
     }
 }
 
-impl<Unit, Magnitude> Add<&Amount<Unit, Magnitude>> for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> Add<&Amount<Unit, Magnitude>> for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd + CheckedAdd,
+    Magnitude: BorshSerialize
+        + BorshDeserialize
+        + PartialEq
+        + Eq
+        + Copy
+        + Default
+        + PartialOrd
+        + CheckedAdd,
 {
     type Output = Amount<Unit, Magnitude>;
 
     fn add(self, rhs: &Amount<Unit, Magnitude>) -> Self::Output {
         let mut comps = self.0.clone();
         for (atype, amount) in rhs.components() {
-            comps.insert(atype.clone(), self.get(atype).checked_add(amount).expect("overflow detected"));
+            comps.insert(
+                atype.clone(),
+                self.get(atype)
+                    .checked_add(amount)
+                    .expect("overflow detected"),
+            );
         }
         comps.retain(|_, v| *v != Magnitude::default());
         Amount(comps)
     }
 }
 
-impl<Unit, Magnitude> Add<Amount<Unit, Magnitude>> for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> Add<Amount<Unit, Magnitude>> for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd + CheckedAdd,
+    Magnitude: BorshSerialize
+        + BorshDeserialize
+        + PartialEq
+        + Eq
+        + Copy
+        + Default
+        + PartialOrd
+        + CheckedAdd,
 {
     type Output = Amount<Unit, Magnitude>;
 
@@ -295,41 +357,69 @@ impl<Unit, Magnitude> Add<Amount<Unit, Magnitude>> for Amount<Unit, Magnitude> w
     }
 }
 
-impl<Unit, Magnitude> SubAssign<&Amount<Unit, Magnitude>> for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> SubAssign<&Amount<Unit, Magnitude>> for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd + CheckedSub,
+    Magnitude: BorshSerialize
+        + BorshDeserialize
+        + PartialEq
+        + Eq
+        + Copy
+        + Default
+        + PartialOrd
+        + CheckedSub,
 {
     fn sub_assign(&mut self, rhs: &Amount<Unit, Magnitude>) {
         *self = self.clone() - rhs
     }
 }
 
-impl<Unit, Magnitude> SubAssign<Amount<Unit, Magnitude>> for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> SubAssign<Amount<Unit, Magnitude>> for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd + CheckedSub,
+    Magnitude: BorshSerialize
+        + BorshDeserialize
+        + PartialEq
+        + Eq
+        + Copy
+        + Default
+        + PartialOrd
+        + CheckedSub,
 {
     fn sub_assign(&mut self, rhs: Amount<Unit, Magnitude>) {
         *self -= &rhs
     }
 }
 
-impl<Unit, Magnitude> Neg for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> Neg for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd + CheckedNeg,
+    Magnitude: BorshSerialize
+        + BorshDeserialize
+        + PartialEq
+        + Eq
+        + Copy
+        + Default
+        + PartialOrd
+        + CheckedNeg,
 {
     type Output = Amount<Unit, Magnitude>;
 
     fn neg(mut self) -> Self::Output {
         let mut comps = BTreeMap::new();
         for (atype, amount) in self.0.iter_mut() {
-            comps.insert(atype.clone(), amount.checked_neg().expect("overflow detected"));
+            comps.insert(
+                atype.clone(),
+                amount.checked_neg().expect("overflow detected"),
+            );
         }
         comps.retain(|_, v| *v != Magnitude::default());
         Amount(comps)
     }
 }
 
-impl<Unit, Magnitude> Sub<&Amount<Unit, Magnitude>> for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> Sub<&Amount<Unit, Magnitude>> for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + CheckedSub,
 {
@@ -338,14 +428,20 @@ impl<Unit, Magnitude> Sub<&Amount<Unit, Magnitude>> for Amount<Unit, Magnitude> 
     fn sub(self, rhs: &Amount<Unit, Magnitude>) -> Self::Output {
         let mut comps = self.0.clone();
         for (atype, amount) in rhs.components() {
-            comps.insert(atype.clone(), self.get(atype).checked_sub(&amount).expect("overflow detected"));
+            comps.insert(
+                atype.clone(),
+                self.get(atype)
+                    .checked_sub(amount)
+                    .expect("overflow detected"),
+            );
         }
         comps.retain(|_, v| *v != Magnitude::default());
         Amount(comps)
     }
 }
 
-impl<Unit, Magnitude> Sub<Amount<Unit, Magnitude>> for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> Sub<Amount<Unit, Magnitude>> for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + CheckedSub,
 {
@@ -356,7 +452,8 @@ impl<Unit, Magnitude> Sub<Amount<Unit, Magnitude>> for Amount<Unit, Magnitude> w
     }
 }
 
-impl<Unit, Magnitude> Sum for Amount<Unit, Magnitude> where
+impl<Unit, Magnitude> Sum for Amount<Unit, Magnitude>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd,
     Self: Add<Output = Self>,
@@ -369,7 +466,8 @@ impl<Unit, Magnitude> Sum for Amount<Unit, Magnitude> where
 /// Workaround for the blanket implementation of TryFrom
 pub struct TryFromNt<X>(pub X);
 
-impl<Unit, Magnitude, Output> TryFrom<TryFromNt<Amount<Unit, Magnitude>>> for Amount<Unit, Output> where
+impl<Unit, Magnitude, Output> TryFrom<TryFromNt<Amount<Unit, Magnitude>>> for Amount<Unit, Output>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy,
     Output: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + TryFrom<Magnitude>,
@@ -378,7 +476,7 @@ impl<Unit, Magnitude, Output> TryFrom<TryFromNt<Amount<Unit, Magnitude>>> for Am
 
     fn try_from(x: TryFromNt<Amount<Unit, Magnitude>>) -> Result<Self, Self::Error> {
         let mut comps = BTreeMap::new();
-        for (atype, amount) in x.0.0 {
+        for (atype, amount) in x.0 .0 {
             comps.insert(atype, amount.try_into()?);
         }
         Ok(Self(comps))
@@ -388,14 +486,15 @@ impl<Unit, Magnitude, Output> TryFrom<TryFromNt<Amount<Unit, Magnitude>>> for Am
 /// Workaround for the blanket implementation of TryFrom
 pub struct FromNt<X>(pub X);
 
-impl<Unit, Magnitude, Output> From<FromNt<Amount<Unit, Magnitude>>> for Amount<Unit, Output> where
+impl<Unit, Magnitude, Output> From<FromNt<Amount<Unit, Magnitude>>> for Amount<Unit, Output>
+where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy,
     Output: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + From<Magnitude>,
 {
     fn from(x: FromNt<Amount<Unit, Magnitude>>) -> Self {
         let mut comps = BTreeMap::new();
-        for (atype, amount) in x.0.0 {
+        for (atype, amount) in x.0 .0 {
             comps.insert(atype, amount.into());
         }
         Self(comps)

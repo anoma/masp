@@ -25,7 +25,7 @@ use crate::{
     transaction::{
         builder::Progress,
         components::{
-            amount::{Amount, I64Amt, I128Amt, TryFromNt, FromNt, MAX_MONEY},
+            amount::{Amount, FromNt, I128Amt, I64Amt, TryFromNt, MAX_MONEY},
             sapling::{
                 fees, Authorization, Authorized, Bundle, ConvertDescription, GrothProofBytes,
                 OutputDescription, SpendDescription,
@@ -411,8 +411,9 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
 
         let alpha = jubjub::Fr::random(&mut rng);
 
-        self.value_balance +=
-            I128Amt::from(FromNt(Amount::from_pair(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?));
+        self.value_balance += I128Amt::from(FromNt(
+            Amount::from_pair(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?,
+        ));
 
         self.spends.push(SpendDescriptionInfo {
             extsk,
@@ -481,8 +482,9 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
             memo,
         )?;
 
-        self.value_balance -=
-            I128Amt::from(FromNt(Amount::from_pair(asset_type, value).map_err(|_| Error::InvalidAmount)?));
+        self.value_balance -= I128Amt::from(FromNt(
+            Amount::from_pair(asset_type, value).map_err(|_| Error::InvalidAmount)?,
+        ));
 
         self.outputs.push(output);
 
