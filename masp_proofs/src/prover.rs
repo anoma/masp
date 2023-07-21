@@ -150,7 +150,7 @@ impl LocalTxProver {
     //         spend_vk: p.spend_vk,
     //         output_params: p.output_params,
     //     }
-    // }
+    //}
 }
 
 impl TxProver for LocalTxProver {
