@@ -1,7 +1,7 @@
 use crate::{
     consensus::{self, BlockHeight},
     transaction::components::{
-        amount::{I64Amt, DEFAULT_FEE},
+        amount::{I64Sum, DEFAULT_FEE},
         transparent::fees as transparent,
     },
 };
@@ -10,12 +10,12 @@ use crate::{
 /// the transaction being constructed.
 #[derive(Clone, Debug)]
 pub struct FeeRule {
-    fixed_fee: I64Amt,
+    fixed_fee: I64Sum,
 }
 
 impl FeeRule {
     /// Creates a new nonstandard fixed fee rule with the specified fixed fee.
-    pub fn non_standard(fixed_fee: I64Amt) -> Self {
+    pub fn non_standard(fixed_fee: I64Sum) -> Self {
         Self { fixed_fee }
     }
 
@@ -27,7 +27,7 @@ impl FeeRule {
     }
 
     /// Returns the fixed fee amount which which this rule was configured.
-    pub fn fixed_fee(&self) -> I64Amt {
+    pub fn fixed_fee(&self) -> I64Sum {
         self.fixed_fee.clone()
     }
 }
@@ -42,7 +42,7 @@ impl super::FeeRule for FeeRule {
         _transparent_outputs: &[impl transparent::OutputView],
         _sapling_input_count: usize,
         _sapling_output_count: usize,
-    ) -> Result<I64Amt, Self::Error> {
+    ) -> Result<I64Sum, Self::Error> {
         Ok(self.fixed_fee.clone())
     }
 }

@@ -4,7 +4,7 @@ pub mod amount;
 pub mod sapling;
 pub mod transparent;
 pub use self::{
-    amount::{Amount, I64Amt},
+    amount::{I128Sum, I64Sum, ValueSum},
     sapling::{ConvertDescription, OutputDescription, SpendDescription},
     transparent::{TxIn, TxOut},
 };

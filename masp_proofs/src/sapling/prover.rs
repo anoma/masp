@@ -13,7 +13,7 @@ use masp_primitives::{
         redjubjub::{PrivateKey, PublicKey, Signature},
         Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed,
     },
-    transaction::components::I64Amt,
+    transaction::components::I128Sum,
 };
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
@@ -284,7 +284,7 @@ impl SaplingProvingContext {
     /// and output_proof() must be completed before calling this function.
     pub fn binding_sig(
         &self,
-        assets_and_values: &I64Amt,
+        assets_and_values: &I128Sum,
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
         // Initialize secure RNG
@@ -304,7 +304,7 @@ impl SaplingProvingContext {
                 .components()
                 .map(|(asset_type, value_balance)| {
                     // Compute value balance for each asset
-                    // Error for bad value balances (-INT64_MAX value)
+                    // Error for bad value balances (-INT128_MAX value)
                     masp_compute_value_balance(*asset_type, *value_balance)
                 })
                 .try_fold(self.cv_sum, |tmp, value_balance| {

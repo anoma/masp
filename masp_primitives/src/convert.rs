@@ -3,7 +3,7 @@ use crate::{
         pedersen_hash::{pedersen_hash, Personalization},
         Node, ValueCommitment,
     },
-    transaction::components::amount::{Amount, I64Amt},
+    transaction::components::amount::{I64Sum, ValueSum},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use group::{Curve, GroupEncoding};
@@ -16,7 +16,7 @@ use std::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AllowedConversion {
     /// The asset type that the note represents
-    assets: I64Amt,
+    assets: I64Sum,
     /// Memorize generator because it's expensive to recompute
     generator: jubjub::ExtendedPoint,
 }
@@ -71,15 +71,15 @@ impl AllowedConversion {
     }
 }
 
-impl From<AllowedConversion> for I64Amt {
-    fn from(allowed_conversion: AllowedConversion) -> I64Amt {
+impl From<AllowedConversion> for I64Sum {
+    fn from(allowed_conversion: AllowedConversion) -> I64Sum {
         allowed_conversion.assets
     }
 }
 
-impl From<I64Amt> for AllowedConversion {
+impl From<I64Sum> for AllowedConversion {
     /// Produces an asset generator without cofactor cleared
-    fn from(assets: I64Amt) -> Self {
+    fn from(assets: I64Sum) -> Self {
         let mut asset_generator = jubjub::ExtendedPoint::identity();
         for (asset, value) in assets.components() {
             // Compute the absolute value (failing if -i64::MAX is
@@ -123,7 +123,7 @@ impl BorshDeserialize for AllowedConversion {
     /// computation of checking whether the asset generator corresponds to the
     /// deserialized amount.
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        let assets = Amount::read(buf)?;
+        let assets = I64Sum::read(buf)?;
         let gen_bytes =
             <<jubjub::ExtendedPoint as GroupEncoding>::Repr as BorshDeserialize>::deserialize(buf)?;
         let generator = Option::from(jubjub::ExtendedPoint::from_bytes(&gen_bytes))
@@ -174,7 +174,7 @@ impl SubAssign for AllowedConversion {
 
 impl Sum for AllowedConversion {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        iter.fold(AllowedConversion::from(Amount::zero()), Add::add)
+        iter.fold(AllowedConversion::from(ValueSum::zero()), Add::add)
     }
 }
 
@@ -182,7 +182,7 @@ impl Sum for AllowedConversion {
 mod tests {
     use crate::asset_type::AssetType;
     use crate::convert::AllowedConversion;
-    use crate::transaction::components::amount::Amount;
+    use crate::transaction::components::amount::ValueSum;
 
     /// Generate ZEC asset type
     fn zec() -> AssetType {
@@ -199,11 +199,12 @@ mod tests {
     #[test]
     fn test_homomorphism() {
         // Left operand
-        let a = Amount::from_pair(zec(), 5i64).unwrap()
-            + Amount::from_pair(btc(), 6i64).unwrap()
-            + Amount::from_pair(xan(), 7i64).unwrap();
+        let a = ValueSum::from_pair(zec(), 5i64).unwrap()
+            + ValueSum::from_pair(btc(), 6i64).unwrap()
+            + ValueSum::from_pair(xan(), 7i64).unwrap();
         // Right operand
-        let b = Amount::from_pair(zec(), 2i64).unwrap() + Amount::from_pair(xan(), 10i64).unwrap();
+        let b =
+            ValueSum::from_pair(zec(), 2i64).unwrap() + ValueSum::from_pair(xan(), 10i64).unwrap();
         // Test homomorphism
         assert_eq!(
             AllowedConversion::from(a.clone() + b.clone()),
@@ -213,9 +214,9 @@ mod tests {
     #[test]
     fn test_serialization() {
         // Make conversion
-        let a: AllowedConversion = (Amount::from_pair(zec(), 5i64).unwrap()
-            + Amount::from_pair(btc(), 6i64).unwrap()
-            + Amount::from_pair(xan(), 7i64).unwrap())
+        let a: AllowedConversion = (ValueSum::from_pair(zec(), 5i64).unwrap()
+            + ValueSum::from_pair(btc(), 6i64).unwrap()
+            + ValueSum::from_pair(xan(), 7i64).unwrap())
         .into();
         // Serialize conversion
         let mut data = Vec::new();
