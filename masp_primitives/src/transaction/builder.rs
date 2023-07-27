@@ -597,9 +597,7 @@ mod tests {
             let builder = Builder::new(TEST_NETWORK, tx_height);
             assert_eq!(
                 builder.mock_build(),
-                Err(Error::InsufficientFunds(I128Sum::from(FromNt(
-                    DEFAULT_FEE.clone()
-                ))))
+                Err(Error::InsufficientFunds(FromNt(DEFAULT_FEE.clone()).into()))
             );
         }
 

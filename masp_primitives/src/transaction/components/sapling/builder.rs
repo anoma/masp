@@ -401,9 +401,8 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
 
         let alpha = jubjub::Fr::random(&mut rng);
 
-        self.value_balance += I128Sum::from(FromNt(
-            ValueSum::from_pair(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?,
-        ));
+        self.value_balance +=
+            ValueSum::from_pair(note.asset_type, note.value.into()).map_err(|_| Error::InvalidAmount)?;
 
         self.spends.push(SpendDescriptionInfo {
             extsk,
@@ -472,9 +471,8 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
             memo,
         )?;
 
-        self.value_balance -= I128Sum::from(FromNt(
-            ValueSum::from_pair(asset_type, value).map_err(|_| Error::InvalidAmount)?,
-        ));
+        self.value_balance -=
+            ValueSum::from_pair(asset_type, value.into()).map_err(|_| Error::InvalidAmount)?;
 
         self.outputs.push(output);
 
