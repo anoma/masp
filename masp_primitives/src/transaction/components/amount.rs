@@ -1,6 +1,6 @@
 use crate::asset_type::AssetType;
 use borsh::{BorshDeserialize, BorshSerialize};
-use num_traits::{CheckedAdd, CheckedMul, CheckedNeg, CheckedSub};
+use num_traits::{CheckedAdd, CheckedMul, CheckedNeg, CheckedSub, One};
 use std::cmp::Ordering;
 use std::collections::btree_map::Keys;
 use std::collections::btree_map::{IntoIter, Iter};
@@ -228,11 +228,11 @@ impl ValueSum<AssetType, i128> {
 impl<Unit, Magnitude> From<Unit> for ValueSum<Unit, Magnitude>
 where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize,
-    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + From<bool>,
+    Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + One,
 {
     fn from(atype: Unit) -> Self {
         let mut ret = BTreeMap::new();
-        ret.insert(atype, true.into());
+        ret.insert(atype, Magnitude::one());
         ValueSum(ret)
     }
 }
@@ -241,21 +241,37 @@ impl<Unit, Magnitude> PartialOrd for ValueSum<Unit, Magnitude>
 where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd,
-    Self: Sub<Self, Output = Self>,
 {
-    /// One Amount is more than or equal to another if each corresponding
-    /// coordinate is more than the other's.
+    /// One ValueSum is more than or equal to another if each corresponding
+    /// coordinate is more than or equal to the other's.
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let diff = other.clone() - self.clone();
-        if diff.0.values().all(|x| *x == Default::default()) {
-            Some(Ordering::Equal)
-        } else if diff.0.values().all(|x| *x >= Default::default()) {
-            Some(Ordering::Less)
-        } else if diff.0.values().all(|x| *x <= Default::default()) {
-            Some(Ordering::Greater)
-        } else {
-            None
+        let zero = Magnitude::default();
+        let mut ordering = Some(Ordering::Equal);
+        for k in self.0.keys().chain(other.0.keys()) {
+            let v1 = self.0.get(k).unwrap_or(&zero);
+            let v2 = other.0.get(k).unwrap_or(&zero);
+            match (v1.partial_cmp(v2), ordering) {
+                // Sums cannot be compared if even a single coordinate cannot be
+                // compared
+                (None, _) => ordering = None,
+                // If sums are uncomparable, less, greater, or equal, another
+                // equal coordinate will not change that
+                (Some(Ordering::Equal), _) => {}
+                // A lesser coordinate is inconsistent with the sum being
+                // greater, and vice-versa
+                (Some(Ordering::Less), Some(Ordering::Greater) | None) => ordering = None,
+                (Some(Ordering::Greater), Some(Ordering::Less) | None) => ordering = None,
+                // It only takes one lesser coordinate, to make a sum that
+                // otherwise would have been equal, to be lesser
+                (Some(Ordering::Less), Some(Ordering::Less | Ordering::Equal)) => {
+                    ordering = Some(Ordering::Less)
+                }
+                (Some(Ordering::Greater), Some(Ordering::Greater | Ordering::Equal)) => {
+                    ordering = Some(Ordering::Greater)
+                }
+            }
         }
+        ordering
     }
 }
 
