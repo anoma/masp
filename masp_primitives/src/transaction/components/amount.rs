@@ -11,10 +11,9 @@ use std::iter::Sum;
 use std::ops::{Add, AddAssign, Index, Mul, MulAssign, Neg, Sub, SubAssign};
 use zcash_encoding::Vector;
 
-pub const MAX_MONEY: i64 = i64::MAX;
-pub const MIN_MONEY: i64 = i64::MIN;
+pub const MAX_MONEY: u64 = u64::MAX;
 lazy_static::lazy_static! {
-pub static ref DEFAULT_FEE: I64Sum = ValueSum::from_pair(zec(), 1000).unwrap();
+pub static ref DEFAULT_FEE: U64Sum = ValueSum::from_pair(zec(), 1000).unwrap();
 }
 /// A type-safe representation of some quantity of Zcash.
 ///
@@ -76,9 +75,7 @@ where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + PartialOrd,
 {
-    /// Creates a non-negative Amount from an i64.
-    ///
-    /// Returns an error if the amount is outside the range `{0..MAX_MONEY}`.
+    /// Creates a non-negative Amount from a Magnitude.
     pub fn from_nonnegative(atype: Unit, amount: Magnitude) -> Result<Self, ()> {
         if amount == Magnitude::default() {
             Ok(Self::zero())
@@ -97,9 +94,7 @@ where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Magnitude: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default,
 {
-    /// Creates an Amount from a type convertible to i64.
-    ///
-    /// Returns an error if the amount is outside the range `{-MAX_MONEY..MAX_MONEY}`.
+    /// Creates an Amount from a Magnitude.
     pub fn from_pair(atype: Unit, amount: Magnitude) -> Result<Self, ()> {
         if amount == Magnitude::default() {
             Ok(Self::zero())
@@ -653,29 +648,29 @@ pub fn default_fee() -> ValueSum<AssetType, i64> {
 pub mod testing {
     use proptest::prelude::prop_compose;
 
-    use super::{I128Sum, I64Sum, ValueSum, MAX_MONEY};
+    use super::{I128Sum, I64Sum, U64Sum, ValueSum, MAX_MONEY};
     use crate::asset_type::testing::arb_asset_type;
 
     prop_compose! {
-        pub fn arb_i64_sum()(asset_type in arb_asset_type(), amt in -MAX_MONEY..MAX_MONEY) -> I64Sum {
+        pub fn arb_i64_sum()(asset_type in arb_asset_type(), amt in i64::MIN..i64::MAX) -> I64Sum {
             ValueSum::from_pair(asset_type, amt).unwrap()
         }
     }
 
     prop_compose! {
-        pub fn arb_i128_sum()(asset_type in arb_asset_type(), amt in -MAX_MONEY..MAX_MONEY) -> I128Sum {
+        pub fn arb_i128_sum()(asset_type in arb_asset_type(), amt in i128::MIN..i128::MAX) -> I128Sum {
             ValueSum::from_pair(asset_type, amt as i128).unwrap()
         }
     }
 
     prop_compose! {
-        pub fn arb_nonnegative_amount()(asset_type in arb_asset_type(), amt in 0i64..MAX_MONEY) -> I64Sum {
+        pub fn arb_nonnegative_amount()(asset_type in arb_asset_type(), amt in 0u64..MAX_MONEY) -> U64Sum {
             ValueSum::from_pair(asset_type, amt).unwrap()
         }
     }
 
     prop_compose! {
-        pub fn arb_positive_amount()(asset_type in arb_asset_type(), amt in 1i64..MAX_MONEY) -> I64Sum {
+        pub fn arb_positive_amount()(asset_type in arb_asset_type(), amt in 1u64..MAX_MONEY) -> U64Sum {
             ValueSum::from_pair(asset_type, amt).unwrap()
         }
     }
@@ -683,7 +678,7 @@ pub mod testing {
 
 #[cfg(test)]
 mod tests {
-    use super::{zec, I64Sum, ValueSum, MAX_MONEY, MIN_MONEY};
+    use super::{zec, I64Sum, ValueSum, MAX_MONEY};
 
     #[test]
     fn amount_in_range() {
@@ -700,7 +695,7 @@ mod tests {
 
         assert_eq!(
             I64Sum::read(&mut max_money.as_ref()).unwrap(),
-            I64Sum::from_pair(zec(), MAX_MONEY).unwrap()
+            I64Sum::from_pair(zec(), i64::MAX).unwrap()
         );
 
         //let max_money_p1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x40\x07\x5a\xf0\x75\x07\x00";
@@ -715,7 +710,7 @@ mod tests {
         let neg_max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x00\x00\x00\x00\x00\x00\x80";
         assert_eq!(
             I64Sum::read(&mut neg_max_money.as_ref()).unwrap(),
-            I64Sum::from_pair(zec(), -MAX_MONEY).unwrap()
+            I64Sum::from_pair(zec(), -i64::MAX).unwrap()
         );
     }
 
@@ -736,14 +731,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn sub_panics_on_underflow() {
-        let v = ValueSum::from_pair(zec(), MIN_MONEY).unwrap();
+        let v = ValueSum::from_pair(zec(), 0u64).unwrap();
         let _diff = v - ValueSum::from_pair(zec(), 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn sub_assign_panics_on_underflow() {
-        let mut a = ValueSum::from_pair(zec(), MIN_MONEY).unwrap();
+        let mut a = ValueSum::from_pair(zec(), 0u64).unwrap();
         a -= ValueSum::from_pair(zec(), 1).unwrap();
     }
 }

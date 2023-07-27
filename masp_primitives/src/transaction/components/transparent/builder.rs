@@ -105,10 +105,6 @@ impl TransparentBuilder {
     /// Adds a coin (the output of a previous transaction) to be spent to the transaction.
     #[cfg(feature = "transparent-inputs")]
     pub fn add_input(&mut self, coin: TxOut) -> Result<(), Error> {
-        if coin.value.is_negative() {
-            return Err(Error::InvalidAmount);
-        }
-
         self.inputs.push(TransparentInputInfo { coin });
 
         Ok(())
@@ -118,9 +114,9 @@ impl TransparentBuilder {
         &mut self,
         to: &TransparentAddress,
         asset_type: AssetType,
-        value: i64,
+        value: u64,
     ) -> Result<(), Error> {
-        if value < 0 || value > MAX_MONEY {
+        if value > MAX_MONEY {
             return Err(Error::InvalidAmount);
         }
 
@@ -138,13 +134,7 @@ impl TransparentBuilder {
         let input_sum = self
             .inputs
             .iter()
-            .map(|input| {
-                if input.coin.value >= 0 {
-                    ValueSum::from_pair(input.coin.asset_type, input.coin.value as i128)
-                } else {
-                    Err(())
-                }
-            })
+            .map(|input| ValueSum::from_pair(input.coin.asset_type, input.coin.value as i128))
             .sum::<Result<I128Sum, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
@@ -154,13 +144,7 @@ impl TransparentBuilder {
         let output_sum = self
             .vout
             .iter()
-            .map(|vo| {
-                if vo.value >= 0 {
-                    ValueSum::from_pair(vo.asset_type, vo.value as i128)
-                } else {
-                    Err(())
-                }
-            })
+            .map(|vo| ValueSum::from_pair(vo.asset_type, vo.value as i128))
             .sum::<Result<I128Sum, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
@@ -208,7 +192,7 @@ impl TransparentAuthorizingContext for Unauthorized {
 
 #[cfg(feature = "transparent-inputs")]
 impl TransparentAuthorizingContext for Unauthorized {
-    fn input_amounts(&self) -> Vec<(AssetType, i64)> {
+    fn input_amounts(&self) -> Vec<(AssetType, u64)> {
         return self
             .inputs
             .iter()

@@ -65,26 +65,14 @@ impl<A: Authorization> Bundle<A> {
         let input_sum = self
             .vin
             .iter()
-            .map(|p| {
-                if p.value >= 0 {
-                    ValueSum::from_pair(p.asset_type, p.value as i128)
-                } else {
-                    Err(())
-                }
-            })
+            .map(|p| ValueSum::from_pair(p.asset_type, p.value as i128))
             .sum::<Result<I128Sum, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
         let output_sum = self
             .vout
             .iter()
-            .map(|p| {
-                if p.value >= 0 {
-                    ValueSum::from_pair(p.asset_type, p.value as i128)
-                } else {
-                    Err(())
-                }
-            })
+            .map(|p| ValueSum::from_pair(p.asset_type, p.value as i128))
             .sum::<Result<I128Sum, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
@@ -96,7 +84,7 @@ impl<A: Authorization> Bundle<A> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxIn<A: Authorization> {
     pub asset_type: AssetType,
-    pub value: i64,
+    pub value: u64,
     pub address: TransparentAddress,
     pub transparent_sig: A::TransparentSig,
 }
@@ -112,9 +100,9 @@ impl TxIn<Authorized> {
         let value = {
             let mut tmp = [0u8; 8];
             reader.read_exact(&mut tmp)?;
-            i64::from_le_bytes(tmp)
+            u64::from_le_bytes(tmp)
         };
-        if value < 0 || value > MAX_MONEY {
+        if value > MAX_MONEY {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "value out of range",
@@ -144,7 +132,7 @@ impl TxIn<Authorized> {
 #[derive(Clone, Debug, Hash, PartialOrd, PartialEq, Ord, Eq)]
 pub struct TxOut {
     pub asset_type: AssetType,
-    pub value: i64,
+    pub value: u64,
     pub address: TransparentAddress,
 }
 
@@ -159,9 +147,9 @@ impl TxOut {
         let value = {
             let mut tmp = [0u8; 8];
             reader.read_exact(&mut tmp)?;
-            i64::from_le_bytes(tmp)
+            u64::from_le_bytes(tmp)
         };
-        if value < 0 || value > MAX_MONEY {
+        if value > MAX_MONEY {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "value out of range",

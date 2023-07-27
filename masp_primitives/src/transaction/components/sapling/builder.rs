@@ -146,7 +146,7 @@ impl SaplingOutputInfo {
         memo: MemoBytes,
     ) -> Result<Self, Error> {
         let g_d = to.g_d().ok_or(Error::InvalidAddress)?;
-        if value > MAX_MONEY.try_into().unwrap() {
+        if value > MAX_MONEY {
             return Err(Error::InvalidAmount);
         }
 

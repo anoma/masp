@@ -29,14 +29,14 @@ fn criterion_benchmark(c: &mut Criterion) {
     .unwrap();
 
     c.bench_function("convert", |b| {
-        let i = rng.next_u32();
+        let i = rng.next_u32() >> 1;
         let spend_asset = AssetType::new(format!("asset {}", i).as_bytes()).unwrap();
         let output_asset = AssetType::new(format!("asset {}", i + 1).as_bytes()).unwrap();
         let mint_asset = AssetType::new(b"reward").unwrap();
 
-        let spend_value = -(i as i64 + 1);
-        let output_value = i as i64 + 1;
-        let mint_value = i as i64 + 1;
+        let spend_value = -(i as i32 + 1);
+        let output_value = i as i32 + 1;
+        let mint_value = i as i32 + 1;
 
         let allowed_conversion: AllowedConversion = (ValueSum::from_pair(spend_asset, spend_value)
             .unwrap()
