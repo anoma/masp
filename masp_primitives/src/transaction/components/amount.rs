@@ -155,6 +155,41 @@ where
     }
 }
 
+impl ValueSum<AssetType, i32> {
+    /// Deserialize an Amount object from a list of amounts denominated by
+    /// different assets
+    pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        let vec = Vector::read(reader, |reader| {
+            let mut atype = [0; 32];
+            let mut value = [0; 4];
+            reader.read_exact(&mut atype)?;
+            reader.read_exact(&mut value)?;
+            let atype = AssetType::from_identifier(&atype).ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
+            })?;
+            Ok((atype, i32::from_le_bytes(value)))
+        })?;
+        let mut ret = Self::zero();
+        for (atype, amt) in vec {
+            ret += Self::from_pair(atype, amt).map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "amount out of range")
+            })?;
+        }
+        Ok(ret)
+    }
+
+    /// Serialize an Amount object into a list of amounts denominated by
+    /// distinct asset types
+    pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let vec: Vec<_> = self.components().collect();
+        Vector::write(writer, vec.as_ref(), |writer, elt| {
+            writer.write_all(elt.0.get_identifier())?;
+            writer.write_all(elt.1.to_le_bytes().as_ref())?;
+            Ok(())
+        })
+    }
+}
+
 impl ValueSum<AssetType, i64> {
     /// Deserialize an Amount object from a list of amounts denominated by
     /// different assets
