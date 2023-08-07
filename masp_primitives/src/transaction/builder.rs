@@ -18,7 +18,7 @@ use crate::{
     sapling::{prover::TxProver, Diversifier, Node, Note, PaymentAddress},
     transaction::{
         components::{
-            amount::{BalanceError, FromNt, I128Sum, U64Sum, ValueSum, MAX_MONEY},
+            amount::{BalanceError, I128Sum, U64Sum, ValueSum, MAX_MONEY},
             sapling::{
                 self,
                 builder::{SaplingBuilder, SaplingMetadata},
@@ -337,7 +337,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         //
 
         // After fees are accounted for, the value balance of the transaction must be zero.
-        let balance_after_fees = self.value_balance()? - I128Sum::from(FromNt(fee));
+        let balance_after_fees = self.value_balance()? - I128Sum::from_sum(fee);
 
         if balance_after_fees != ValueSum::zero() {
             return Err(Error::InsufficientFunds(-balance_after_fees));
@@ -479,7 +479,7 @@ mod tests {
         merkle_tree::{CommitmentTree, IncrementalWitness},
         sapling::Rseed,
         transaction::{
-            components::amount::{FromNt, I128Sum, ValueSum, DEFAULT_FEE},
+            components::amount::{I128Sum, ValueSum, DEFAULT_FEE},
             sapling::builder as build_s,
             TransparentAddress,
         },
@@ -580,7 +580,9 @@ mod tests {
             let builder = Builder::new(TEST_NETWORK, tx_height);
             assert_eq!(
                 builder.mock_build(),
-                Err(Error::InsufficientFunds(FromNt(DEFAULT_FEE.clone()).into()))
+                Err(Error::InsufficientFunds(I128Sum::from_sum(
+                    DEFAULT_FEE.clone()
+                )))
             );
         }
 
@@ -599,7 +601,7 @@ mod tests {
                 builder.mock_build(),
                 Err(Error::InsufficientFunds(
                     I128Sum::from_pair(zec(), 50000).unwrap()
-                        + &I128Sum::from(FromNt(DEFAULT_FEE.clone()))
+                        + &I128Sum::from_sum(DEFAULT_FEE.clone())
                 ))
             );
         }
@@ -615,7 +617,7 @@ mod tests {
                 builder.mock_build(),
                 Err(Error::InsufficientFunds(
                     I128Sum::from_pair(zec(), 50000).unwrap()
-                        + &I128Sum::from(FromNt(DEFAULT_FEE.clone()))
+                        + &I128Sum::from_sum(DEFAULT_FEE.clone())
                 ))
             );
         }

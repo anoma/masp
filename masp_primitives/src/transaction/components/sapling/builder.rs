@@ -25,7 +25,7 @@ use crate::{
     transaction::{
         builder::Progress,
         components::{
-            amount::{FromNt, I128Sum, I32Sum, ValueSum, MAX_MONEY},
+            amount::{I128Sum, I32Sum, ValueSum, MAX_MONEY},
             sapling::{
                 fees, Authorization, Authorized, Bundle, ConvertDescription, GrothProofBytes,
                 OutputDescription, SpendDescription,
@@ -438,7 +438,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         }
 
         let allowed_amt: I32Sum = allowed.clone().into();
-        self.value_balance += I128Sum::from(FromNt(allowed_amt)) * (value as i128);
+        self.value_balance += I128Sum::from_sum(allowed_amt) * (value as i128);
 
         self.converts.push(ConvertDescriptionInfo {
             allowed,
