@@ -6,7 +6,7 @@ use crate::{
     asset_type::AssetType,
     transaction::{
         components::{
-            amount::{Amount, BalanceError, MAX_MONEY},
+            amount::{BalanceError, I128Sum, ValueSum, MAX_MONEY},
             transparent::{self, fees, Authorization, Authorized, Bundle, TxIn, TxOut},
         },
         sighash::TransparentAuthorizingContext,
@@ -57,6 +57,7 @@ impl fees::InputView for TransparentInputInfo {
     }
 }
 
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct TransparentBuilder {
     #[cfg(feature = "transparent-inputs")]
     inputs: Vec<TransparentInputInfo>,
@@ -104,10 +105,6 @@ impl TransparentBuilder {
     /// Adds a coin (the output of a previous transaction) to be spent to the transaction.
     #[cfg(feature = "transparent-inputs")]
     pub fn add_input(&mut self, coin: TxOut) -> Result<(), Error> {
-        if coin.value.is_negative() {
-            return Err(Error::InvalidAmount);
-        }
-
         self.inputs.push(TransparentInputInfo { coin });
 
         Ok(())
@@ -117,50 +114,38 @@ impl TransparentBuilder {
         &mut self,
         to: &TransparentAddress,
         asset_type: AssetType,
-        value: i64,
+        value: u64,
     ) -> Result<(), Error> {
-        if value < 0 || value > MAX_MONEY {
+        if value > MAX_MONEY {
             return Err(Error::InvalidAmount);
         }
 
         self.vout.push(TxOut {
             asset_type,
             value,
-            transparent_address: *to,
+            address: *to,
         });
 
         Ok(())
     }
 
-    pub fn value_balance(&self) -> Result<Amount, BalanceError> {
+    pub fn value_balance(&self) -> Result<I128Sum, BalanceError> {
         #[cfg(feature = "transparent-inputs")]
         let input_sum = self
             .inputs
             .iter()
-            .map(|input| {
-                if input.coin.value >= 0 {
-                    Amount::from_pair(input.coin.asset_type, input.coin.value)
-                } else {
-                    Err(())
-                }
-            })
-            .sum::<Result<Amount, ()>>()
+            .map(|input| ValueSum::from_pair(input.coin.asset_type, input.coin.value as i128))
+            .sum::<Result<I128Sum, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
         #[cfg(not(feature = "transparent-inputs"))]
-        let input_sum = Amount::zero();
+        let input_sum = ValueSum::zero();
 
         let output_sum = self
             .vout
             .iter()
-            .map(|vo| {
-                if vo.value >= 0 {
-                    Amount::from_pair(vo.asset_type, vo.value)
-                } else {
-                    Err(())
-                }
-            })
-            .sum::<Result<Amount, ()>>()
+            .map(|vo| ValueSum::from_pair(vo.asset_type, vo.value as i128))
+            .sum::<Result<I128Sum, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
         // Cannot panic when subtracting two positive i64
@@ -169,12 +154,14 @@ impl TransparentBuilder {
 
     pub fn build(self) -> Option<transparent::Bundle<Unauthorized>> {
         #[cfg(feature = "transparent-inputs")]
-        let vin: Vec<TxIn> = self
+        let vin: Vec<TxIn<Unauthorized>> = self
             .inputs
             .iter()
-            .map(|i| TxIn {
+            .map(|i| TxIn::<Unauthorized> {
                 asset_type: i.coin.asset_type,
                 value: i.coin.value,
+                address: i.coin.address,
+                transparent_sig: (),
             })
             .collect();
 
@@ -198,18 +185,18 @@ impl TransparentBuilder {
 
 #[cfg(not(feature = "transparent-inputs"))]
 impl TransparentAuthorizingContext for Unauthorized {
-    fn input_amounts(&self) -> Vec<Amount> {
+    fn input_amounts(&self) -> Vec<(AssetType, i64)> {
         vec![]
     }
 }
 
 #[cfg(feature = "transparent-inputs")]
 impl TransparentAuthorizingContext for Unauthorized {
-    fn input_amounts(&self) -> Vec<Result<Amount, ()>> {
+    fn input_amounts(&self) -> Vec<(AssetType, u64)> {
         return self
             .inputs
             .iter()
-            .map(|txin| Amount::from_pair(txin.coin.asset_type, txin.coin.value))
+            .map(|txin| (txin.coin.asset_type, txin.coin.value))
             .collect();
     }
 }
@@ -217,7 +204,16 @@ impl TransparentAuthorizingContext for Unauthorized {
 impl Bundle<Unauthorized> {
     pub fn apply_signatures(self) -> Bundle<Authorized> {
         transparent::Bundle {
-            vin: self.vin,
+            vin: self
+                .vin
+                .iter()
+                .map(|txin| TxIn {
+                    asset_type: txin.asset_type,
+                    address: txin.address,
+                    value: txin.value,
+                    transparent_sig: (),
+                })
+                .collect(),
             vout: self.vout,
             authorization: Authorized,
         }

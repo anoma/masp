@@ -1,5 +1,6 @@
 //! Consensus logic and parameters.
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use memuse::DynamicUsage;
 use std::cmp::{Ord, Ordering};
 use std::convert::TryFrom;
@@ -9,7 +10,7 @@ use std::ops::{Add, Bound, RangeBounds, Sub};
 /// A wrapper type representing blockchain heights. Safe conversion from
 /// various integer types, as well as addition and subtraction, are provided.
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize)]
 pub struct BlockHeight(u32);
 
 memuse::impl_no_dynamic_usage!(BlockHeight);

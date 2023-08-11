@@ -11,7 +11,7 @@ use group::GroupEncoding;
 use crate::consensus::{BlockHeight, BranchId};
 
 use super::{
-    sapling::{self, OutputDescription, SpendDescription},
+    sapling::{self, ConvertDescription, OutputDescription, SpendDescription},
     transparent::{self, TxIn, TxOut},
     Authorization, Authorized, TransactionDigest, TransparentDigests, TxDigests, TxId, TxVersion,
 };
@@ -32,6 +32,8 @@ const ZCASH_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdOutputsHash";
 const ZCASH_SAPLING_SPENDS_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSSpendsHash";
 const ZCASH_SAPLING_SPENDS_COMPACT_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSSpendCHash";
 const ZCASH_SAPLING_SPENDS_NONCOMPACT_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSSpendNHash";
+
+const ZCASH_SAPLING_CONVERTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdConvertHash";
 
 const ZCASH_SAPLING_OUTPUTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSOutputHash";
 const ZCASH_SAPLING_OUTPUTS_COMPACT_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxIdSOutC__Hash";
@@ -62,10 +64,18 @@ pub(crate) fn transparent_outputs_hash<T: Borrow<TxOut>>(vout: &[T]) -> Blake2bH
 /// to a hash personalized by ZCASH_INPUTS_HASH_PERSONALIZATION.
 /// In the case that no inputs are provided, this produces a default
 /// hash from just the personalization string.
-pub(crate) fn transparent_inputs_hash<T: Borrow<TxIn>>(vin: &[T]) -> Blake2bHash {
+pub(crate) fn transparent_inputs_hash<
+    TransparentAuth: transparent::Authorization,
+    T: Borrow<TxIn<TransparentAuth>>,
+>(
+    vin: &[T],
+) -> Blake2bHash {
     let mut h = hasher(ZCASH_INPUTS_HASH_PERSONALIZATION);
     for t_in in vin {
-        t_in.borrow().write(&mut h).unwrap();
+        let t_in = t_in.borrow();
+        h.write_all(t_in.asset_type.get_identifier()).unwrap();
+        h.write_all(&t_in.value.to_le_bytes()).unwrap();
+        h.write_all(&t_in.address.0).unwrap();
     }
     h.finalize()
 }
@@ -101,6 +111,24 @@ pub(crate) fn hash_sapling_spends<A: sapling::Authorization + PartialEq>(
     h.finalize()
 }
 
+/// Implements ZIP 244-like hashing of MASP convert descriptions.
+///
+/// Write disjoint parts of each MASP shielded convert to a hash:
+/// * \[(cv, anchor)*\] - personalized with ZCASH_SAPLING_CONVERTS_HASH_PERSONALIZATION
+///
+pub(crate) fn hash_sapling_converts<Proof: Clone + PartialEq>(
+    shielded_converts: &[ConvertDescription<Proof>],
+) -> Blake2bHash {
+    let mut h = hasher(ZCASH_SAPLING_CONVERTS_HASH_PERSONALIZATION);
+    if !shielded_converts.is_empty() {
+        for s_convert in shielded_converts {
+            h.write_all(&s_convert.cv.to_bytes()).unwrap();
+            h.write_all(&s_convert.anchor.to_repr()).unwrap();
+        }
+    }
+    h.finalize()
+}
+
 /// Implements [ZIP 244 section T.3b](https://zips.z.cash/zip-0244#t-3b-sapling-outputs-digest)
 ///
 /// Write disjoint parts of each Sapling shielded output as 3 separate hashes:
@@ -120,12 +148,18 @@ pub(crate) fn hash_sapling_outputs<Proof: Clone>(
         for s_out in shielded_outputs {
             ch.write_all(s_out.cmu.to_repr().as_ref()).unwrap();
             ch.write_all(s_out.ephemeral_key.as_ref()).unwrap();
-            ch.write_all(&s_out.enc_ciphertext[..52]).unwrap();
+            ch.write_all(&s_out.enc_ciphertext[..masp_note_encryption::COMPACT_NOTE_SIZE])
+                .unwrap();
 
-            mh.write_all(&s_out.enc_ciphertext[52..564]).unwrap();
+            mh.write_all(
+                &s_out.enc_ciphertext[masp_note_encryption::COMPACT_NOTE_SIZE
+                    ..masp_note_encryption::NOTE_PLAINTEXT_SIZE],
+            )
+            .unwrap();
 
             nh.write_all(&s_out.cv.to_bytes()).unwrap();
-            nh.write_all(&s_out.enc_ciphertext[564..]).unwrap();
+            nh.write_all(&s_out.enc_ciphertext[masp_note_encryption::NOTE_PLAINTEXT_SIZE..])
+                .unwrap();
             nh.write_all(&s_out.out_ciphertext).unwrap();
         }
 
@@ -186,10 +220,14 @@ fn hash_sapling_txid_data<
     bundle: &sapling::Bundle<A>,
 ) -> Blake2bHash {
     let mut h = hasher(ZCASH_SAPLING_HASH_PERSONALIZATION);
-    if !(bundle.shielded_spends.is_empty() && bundle.shielded_outputs.is_empty()) {
+    if !(bundle.shielded_spends.is_empty()
+        && bundle.shielded_converts.is_empty()
+        && bundle.shielded_outputs.is_empty())
+    {
         h.write_all(hash_sapling_spends(&bundle.shielded_spends).as_bytes())
             .unwrap();
-
+        h.write_all(hash_sapling_converts(&bundle.shielded_converts).as_bytes())
+            .unwrap();
         h.write_all(hash_sapling_outputs(&bundle.shielded_outputs).as_bytes())
             .unwrap();
 
@@ -332,7 +370,7 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
             for txout in &bundle.vout {
                 h.write_all(txout.asset_type.get_identifier()).unwrap();
                 h.write_all(&txout.value.to_le_bytes()).unwrap();
-                h.write_all(&txout.transparent_address.serialize()).unwrap();
+                h.write_all(&txout.address.0).unwrap();
             }
         }
         h.finalize()

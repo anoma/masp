@@ -9,11 +9,11 @@ pub use self::prover::SaplingProvingContext;
 pub use self::verifier::{BatchValidator, SaplingVerificationContext};
 
 // This function computes `value` in the exponent of the value commitment base
-fn masp_compute_value_balance(asset_type: AssetType, value: i64) -> Option<jubjub::ExtendedPoint> {
-    // Compute the absolute value (failing if -i64::MAX is
+fn masp_compute_value_balance(asset_type: AssetType, value: i128) -> Option<jubjub::ExtendedPoint> {
+    // Compute the absolute value (failing if -i128::MAX is
     // the value)
     let abs = match value.checked_abs() {
-        Some(a) => a as u64,
+        Some(a) => a as u128,
         None => return None,
     };
 
@@ -21,7 +21,10 @@ fn masp_compute_value_balance(asset_type: AssetType, value: i64) -> Option<jubju
     let is_negative = value.is_negative();
 
     // Compute it in the exponent
-    let mut value_balance = asset_type.value_commitment_generator() * jubjub::Fr::from(abs);
+    let mut abs_bytes = [0u8; 32];
+    abs_bytes[0..16].copy_from_slice(&abs.to_le_bytes());
+    let mut value_balance =
+        asset_type.value_commitment_generator() * jubjub::Fr::from_bytes(&abs_bytes).unwrap();
 
     // Negate if necessary
     if is_negative {
