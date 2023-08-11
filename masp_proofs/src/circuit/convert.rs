@@ -1,8 +1,8 @@
-//! The Sapling circuits.
+//! The Convert circuit.
 
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
 
-use masp_primitives::primitives::ValueCommitment;
+use masp_primitives::sapling::ValueCommitment;
 
 use super::pedersen_hash;
 use crate::circuit::sapling::expose_value_commitment;
@@ -11,7 +11,7 @@ use bellman::gadgets::boolean;
 use bellman::gadgets::num;
 use bellman::gadgets::Assignment;
 
-pub const TREE_DEPTH: usize = zcash_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
+pub const TREE_DEPTH: usize = masp_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
 
 /// This is an instance of the `Convert` circuit.
 pub struct Convert {
@@ -129,9 +129,11 @@ impl Circuit<bls12_381::Scalar> for Convert {
 #[test]
 fn test_convert_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use ff::{Field, PrimeField, PrimeFieldBits};
-    use group::Curve;
-    use masp_primitives::{asset_type::AssetType, convert::AllowedConversion, pedersen_hash};
+    use group::{ff::Field, ff::PrimeField, ff::PrimeFieldBits, Curve};
+    use masp_primitives::{
+        asset_type::AssetType, convert::AllowedConversion, sapling::pedersen_hash,
+        transaction::components::ValueSum,
+    };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
 
@@ -148,17 +150,15 @@ fn test_convert_circuit_with_bls12_381() {
         let output_asset = AssetType::new(format!("asset {}", i + 1).as_bytes()).unwrap();
         let mint_asset = AssetType::new(b"reward").unwrap();
 
-        let spend_value = -(i as i64 + 1);
-        let output_value = i as i64 + 1;
-        let mint_value = i as i64 + 1;
+        let spend_value = -(i as i32 + 1);
+        let output_value = i as i32 + 1;
+        let mint_value = i as i32 + 1;
 
-        let allowed_conversion = AllowedConversion {
-            assets: vec![
-                (spend_asset, spend_value),
-                (output_asset, output_value),
-                (mint_asset, mint_value),
-            ],
-        };
+        let allowed_conversion: AllowedConversion = (ValueSum::from_pair(spend_asset, spend_value)
+            .unwrap()
+            + ValueSum::from_pair(output_asset, output_value).unwrap()
+            + ValueSum::from_pair(mint_asset, mint_value).unwrap())
+        .into();
 
         let value = rng.next_u64();
 
@@ -191,11 +191,11 @@ fn test_convert_circuit_with_bls12_381() {
                 cur = jubjub::ExtendedPoint::from(pedersen_hash::pedersen_hash(
                     pedersen_hash::Personalization::MerkleTree(i),
                     lhs.iter()
-                        .by_val()
+                        .by_vals()
                         .take(bls12_381::Scalar::NUM_BITS as usize)
                         .chain(
                             rhs.iter()
-                                .by_val()
+                                .by_vals()
                                 .take(bls12_381::Scalar::NUM_BITS as usize),
                         ),
                 ))

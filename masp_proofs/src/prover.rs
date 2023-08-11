@@ -5,13 +5,15 @@ use bls12_381::Bls12;
 use masp_primitives::{
     asset_type::AssetType,
     convert::AllowedConversion,
-    primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
-    prover::TxProver,
-    redjubjub::{PublicKey, Signature},
-    sapling::Node,
+    merkle_tree::MerklePath,
+    sapling::{
+        prover::TxProver,
+        redjubjub::{PublicKey, Signature},
+        Diversifier, Node, PaymentAddress, ProofGenerationKey, Rseed,
+    },
+    transaction::components::{I128Sum, GROTH_PROOF_SIZE},
 };
-use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
+use std::path::Path;
 
 use crate::{parse_parameters, sapling::SaplingProvingContext};
 
@@ -19,8 +21,6 @@ use crate::{parse_parameters, sapling::SaplingProvingContext};
 use crate::{
     default_params_folder, load_parameters, MASP_CONVERT_NAME, MASP_OUTPUT_NAME, MASP_SPEND_NAME,
 };
-#[cfg(feature = "local-prover")]
-use std::path::Path;
 
 /// An implementation of [`TxProver`] using Sapling Spend and Output parameters from
 /// locally-accessible paths.
@@ -42,9 +42,9 @@ impl LocalTxProver {
     /// use masp_proofs::prover::LocalTxProver;
     ///
     /// let tx_prover = LocalTxProver::new(
-    ///     Path::new("/path/to/sapling-spend.params"),
-    ///     Path::new("/path/to/sapling-output.params"),
-    ///     Path::new("/path/to/convert.params"),
+    ///     Path::new("/path/to/masp-spend.params"),
+    ///     Path::new("/path/to/masp-output.params"),
+    ///     Path::new("/path/to/masp-convert.params"),
     /// );
     /// ```
     ///
@@ -150,7 +150,7 @@ impl LocalTxProver {
     //         spend_vk: p.spend_vk,
     //         output_params: p.output_params,
     //     }
-    // }
+    //}
 }
 
 impl TxProver for LocalTxProver {
@@ -247,7 +247,7 @@ impl TxProver for LocalTxProver {
     fn binding_sig(
         &self,
         ctx: &mut Self::SaplingProvingContext,
-        assets_and_values: &[(AssetType, i64)],
+        assets_and_values: &I128Sum, //&[(AssetType, i64)],
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
         ctx.binding_sig(assets_and_values, sighash)

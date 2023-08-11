@@ -28,10 +28,7 @@ This Rust repository, by itself, is not a complete implementation of the MASP, a
 
 The `masp_proofs` crate contains the modified Spend and Output circuits to support multiple assets.
 
-Much of the code that supports the original Sapling circuits can be shared and reused with the MASP circuits. Therefore, the Zcash code is reused in two ways:
-
-1. Some code can be reused unmodified from `zcash_primitives` and `zcash_proofs` crates from `librustzcash`, which are directly imported from `librustzcash`'s GitHub repository. 
-2. Code from `zcash_primitives` and `zcash_proofs` that cannot be reused without modifications, or due to Rust import visibility rules, is placed in `masp_primitives` and `masp_proofs`. 
+Much of the code that supports the original Sapling circuits can be shared and reused with the MASP circuits. Therefore, certain code from `zcash_primitives` and `zcash_proofs` is placed in `masp_primitives` and `masp_proofs`. 
 
 New code related to asset types is included in `masp_primitives`. 
 
@@ -68,7 +65,7 @@ These libraries are currently under development and have not been fully-reviewed
 
 The following audits have been done on the MASP protocol:
 
-* [Inference AG](https://github.com/anoma/namada-audit/blob/main/audits/report-anoma-inference.pdf)
+* [Inference AG](https://github.com/anoma/namada/blob/main/audits/report-anoma-inference.pdf)
 * [Least Authority](https://leastauthority.com/static/publications/LeastAuthority_Tezos_Foundation_Multi_Asset_Shielded_Pool_Audit_Report.pdf)
 
 In addition, the original Zcash Sapling protocol was audited without the MASP extensions:

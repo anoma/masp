@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "masp_note_encryption",
     "masp_proofs",
     "masp_primitives"
 ]

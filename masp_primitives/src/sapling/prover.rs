@@ -1,16 +1,17 @@
 //! Abstractions over the proving system and parameters.
 
-use crate::primitives::{Diversifier, PaymentAddress, ProofGenerationKey};
-
-use crate::convert::AllowedConversion;
 use crate::{
-    redjubjub::{PublicKey, Signature},
-    sapling::Node,
+    asset_type::AssetType,
+    convert::AllowedConversion,
+    merkle_tree::MerklePath,
+    sapling::{
+        redjubjub::{PublicKey, Signature},
+        Node,
+    },
+    transaction::components::{I128Sum, GROTH_PROOF_SIZE},
 };
-use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
-use crate::asset_type::AssetType;
+use super::{Diversifier, PaymentAddress, ProofGenerationKey, Rseed};
 
 /// Interface for creating zero-knowledge proofs for shielded transactions.
 pub trait TxProver {
@@ -21,9 +22,10 @@ pub trait TxProver {
     fn new_sapling_proving_context(&self) -> Self::SaplingProvingContext;
 
     /// Create the value commitment, re-randomized key, and proof for a MASP
-    /// SpendDescription, while accumulating its value commitment randomness inside
+    /// [`SpendDescription`], while accumulating its value commitment randomness inside
     /// the context for later use.
-    ///
+    ///    
+    /// [`SpendDescription`]: crate::transaction::components::SpendDescription
     #[allow(clippy::too_many_arguments)]
     fn spend_proof(
         &self,
@@ -71,12 +73,12 @@ pub trait TxProver {
     fn binding_sig(
         &self,
         ctx: &mut Self::SaplingProvingContext,
-        assets_and_values: &[(AssetType, i64)],
+        amount: &I128Sum,
         sighash: &[u8; 32],
     ) -> Result<Signature, ()>;
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-dependencies"))]
 pub mod mock {
     use ff::Field;
     use rand_core::OsRng;
@@ -84,23 +86,19 @@ pub mod mock {
     use crate::{
         asset_type::AssetType,
         constants::SPENDING_KEY_GENERATOR,
-        primitives::{Diversifier, PaymentAddress, ProofGenerationKey},
+        convert::AllowedConversion,
+        merkle_tree::MerklePath,
+        sapling::{
+            redjubjub::{PublicKey, Signature},
+            Diversifier, Node, PaymentAddress, ProofGenerationKey, Rseed,
+        },
+        transaction::components::{I128Sum, GROTH_PROOF_SIZE},
     };
-
-    use crate::{
-        redjubjub::{PublicKey, Signature},
-        sapling::Node,
-    };
-    use zcash_primitives::transaction::components::GROTH_PROOF_SIZE;
-    use zcash_primitives::{merkle_tree::MerklePath, sapling::Rseed};
 
     use super::TxProver;
 
     pub struct MockTxProver;
 
-    use crate::convert::AllowedConversion;
-
-    #[cfg(test)]
     impl TxProver for MockTxProver {
         type SaplingProvingContext = ();
 
@@ -171,7 +169,7 @@ pub mod mock {
         fn binding_sig(
             &self,
             _ctx: &mut Self::SaplingProvingContext,
-            _assets_and_values: &[(AssetType, i64)],
+            _value: &I128Sum,
             _sighash: &[u8; 32],
         ) -> Result<Signature, ()> {
             Err(())

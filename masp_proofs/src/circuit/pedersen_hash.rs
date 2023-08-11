@@ -1,10 +1,10 @@
 //! Gadget for Zcash's Pedersen hash.
 
+use super::ecc::{EdwardsPoint, MontgomeryPoint};
 use bellman::gadgets::boolean::Boolean;
 use bellman::gadgets::lookup::*;
 use bellman::{ConstraintSystem, SynthesisError};
-pub use masp_primitives::pedersen_hash::Personalization;
-use zcash_proofs::circuit::ecc::{EdwardsPoint, MontgomeryPoint};
+pub use masp_primitives::sapling::pedersen_hash::Personalization;
 
 use crate::constants::PEDERSEN_CIRCUIT_GENERATORS;
 
@@ -107,9 +107,8 @@ mod test {
     use super::*;
     use bellman::gadgets::boolean::{AllocatedBit, Boolean};
     use bellman::gadgets::test::*;
-    use ff::PrimeField;
-    use group::Curve;
-    use masp_primitives::pedersen_hash;
+    use group::{ff::PrimeField, Curve};
+    use masp_primitives::sapling::pedersen_hash;
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
 
