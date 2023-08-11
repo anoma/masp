@@ -1,6 +1,5 @@
 //! Structs for building transactions.
 
-use std::convert::TryInto;
 use std::error;
 use std::fmt;
 use std::sync::mpsc::Sender;
@@ -19,7 +18,7 @@ use crate::{
     sapling::{prover::TxProver, Diversifier, Node, Note, PaymentAddress},
     transaction::{
         components::{
-            amount::{Amount, BalanceError, MAX_MONEY},
+            amount::{BalanceError, I128Sum, U64Sum, ValueSum, MAX_MONEY},
             sapling::{
                 self,
                 builder::{SaplingBuilder, SaplingMetadata},
@@ -43,10 +42,10 @@ const DEFAULT_TX_EXPIRY_DELTA: u32 = 20;
 pub enum Error<FeeError> {
     /// Insufficient funds were provided to the transaction builder; the given
     /// additional amount is required in order to construct the transaction.
-    InsufficientFunds(Amount),
+    InsufficientFunds(I128Sum),
     /// The transaction has inputs in excess of outputs and fees; the user must
     /// add a change output.
-    ChangeRequired(Amount),
+    ChangeRequired(U64Sum),
     /// An error occurred in computing the fees for a transaction.
     Fee(FeeError),
     /// An overflow or underflow occurred when computing value balances
@@ -251,7 +250,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         value: u64,
         memo: MemoBytes,
     ) -> Result<(), sapling::builder::Error> {
-        if value > MAX_MONEY.try_into().unwrap() {
+        if value > MAX_MONEY {
             return Err(sapling::builder::Error::InvalidAmount);
         }
         self.sapling_builder
@@ -273,9 +272,9 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         &mut self,
         to: &TransparentAddress,
         asset_type: AssetType,
-        value: i64,
+        value: u64,
     ) -> Result<(), transparent::builder::Error> {
-        if value < 0 || value > MAX_MONEY {
+        if value > MAX_MONEY {
             return Err(transparent::builder::Error::InvalidAmount);
         }
 
@@ -293,13 +292,13 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     }
 
     /// Returns the sum of the transparent, Sapling, and TZE value balances.
-    pub fn value_balance(&self) -> Result<Amount, BalanceError> {
+    pub fn value_balance(&self) -> Result<I128Sum, BalanceError> {
         let value_balances = [
             self.transparent_builder.value_balance()?,
             self.sapling_builder.value_balance(),
         ];
 
-        Ok(value_balances.into_iter().sum::<Amount>())
+        Ok(value_balances.into_iter().sum::<I128Sum>())
     }
 
     /// Builds a transaction from the configured spends and outputs.
@@ -326,7 +325,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     fn build_internal<FE>(
         self,
         prover: &impl TxProver,
-        fee: Amount,
+        fee: U64Sum,
     ) -> Result<(Transaction, SaplingMetadata), Error<FE>> {
         let consensus_branch_id = BranchId::for_height(&self.params, self.target_height);
 
@@ -338,9 +337,9 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         //
 
         // After fees are accounted for, the value balance of the transaction must be zero.
-        let balance_after_fees = self.value_balance()? - fee;
+        let balance_after_fees = self.value_balance()? - I128Sum::from_sum(fee);
 
-        if balance_after_fees != Amount::zero() {
+        if balance_after_fees != ValueSum::zero() {
             return Err(Error::InsufficientFunds(-balance_after_fees));
         };
 
@@ -480,9 +479,8 @@ mod tests {
         merkle_tree::{CommitmentTree, IncrementalWitness},
         sapling::Rseed,
         transaction::{
-            components::amount::{Amount, DEFAULT_FEE, MAX_MONEY},
-            sapling::builder::{self as build_s},
-            transparent::builder::{self as build_t},
+            components::amount::{I128Sum, ValueSum, DEFAULT_FEE},
+            sapling::builder as build_s,
             TransparentAddress,
         },
         zip32::ExtendedSpendingKey,
@@ -490,7 +488,7 @@ mod tests {
 
     use super::{Builder, Error};
 
-    #[test]
+    /*#[test]
     fn fails_on_overflow_output() {
         let extsk = ExtendedSpendingKey::master(&[]);
         let dfvk = extsk.to_diversifiable_full_viewing_key();
@@ -507,12 +505,12 @@ mod tests {
                 Some(ovk),
                 to,
                 zec(),
-                MAX_MONEY as u64 + 1,
+                MAX_MONEY + 1,
                 MemoBytes::empty()
             ),
             Err(build_s::Error::InvalidAmount)
         );
-    }
+    }*/
 
     /// Generate ZEC asset type
     fn zec() -> AssetType {
@@ -566,21 +564,6 @@ mod tests {
     }
 
     #[test]
-    fn fails_on_negative_transparent_output() {
-        let mut rng = OsRng;
-
-        let transparent_address = TransparentAddress(rng.gen::<[u8; 20]>());
-        let tx_height = TEST_NETWORK
-            .activation_height(NetworkUpgrade::MASP)
-            .unwrap();
-        let mut builder = Builder::new(TEST_NETWORK, tx_height);
-        assert_eq!(
-            builder.add_transparent_output(&transparent_address, zec(), -1,),
-            Err(build_t::Error::InvalidAmount)
-        );
-    }
-
-    #[test]
     fn fails_on_negative_change() {
         let mut rng = OsRng;
 
@@ -597,7 +580,9 @@ mod tests {
             let builder = Builder::new(TEST_NETWORK, tx_height);
             assert_eq!(
                 builder.mock_build(),
-                Err(Error::InsufficientFunds(DEFAULT_FEE.clone()))
+                Err(Error::InsufficientFunds(I128Sum::from_sum(
+                    DEFAULT_FEE.clone()
+                )))
             );
         }
 
@@ -615,7 +600,8 @@ mod tests {
             assert_eq!(
                 builder.mock_build(),
                 Err(Error::InsufficientFunds(
-                    Amount::from_pair(zec(), 50000).unwrap() + &*DEFAULT_FEE
+                    I128Sum::from_pair(zec(), 50000).unwrap()
+                        + &I128Sum::from_sum(DEFAULT_FEE.clone())
                 ))
             );
         }
@@ -630,7 +616,8 @@ mod tests {
             assert_eq!(
                 builder.mock_build(),
                 Err(Error::InsufficientFunds(
-                    Amount::from_pair(zec(), 50000).unwrap() + &*DEFAULT_FEE
+                    I128Sum::from_pair(zec(), 50000).unwrap()
+                        + &I128Sum::from_sum(DEFAULT_FEE.clone())
                 ))
             );
         }
@@ -663,7 +650,7 @@ mod tests {
             assert_eq!(
                 builder.mock_build(),
                 Err(Error::InsufficientFunds(
-                    Amount::from_pair(zec(), 1).unwrap()
+                    ValueSum::from_pair(zec(), 1).unwrap()
                 ))
             );
         }

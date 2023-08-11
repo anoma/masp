@@ -25,7 +25,7 @@ use crate::{
     transaction::{
         builder::Progress,
         components::{
-            amount::{Amount, MAX_MONEY},
+            amount::{I128Sum, I32Sum, ValueSum, MAX_MONEY},
             sapling::{
                 fees, Authorization, Authorized, Bundle, ConvertDescription, GrothProofBytes,
                 OutputDescription, SpendDescription,
@@ -146,7 +146,7 @@ impl SaplingOutputInfo {
         memo: MemoBytes,
     ) -> Result<Self, Error> {
         let g_d = to.g_d().ok_or(Error::InvalidAddress)?;
-        if value > MAX_MONEY.try_into().unwrap() {
+        if value > MAX_MONEY {
             return Err(Error::InvalidAmount);
         }
 
@@ -272,7 +272,7 @@ pub struct SaplingBuilder<P, Key = ExtendedSpendingKey> {
     params: P,
     spend_anchor: Option<bls12_381::Scalar>,
     target_height: BlockHeight,
-    value_balance: Amount,
+    value_balance: I128Sum,
     convert_anchor: Option<bls12_381::Scalar>,
     spends: Vec<SpendDescriptionInfo<Key>>,
     converts: Vec<ConvertDescriptionInfo>,
@@ -303,7 +303,7 @@ impl<P: BorshDeserialize, Key: BorshDeserialize> BorshDeserialize for SaplingBui
             .map(|x| x.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData)))
             .transpose()?;
         let target_height = BlockHeight::deserialize(buf)?;
-        let value_balance: Amount = Amount::deserialize(buf)?;
+        let value_balance = I128Sum::deserialize(buf)?;
         let convert_anchor: Option<Option<_>> =
             Option::<[u8; 32]>::deserialize(buf)?.map(|x| bls12_381::Scalar::from_bytes(&x).into());
         let convert_anchor = convert_anchor
@@ -347,7 +347,7 @@ impl<P, K> SaplingBuilder<P, K> {
             params,
             spend_anchor: None,
             target_height,
-            value_balance: Amount::zero(),
+            value_balance: ValueSum::zero(),
             convert_anchor: None,
             spends: vec![],
             converts: vec![],
@@ -370,7 +370,7 @@ impl<P, K> SaplingBuilder<P, K> {
     }
 
     /// Returns the net value represented by the spends and outputs added to this builder.
-    pub fn value_balance(&self) -> Amount {
+    pub fn value_balance(&self) -> I128Sum {
         self.value_balance.clone()
     }
 }
@@ -401,8 +401,8 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
 
         let alpha = jubjub::Fr::random(&mut rng);
 
-        self.value_balance +=
-            Amount::from_pair(note.asset_type, note.value).map_err(|_| Error::InvalidAmount)?;
+        self.value_balance += ValueSum::from_pair(note.asset_type, note.value.into())
+            .map_err(|_| Error::InvalidAmount)?;
 
         self.spends.push(SpendDescriptionInfo {
             extsk,
@@ -437,8 +437,8 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
             self.convert_anchor = Some(merkle_path.root(node).into())
         }
 
-        let allowed_amt: Amount = allowed.clone().into();
-        self.value_balance += allowed_amt * value.try_into().unwrap();
+        let allowed_amt: I32Sum = allowed.clone().into();
+        self.value_balance += I128Sum::from_sum(allowed_amt) * (value as i128);
 
         self.converts.push(ConvertDescriptionInfo {
             allowed,
@@ -472,7 +472,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         )?;
 
         self.value_balance -=
-            Amount::from_pair(asset_type, value).map_err(|_| Error::InvalidAmount)?;
+            ValueSum::from_pair(asset_type, value.into()).map_err(|_| Error::InvalidAmount)?;
 
         self.outputs.push(output);
 
@@ -488,6 +488,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         progress_notifier: Option<&Sender<Progress>>,
     ) -> Result<Option<Bundle<Unauthorized>>, Error> {
         // Record initial positions of spends and outputs
+        let value_balance = self.value_balance();
         let params = self.params;
         let mut indexed_spends: Vec<_> = self.spends.into_iter().enumerate().collect();
         let mut indexed_converts: Vec<_> = self.converts.into_iter().enumerate().collect();
@@ -723,7 +724,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                 shielded_spends,
                 shielded_converts,
                 shielded_outputs,
-                value_balance: self.value_balance,
+                value_balance,
                 authorization: Unauthorized { tx_metadata },
             })
         };

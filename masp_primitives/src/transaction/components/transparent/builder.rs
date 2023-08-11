@@ -6,7 +6,7 @@ use crate::{
     asset_type::AssetType,
     transaction::{
         components::{
-            amount::{Amount, BalanceError, MAX_MONEY},
+            amount::{BalanceError, I128Sum, ValueSum, MAX_MONEY},
             transparent::{self, fees, Authorization, Authorized, Bundle, TxIn, TxOut},
         },
         sighash::TransparentAuthorizingContext,
@@ -105,10 +105,6 @@ impl TransparentBuilder {
     /// Adds a coin (the output of a previous transaction) to be spent to the transaction.
     #[cfg(feature = "transparent-inputs")]
     pub fn add_input(&mut self, coin: TxOut) -> Result<(), Error> {
-        if coin.value.is_negative() {
-            return Err(Error::InvalidAmount);
-        }
-
         self.inputs.push(TransparentInputInfo { coin });
 
         Ok(())
@@ -118,9 +114,9 @@ impl TransparentBuilder {
         &mut self,
         to: &TransparentAddress,
         asset_type: AssetType,
-        value: i64,
+        value: u64,
     ) -> Result<(), Error> {
-        if value < 0 || value > MAX_MONEY {
+        if value > MAX_MONEY {
             return Err(Error::InvalidAmount);
         }
 
@@ -133,35 +129,23 @@ impl TransparentBuilder {
         Ok(())
     }
 
-    pub fn value_balance(&self) -> Result<Amount, BalanceError> {
+    pub fn value_balance(&self) -> Result<I128Sum, BalanceError> {
         #[cfg(feature = "transparent-inputs")]
         let input_sum = self
             .inputs
             .iter()
-            .map(|input| {
-                if input.coin.value >= 0 {
-                    Amount::from_pair(input.coin.asset_type, input.coin.value)
-                } else {
-                    Err(())
-                }
-            })
-            .sum::<Result<Amount, ()>>()
+            .map(|input| ValueSum::from_pair(input.coin.asset_type, input.coin.value as i128))
+            .sum::<Result<I128Sum, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
         #[cfg(not(feature = "transparent-inputs"))]
-        let input_sum = Amount::zero();
+        let input_sum = ValueSum::zero();
 
         let output_sum = self
             .vout
             .iter()
-            .map(|vo| {
-                if vo.value >= 0 {
-                    Amount::from_pair(vo.asset_type, vo.value)
-                } else {
-                    Err(())
-                }
-            })
-            .sum::<Result<Amount, ()>>()
+            .map(|vo| ValueSum::from_pair(vo.asset_type, vo.value as i128))
+            .sum::<Result<I128Sum, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
         // Cannot panic when subtracting two positive i64
@@ -208,7 +192,7 @@ impl TransparentAuthorizingContext for Unauthorized {
 
 #[cfg(feature = "transparent-inputs")]
 impl TransparentAuthorizingContext for Unauthorized {
-    fn input_amounts(&self) -> Vec<(AssetType, i64)> {
+    fn input_amounts(&self) -> Vec<(AssetType, u64)> {
         return self
             .inputs
             .iter()

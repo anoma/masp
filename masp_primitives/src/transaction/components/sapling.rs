@@ -23,7 +23,7 @@ use crate::{
     },
 };
 
-use super::{amount::Amount, GROTH_PROOF_SIZE};
+use super::{amount::I128Sum, GROTH_PROOF_SIZE};
 
 pub type GrothProofBytes = [u8; GROTH_PROOF_SIZE];
 
@@ -90,7 +90,7 @@ pub struct Bundle<A: Authorization + PartialEq + BorshSerialize + BorshDeseriali
     pub shielded_spends: Vec<SpendDescription<A>>,
     pub shielded_converts: Vec<ConvertDescription<A::Proof>>,
     pub shielded_outputs: Vec<OutputDescription<A::Proof>>,
-    pub value_balance: Amount,
+    pub value_balance: I128Sum,
     pub authorization: A,
 }
 
@@ -535,7 +535,7 @@ pub mod testing {
             Nullifier,
         },
         transaction::{
-            components::{amount::testing::arb_amount, GROTH_PROOF_SIZE},
+            components::{amount::testing::arb_i128_sum, GROTH_PROOF_SIZE},
             TxVersion,
         },
     };
@@ -614,7 +614,7 @@ pub mod testing {
             shielded_spends in vec(arb_spend_description(), 0..30),
             shielded_converts in vec(arb_convert_description(), 0..30),
             shielded_outputs in vec(arb_output_description(), 0..30),
-            value_balance in arb_amount(),
+            value_balance in arb_i128_sum(),
             rng_seed in prop::array::uniform32(prop::num::u8::ANY),
             fake_bvk_bytes in prop::array::uniform32(prop::num::u8::ANY),
         ) -> Option<Bundle<Authorized>> {

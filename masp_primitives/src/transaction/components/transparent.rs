@@ -7,7 +7,7 @@ use std::io::{self, Read, Write};
 use crate::asset_type::AssetType;
 use crate::transaction::TransparentAddress;
 
-use super::amount::{Amount, BalanceError, MAX_MONEY};
+use super::amount::{BalanceError, I128Sum, ValueSum, MAX_MONEY};
 
 pub mod builder;
 pub mod fees;
@@ -58,34 +58,22 @@ impl<A: Authorization> Bundle<A> {
     /// transferred out of the transparent pool into shielded pools or to fees; a negative value
     /// means that the containing transaction has funds being transferred into the transparent pool
     /// from the shielded pools.
-    pub fn value_balance<E, F>(&self) -> Result<Amount, E>
+    pub fn value_balance<E, F>(&self) -> Result<I128Sum, E>
     where
         E: From<BalanceError>,
     {
         let input_sum = self
             .vin
             .iter()
-            .map(|p| {
-                if p.value >= 0 {
-                    Amount::from_pair(p.asset_type, p.value)
-                } else {
-                    Err(())
-                }
-            })
-            .sum::<Result<Amount, ()>>()
+            .map(|p| ValueSum::from_pair(p.asset_type, p.value as i128))
+            .sum::<Result<I128Sum, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
         let output_sum = self
             .vout
             .iter()
-            .map(|p| {
-                if p.value >= 0 {
-                    Amount::from_pair(p.asset_type, p.value)
-                } else {
-                    Err(())
-                }
-            })
-            .sum::<Result<Amount, ()>>()
+            .map(|p| ValueSum::from_pair(p.asset_type, p.value as i128))
+            .sum::<Result<I128Sum, ()>>()
             .map_err(|_| BalanceError::Overflow)?;
 
         // Cannot panic when subtracting two positive i64
@@ -96,7 +84,7 @@ impl<A: Authorization> Bundle<A> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxIn<A: Authorization> {
     pub asset_type: AssetType,
-    pub value: i64,
+    pub value: u64,
     pub address: TransparentAddress,
     pub transparent_sig: A::TransparentSig,
 }
@@ -112,9 +100,9 @@ impl TxIn<Authorized> {
         let value = {
             let mut tmp = [0u8; 8];
             reader.read_exact(&mut tmp)?;
-            i64::from_le_bytes(tmp)
+            u64::from_le_bytes(tmp)
         };
-        if value < 0 || value > MAX_MONEY {
+        if value > MAX_MONEY {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "value out of range",
@@ -144,7 +132,7 @@ impl TxIn<Authorized> {
 #[derive(Clone, Debug, Hash, PartialOrd, PartialEq, Ord, Eq)]
 pub struct TxOut {
     pub asset_type: AssetType,
-    pub value: i64,
+    pub value: u64,
     pub address: TransparentAddress,
 }
 
@@ -159,9 +147,9 @@ impl TxOut {
         let value = {
             let mut tmp = [0u8; 8];
             reader.read_exact(&mut tmp)?;
-            i64::from_le_bytes(tmp)
+            u64::from_le_bytes(tmp)
         };
-        if value < 0 || value > MAX_MONEY {
+        if value > MAX_MONEY {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "value out of range",

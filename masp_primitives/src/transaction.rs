@@ -25,7 +25,7 @@ use crate::{
 
 use self::{
     components::{
-        amount::Amount,
+        amount::{I128Sum, ValueSum},
         sapling::{
             self, ConvertDescriptionV5, OutputDescriptionV5, SpendDescription, SpendDescriptionV5,
         },
@@ -269,10 +269,10 @@ impl<A: Authorization> TransactionData<A> {
 }
 
 impl<A: Authorization> TransactionData<A> {
-    pub fn sapling_value_balance(&self) -> Amount {
+    pub fn sapling_value_balance(&self) -> I128Sum {
         self.sapling_bundle
             .as_ref()
-            .map_or(Amount::zero(), |b| b.value_balance.clone())
+            .map_or(ValueSum::zero(), |b| b.value_balance.clone())
     }
 }
 
@@ -355,8 +355,8 @@ impl Transaction {
         })
     }
 
-    fn read_amount<R: Read>(mut reader: R) -> io::Result<Amount> {
-        Amount::read(&mut reader).map_err(|_| {
+    fn read_i128_sum<R: Read>(mut reader: R) -> io::Result<I128Sum> {
+        I128Sum::read(&mut reader).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Amount valueBalance out of range",
@@ -407,9 +407,9 @@ impl Transaction {
         let n_converts = cd_v5s.len();
         let n_outputs = od_v5s.len();
         let value_balance = if n_spends > 0 || n_outputs > 0 {
-            Self::read_amount(&mut reader)?
+            Self::read_i128_sum(&mut reader)?
         } else {
-            Amount::zero()
+            ValueSum::zero()
         };
 
         let spend_anchor = if n_spends > 0 {
