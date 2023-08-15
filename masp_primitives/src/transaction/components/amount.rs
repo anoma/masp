@@ -160,13 +160,9 @@ impl ValueSum<AssetType, i32> {
     /// different assets
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
-            let mut atype = [0; 32];
+            let atype = AssetType::read(reader)?;
             let mut value = [0; 4];
-            reader.read_exact(&mut atype)?;
             reader.read_exact(&mut value)?;
-            let atype = AssetType::from_identifier(&atype).ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
-            })?;
             Ok((atype, i32::from_le_bytes(value)))
         })?;
         let mut ret = Self::zero();
@@ -195,13 +191,9 @@ impl ValueSum<AssetType, i64> {
     /// different assets
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
-            let mut atype = [0; 32];
+            let atype = AssetType::read(reader)?;
             let mut value = [0; 8];
-            reader.read_exact(&mut atype)?;
             reader.read_exact(&mut value)?;
-            let atype = AssetType::from_identifier(&atype).ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
-            })?;
             Ok((atype, i64::from_le_bytes(value)))
         })?;
         let mut ret = Self::zero();
@@ -230,13 +222,9 @@ impl ValueSum<AssetType, i128> {
     /// different assets
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
-            let mut atype = [0; 32];
+            let atype = AssetType::read(reader)?;
             let mut value = [0; 16];
-            reader.read_exact(&mut atype)?;
             reader.read_exact(&mut value)?;
-            let atype = AssetType::from_identifier(&atype).ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
-            })?;
             Ok((atype, i128::from_le_bytes(value)))
         })?;
         let mut ret = Self::zero();

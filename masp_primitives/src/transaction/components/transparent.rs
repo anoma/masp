@@ -91,12 +91,7 @@ pub struct TxIn<A: Authorization> {
 
 impl TxIn<Authorized> {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let asset_type = {
-            let mut tmp = [0u8; 32];
-            reader.read_exact(&mut tmp)?;
-            AssetType::from_identifier(&tmp)
-        }
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid asset identifier"))?;
+        let asset_type = AssetType::read(reader)?;
         let value = {
             let mut tmp = [0u8; 8];
             reader.read_exact(&mut tmp)?;
@@ -138,12 +133,7 @@ pub struct TxOut {
 
 impl TxOut {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let asset_type = {
-            let mut tmp = [0u8; 32];
-            reader.read_exact(&mut tmp)?;
-            AssetType::from_identifier(&tmp)
-        }
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid asset identifier"))?;
+        let asset_type = AssetType::read(reader)?;
         let value = {
             let mut tmp = [0u8; 8];
             reader.read_exact(&mut tmp)?;
