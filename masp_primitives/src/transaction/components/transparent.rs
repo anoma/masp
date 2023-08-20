@@ -237,3 +237,81 @@ pub mod testing {
         }
     }
 }
+
+#[cfg(test)]
+mod test_serialization {
+    use super::*;
+
+    /// Simple test that a serialization round trip is the identity
+    #[test]
+    fn test_roundtrip_txin() {
+        let asset_type = AssetType::new_with_nonce(&[1, 2, 3, 4], 1).expect("Test failed");
+        let txin = TxIn::<Authorized> {
+            asset_type,
+            value: MAX_MONEY - 1,
+            address: TransparentAddress([12u8; 20]),
+            transparent_sig: (),
+        };
+
+        let mut buf = vec![];
+        txin.write(&mut buf).expect("Test failed");
+        let deserialized = TxIn::read::<&[u8]>(&mut buf.as_ref()).expect("Test failed");
+        assert_eq!(deserialized, txin);
+    }
+
+    /// Simple test that a serialization round trip is the identity
+    #[test]
+    fn test_roundtrip_txout() {
+        let asset_type = AssetType::new_with_nonce(&[1, 2, 3, 4], 1).expect("Test failed");
+        let txout = TxOut {
+            asset_type,
+            value: MAX_MONEY - 1,
+            address: TransparentAddress([12u8; 20]),
+        };
+
+        let mut buf = vec![];
+        txout.write(&mut buf).expect("Test failed");
+        let deserialized = TxOut::read::<&[u8]>(&mut buf.as_ref()).expect("Test failed");
+        assert_eq!(deserialized, txout);
+    }
+
+    /// Test value bounds checking
+    #[test]
+    fn test_value_bounds_txin() {
+        let asset_type = AssetType::new_with_nonce(&[1, 2, 3, 4], 1).expect("Test failed");
+        let txin = TxIn::<Authorized> {
+            asset_type,
+            value: MAX_MONEY.wrapping_add(1),
+            address: TransparentAddress([12u8; 20]),
+            transparent_sig: (),
+        };
+        let mut buf = vec![];
+        assert!(txin.write(&mut buf).is_err());
+        let mut buf = vec![];
+        Write::write_all(&mut buf, txin.asset_type.get_identifier()).expect("Test failed");
+        Write::write_all(&mut buf, &txin.value.to_le_bytes()).expect("Test failed");
+        Write::write_all(&mut buf, &txin.address.0).expect("Test failed");
+        let deserialized = TxIn::read::<&[u8]>(&mut buf.as_ref()).expect("Test failed");
+        assert_ne!(deserialized, txin);
+    }
+
+    /// Test value bounds checking
+    #[test]
+    fn test_value_bounds_txout() {
+        let asset_type = AssetType::new_with_nonce(&[1, 2, 3, 4], 1).expect("Test failed");
+        let txout = TxOut {
+            asset_type,
+            value: MAX_MONEY.wrapping_add(1),
+            address: TransparentAddress([12u8; 20]),
+        };
+        let mut buf = vec![];
+        assert!(txout.write(&mut buf).is_err());
+        let mut buf = vec![];
+        Write::write_all(&mut buf, txout.asset_type.get_identifier()).expect("Test failed");
+        Write::write_all(&mut buf, &txout.value.to_le_bytes()).expect("Test failed");
+        Write::write_all(&mut buf, &txout.address.0).expect("Test failed");
+
+        let deserialized = TxOut::read::<&[u8]>(&mut buf.as_ref()).expect("Test failed");
+        assert_ne!(deserialized, txout);
+    }
+}
