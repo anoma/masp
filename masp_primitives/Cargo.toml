@@ -21,7 +21,7 @@ categories = ["cryptography::cryptocurrencies"]
 all-features = true
 
 [dependencies]
-zcash_encoding = { version = "0.0", git = "https://github.com/zcash/librustzcash", rev = "43c18d0" }
+zcash_encoding = { version = "0.2", git = "https://github.com/zcash/librustzcash", rev = "bd7f9d7" }
 
 # Dependencies exposed in a public API:
 # (Breaking upgrades to these require a breaking upgrade to this crate.)
@@ -75,7 +75,7 @@ fpe = "0.6"
 
 borsh = { version = "0.9", features = ["const-generics"] }
 [dependencies.masp_note_encryption]
-version = "0.2"
+version = "0.4"
 path = "../masp_note_encryption"
 features = ["pre-zip-212"]
 
