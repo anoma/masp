@@ -1,7 +1,7 @@
 [package]
 name = "masp_proofs"
 description = "Experimental MASP zk-SNARK circuits and proving APIs, based on zcash_proofs"
-version = "0.12.1"
+version = "0.9.0"
 authors = ["Jack Grigg <jack@z.cash>", "joe <joe@heliax.dev>"]
 homepage = "https://github.com/anoma/masp"
 repository = "https://github.com/anoma/masp"
@@ -15,7 +15,7 @@ categories = ["cryptography::cryptocurrencies"]
 all-features = true
 
 [dependencies]
-masp_primitives = { version = "0.12", path = "../masp_primitives" }
+masp_primitives = { version = "0.9", path = "../masp_primitives" }
 
 # Dependencies exposed in a public API:
 # (Breaking upgrades to these require a breaking upgrade to this crate.)
