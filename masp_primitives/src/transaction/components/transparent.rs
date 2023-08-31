@@ -227,3 +227,41 @@ pub mod testing {
         }
     }
 }
+
+#[cfg(test)]
+mod test_serialization {
+    use super::*;
+
+    /// Simple test that a serialization round trip is the identity
+    #[test]
+    fn test_roundtrip_txin() {
+        let asset_type = AssetType::new_with_nonce(&[1, 2, 3, 4], 1).expect("Test failed");
+        let txin = TxIn::<Authorized> {
+            asset_type,
+            value: MAX_MONEY - 1,
+            address: TransparentAddress([12u8; 20]),
+            transparent_sig: (),
+        };
+
+        let mut buf = vec![];
+        txin.write(&mut buf).expect("Test failed");
+        let deserialized = TxIn::read::<&[u8]>(&mut buf.as_ref()).expect("Test failed");
+        assert_eq!(deserialized, txin);
+    }
+
+    /// Simple test that a serialization round trip is the identity
+    #[test]
+    fn test_roundtrip_txout() {
+        let asset_type = AssetType::new_with_nonce(&[1, 2, 3, 4], 1).expect("Test failed");
+        let txout = TxOut {
+            asset_type,
+            value: MAX_MONEY - 1,
+            address: TransparentAddress([12u8; 20]),
+        };
+
+        let mut buf = vec![];
+        txout.write(&mut buf).expect("Test failed");
+        let deserialized = TxOut::read::<&[u8]>(&mut buf.as_ref()).expect("Test failed");
+        assert_eq!(deserialized, txout);
+    }
+}
