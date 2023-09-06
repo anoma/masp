@@ -644,7 +644,7 @@ pub mod testing {
     }
 
     prop_compose! {
-        /// produce a spend description with invalid data (useful only for serialization
+        /// produce a convert description with invalid data (useful only for serialization
         /// roundtrip testing).
         pub fn arb_convert_description()(
             cv in arb_extended_point(),
