@@ -3,7 +3,7 @@ use crate::{
         pedersen_hash::{pedersen_hash, Personalization},
         Node, ValueCommitment,
     },
-    transaction::components::amount::{I32Sum, ValueSum},
+    transaction::components::amount::{I128Sum, ValueSum},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use group::{Curve, GroupEncoding};
@@ -16,7 +16,7 @@ use std::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AllowedConversion {
     /// The asset type that the note represents
-    assets: I32Sum,
+    assets: I128Sum,
     /// Memorize generator because it's expensive to recompute
     generator: jubjub::ExtendedPoint,
 }
@@ -71,15 +71,15 @@ impl AllowedConversion {
     }
 }
 
-impl From<AllowedConversion> for I32Sum {
-    fn from(allowed_conversion: AllowedConversion) -> I32Sum {
+impl From<AllowedConversion> for I128Sum {
+    fn from(allowed_conversion: AllowedConversion) -> I128Sum {
         allowed_conversion.assets
     }
 }
 
-impl From<I32Sum> for AllowedConversion {
+impl From<I128Sum> for AllowedConversion {
     /// Produces an asset generator without cofactor cleared
-    fn from(assets: I32Sum) -> Self {
+    fn from(assets: I128Sum) -> Self {
         let mut asset_generator = jubjub::ExtendedPoint::identity();
         for (asset, value) in assets.components() {
             // Compute the absolute value (failing if -i64::MAX is
@@ -123,7 +123,7 @@ impl BorshDeserialize for AllowedConversion {
     /// computation of checking whether the asset generator corresponds to the
     /// deserialized amount.
     fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        let assets = I32Sum::read(buf)?;
+        let assets = I128Sum::read(buf)?;
         let gen_bytes =
             <<jubjub::ExtendedPoint as GroupEncoding>::Repr as BorshDeserialize>::deserialize(buf)?;
         let generator = Option::from(jubjub::ExtendedPoint::from_bytes(&gen_bytes))
