@@ -18,6 +18,9 @@ use crate::constants::{
 use bellman::gadgets::{blake2s, boolean, multipack, num, Assignment};
 use itertools::multizip;
 
+#[cfg(test)]
+use masp_primitives::sapling::NoteValue;
+
 pub const TREE_DEPTH: usize = SAPLING_COMMITMENT_TREE_DEPTH;
 
 /// This is an instance of the `Spend` circuit.
@@ -647,7 +650,6 @@ fn test_input_circuit_with_bls12_381() {
             }
         }
 
-        let g_d = payment_address.diversifier().g_d().unwrap();
         let commitment_randomness = jubjub::Fr::random(&mut rng);
         let auth_path =
             vec![Some((bls12_381::Scalar::random(&mut rng), rng.next_u32() % 2 != 0)); tree_depth];
@@ -657,13 +659,12 @@ fn test_input_circuit_with_bls12_381() {
             let rk = jubjub::ExtendedPoint::from(viewing_key.rk(ar)).to_affine();
             let expected_value_commitment =
                 jubjub::ExtendedPoint::from(value_commitment.commitment()).to_affine();
-            let note = Note {
+            let note = Note::from_parts(
                 asset_type,
-                value: value_commitment.value,
-                g_d,
-                pk_d: *payment_address.pk_d(),
-                rseed: Rseed::BeforeZip212(commitment_randomness),
-            };
+                payment_address,
+                NoteValue::from_raw(value_commitment.value),
+                Rseed::BeforeZip212(commitment_randomness),
+            );
 
             let mut position = 0u64;
             let cmu = note.cmu();
@@ -770,7 +771,6 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
-
     let mut rng = XorShiftRng::from_seed([
         0x59, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
         0xe5,
@@ -836,7 +836,6 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
             }
         }
 
-        let g_d = payment_address.diversifier().g_d().unwrap();
         let commitment_randomness = jubjub::Fr::random(&mut rng);
         let auth_path =
             vec![Some((bls12_381::Scalar::random(&mut rng), rng.next_u32() % 2 != 0)); tree_depth];
@@ -854,13 +853,12 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
                 expected_value_commitment.get_v(),
                 bls12_381::Scalar::from_str_vartime(expected_commitment_vs[i as usize]).unwrap()
             );
-            let note = Note {
+            let note = Note::from_parts(
                 asset_type,
-                value: value_commitment.value,
-                g_d,
-                pk_d: *payment_address.pk_d(),
-                rseed: Rseed::BeforeZip212(commitment_randomness),
-            };
+                payment_address,
+                NoteValue::from_raw(value_commitment.value),
+                Rseed::BeforeZip212(commitment_randomness),
+            );
 
             let mut position = 0u64;
             let cmu = note.cmu();
@@ -1030,7 +1028,6 @@ fn test_output_circuit_with_bls12_381() {
                     value_commitment.value,
                     Rseed::BeforeZip212(commitment_randomness),
                 )
-                .expect("should be valid")
                 .cmu();
 
             let expected_value_commitment =

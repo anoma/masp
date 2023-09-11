@@ -143,7 +143,7 @@ where
     let pk_d = get_validated_pk_d(&diversifier)?;
 
     let to = PaymentAddress::from_parts(diversifier, pk_d)?;
-    let note = to.create_note(asset_type, value, rseed)?;
+    let note = to.create_note(asset_type, value.into(), rseed);
     Some((note, to))
 }
 
@@ -175,9 +175,9 @@ impl<P: consensus::Parameters> SaplingDomain<P> {
 
 impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
     type EphemeralSecretKey = jubjub::Scalar;
-    // It is acceptable for this to be a point because we enforce by consensus that
-    // points must not be small-order, and all points with non-canonical serialization
-    // are small-order.
+    // It is acceptable for this to be a point rather than a byte array, because we
+    // enforce by consensus that points must not be small-order, and all points with
+    // non-canonical serialization are small-order.
     type EphemeralPublicKey = jubjub::ExtendedPoint;
     type PreparedEphemeralPublicKey = PreparedEphemeralPublicKey;
     type SharedSecret = jubjub::SubgroupPoint;
@@ -197,7 +197,7 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
     }
 
     fn get_pk_d(note: &Self::Note) -> Self::DiversifiedTransmissionKey {
-        note.pk_d
+        *note.recipient().pk_d()
     }
 
     fn prepare_epk(epk: Self::EphemeralPublicKey) -> Self::PreparedEphemeralPublicKey {
@@ -213,7 +213,7 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
         // for efficiency of encryption. The conversion here is fine
         // because the output of this function is only used for
         // encoding and the byte encoding is unaffected by the conversion.
-        (note.g_d * esk).into()
+        (note.recipient().g_d().unwrap() * esk).into()
     }
 
     fn ka_agree_enc(
@@ -237,11 +237,7 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
         kdf_sapling(dhsecret, epk)
     }
 
-    fn note_plaintext_bytes(
-        note: &Self::Note,
-        to: &Self::Recipient,
-        memo: &Self::Memo,
-    ) -> NotePlaintextBytes {
+    fn note_plaintext_bytes(note: &Self::Note, memo: &Self::Memo) -> NotePlaintextBytes {
         // Note plaintext encoding is defined in section 5.5 of the Zcash Protocol
         // Specification.
         let mut input = [0; NOTE_PLAINTEXT_SIZE];
@@ -249,9 +245,9 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
             Rseed::BeforeZip212(_) => 1,
             Rseed::AfterZip212(_) => 2,
         };
-        input[1..12].copy_from_slice(&to.diversifier().0);
+        input[1..12].copy_from_slice(&note.recipient().diversifier().0);
         (&mut input[12..20])
-            .write_u64::<LittleEndian>(note.value)
+            .write_u64::<LittleEndian>(note.value().inner())
             .unwrap();
 
         input[20..52].copy_from_slice(note.asset_type.get_identifier());
@@ -283,7 +279,7 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
         esk: &Self::EphemeralSecretKey,
     ) -> OutPlaintextBytes {
         let mut input = [0u8; OUT_PLAINTEXT_SIZE];
-        input[0..32].copy_from_slice(&note.pk_d.to_bytes());
+        input[0..32].copy_from_slice(&note.recipient().pk_d.to_bytes());
         input[32..OUT_PLAINTEXT_SIZE].copy_from_slice(esk.to_repr().as_ref());
 
         OutPlaintextBytes(input)
@@ -313,16 +309,10 @@ impl<P: consensus::Parameters> Domain for SaplingDomain<P> {
     fn parse_note_plaintext_without_memo_ovk(
         &self,
         pk_d: &Self::DiversifiedTransmissionKey,
-        esk: &Self::EphemeralSecretKey,
-        ephemeral_key: &EphemeralKeyBytes,
         plaintext: &NotePlaintextBytes,
     ) -> Option<(Self::Note, Self::Recipient)> {
         sapling_parse_note_plaintext_without_memo(self, &plaintext.0, |diversifier| {
-            if (diversifier.g_d()? * esk).to_bytes() == ephemeral_key.0 {
-                Some(*pk_d)
-            } else {
-                None
-            }
+            diversifier.g_d().map(|_| *pk_d)
         })
     }
 
@@ -440,20 +430,19 @@ impl<P: consensus::Parameters> BatchDomain for SaplingDomain<P> {
 ///
 /// let height = TEST_NETWORK.activation_height(NetworkUpgrade::MASP).unwrap();
 /// let rseed = generate_random_rseed(&TEST_NETWORK, height, &mut rng);
-/// let note = to.create_note(asset_type, value, rseed).unwrap();
+/// let note = to.create_note(asset_type, value, rseed);
 /// let cmu = note.cmu();
 ///
-/// let mut enc = sapling_note_encryption::<TestNetwork>(ovk, note, to, MemoBytes::empty());
+/// let mut enc = sapling_note_encryption::<TestNetwork>(ovk, note, MemoBytes::empty());
 /// let encCiphertext = enc.encrypt_note_plaintext();
 /// let outCiphertext = enc.encrypt_outgoing_plaintext(&cv.commitment().into(), &cmu, &mut rng);
 /// ```
 pub fn sapling_note_encryption<P: consensus::Parameters>(
     ovk: Option<OutgoingViewingKey>,
     note: Note,
-    to: PaymentAddress,
     memo: MemoBytes,
 ) -> NoteEncryption<SaplingDomain<P>> {
-    NoteEncryption::new(ovk, note, to, memo)
+    NoteEncryption::new(ovk, note, memo)
 }
 
 #[allow(clippy::if_same_then_else)]
@@ -652,11 +641,11 @@ mod tests {
 
         let rseed = generate_random_rseed(&TEST_NETWORK, height, &mut rng);
 
-        let note = pa.create_note(asset_type, value, rseed).unwrap();
+        let note = pa.create_note(asset_type, value.into(), rseed);
         let cmu = note.cmu();
 
         let ovk = OutgoingViewingKey([0; 32]);
-        let ne = sapling_note_encryption::<TestNetwork>(Some(ovk), note, pa, MemoBytes::empty());
+        let ne = sapling_note_encryption::<TestNetwork>(Some(ovk), note, MemoBytes::empty());
         let epk = *ne.epk();
         let ock = prf_ock(&ovk, &cv, &cmu.to_repr(), &epk_bytes(&epk));
 
@@ -1357,9 +1346,7 @@ mod tests {
             assert_eq!(ock.as_ref(), tv.ock);
 
             let to = PaymentAddress::from_parts(Diversifier(tv.default_d), pk_d).unwrap();
-            let note = to
-                .create_note(asset_type, tv.v, Rseed::BeforeZip212(rcm))
-                .unwrap();
+            let note = to.create_note(asset_type, tv.v, Rseed::BeforeZip212(rcm));
             assert_eq!(note.cmu(), cmu);
 
             let output = OutputDescription {
@@ -1457,7 +1444,6 @@ mod tests {
                 esk,
                 Some(ovk),
                 note,
-                to,
                 MemoBytes::from_bytes(&tv.memo).unwrap(),
             );
 

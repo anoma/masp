@@ -15,7 +15,7 @@ use crate::{
     keys::OutgoingViewingKey,
     memo::MemoBytes,
     merkle_tree::MerklePath,
-    sapling::{prover::TxProver, Diversifier, Node, Note, PaymentAddress},
+    sapling::{prover::TxProver, Diversifier, Node, Note, NoteValue, PaymentAddress},
     transaction::{
         components::{
             amount::{BalanceError, I128Sum, U64Sum, ValueSum, MAX_MONEY},
@@ -253,8 +253,14 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         if value > MAX_MONEY {
             return Err(sapling::builder::Error::InvalidAmount);
         }
-        self.sapling_builder
-            .add_output(&mut self.rng, ovk, to, asset_type, value, memo)
+        self.sapling_builder.add_output(
+            &mut self.rng,
+            ovk,
+            to,
+            asset_type,
+            NoteValue::from_raw(value.into()),
+            memo,
+        )
     }
 
     /// Adds a transparent coin to be spent in this transaction.
@@ -529,13 +535,11 @@ mod tests {
 
         let mut rng = OsRng;
 
-        let note1 = to
-            .create_note(
-                zec(),
-                50000,
-                Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)),
-            )
-            .unwrap();
+        let note1 = to.create_note(
+            zec(),
+            50000,
+            Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)),
+        );
         let cmu1 = note1.commitment();
         let mut tree = CommitmentTree::empty();
         tree.append(cmu1).unwrap();
@@ -622,13 +626,11 @@ mod tests {
             );
         }
 
-        let note1 = to
-            .create_note(
-                zec(),
-                50999,
-                Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)),
-            )
-            .unwrap();
+        let note1 = to.create_note(
+            zec(),
+            50999,
+            Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)),
+        );
         let cmu1 = note1.commitment();
         let mut tree = CommitmentTree::empty();
         tree.append(cmu1).unwrap();
@@ -655,9 +657,7 @@ mod tests {
             );
         }
 
-        let note2 = to
-            .create_note(zec(), 1, Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)))
-            .unwrap();
+        let note2 = to.create_note(zec(), 1, Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)));
         let cmu2 = note2.commitment();
         tree.append(cmu2).unwrap();
         witness1.append(cmu2).unwrap();

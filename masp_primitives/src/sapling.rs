@@ -8,7 +8,7 @@ pub mod prover;
 pub mod redjubjub;
 pub mod util;
 
-use bitvec::{order::Lsb0, view::AsBits};
+use bitvec::{array::BitArray, order::Lsb0, view::AsBits};
 use blake2s_simd::Params as Blake2sParams;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -434,14 +434,8 @@ impl PaymentAddress {
         self.diversifier.g_d()
     }
 
-    pub fn create_note(&self, asset_type: AssetType, value: u64, rseed: Rseed) -> Option<Note> {
-        self.g_d().map(|g_d| Note {
-            asset_type,
-            value,
-            rseed,
-            g_d,
-            pk_d: self.pk_d,
-        })
+    pub fn create_note(&self, asset_type: AssetType, value: u64, rseed: Rseed) -> Note {
+        Note::from_parts(asset_type, *self, NoteValue::from_raw(value), rseed)
     }
 }
 
@@ -531,8 +525,28 @@ impl ConstantTimeEq for Nullifier {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The non-negative value of an individual Sapling note.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NoteValue(u64);
+
+impl NoteValue {
+    /// Returns the raw underlying value.
+    pub fn inner(&self) -> u64 {
+        self.0
+    }
+
+    /// Creates a note value from its raw numeric value.
+    ///
+    /// This only enforces that the value is an unsigned 64-bit integer. Callers should
+    /// enforce any additional constraints on the value's valid range themselves.
+    pub fn from_raw(value: u64) -> Self {
+        NoteValue(value)
+    }
+
+    pub(crate) fn to_le_bits(self) -> BitArray<[u8; 8], Lsb0> {
+        BitArray::<_, Lsb0>::new(self.0.to_le_bytes())
+    }
+}
 
 impl TryFrom<u64> for NoteValue {
     type Error = ();
@@ -552,35 +566,79 @@ impl From<NoteValue> for u64 {
     }
 }
 
+impl From<NoteValue> for i128 {
+    fn from(value: NoteValue) -> i128 {
+        value.0.into()
+    }
+}
+
+/// A discrete amount of funds received by an address.
 #[derive(Clone, Debug, Copy)]
 pub struct Note {
     /// The asset type that the note represents
     pub asset_type: AssetType,
+    /// The recipient of the funds.
+    recipient: PaymentAddress,
     /// The value of the note
-    pub value: u64,
-    /// The diversified base of the address, GH(d)
-    pub g_d: jubjub::SubgroupPoint,
-    /// The public key of the address, g_d^ivk
-    pub pk_d: jubjub::SubgroupPoint,
-    /// rseed
+    pub value: NoteValue,
+    /// The seed randomness for various note components.
     pub rseed: Rseed,
 }
 
 impl PartialEq for Note {
     fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
-            && self.asset_type == other.asset_type
-            && self.g_d == other.g_d
-            && self.pk_d == other.pk_d
-            && self.rcm() == other.rcm()
+        // Notes are canonically defined by their commitments.
+        self.cmu().eq(&other.cmu())
     }
 }
+
+impl Eq for Note {}
 
 impl Note {
     pub fn uncommitted() -> bls12_381::Scalar {
         // The smallest u-coordinate that is not on the curve
         // is one.
         bls12_381::Scalar::one()
+    }
+    /// Creates a note from its component parts.
+    ///
+    /// # Caveats
+    ///
+    /// This low-level constructor enforces that the provided arguments produce an
+    /// internally valid `Note`. However, it allows notes to be constructed in a way that
+    /// violates required security checks for note decryption, as specified in
+    /// [Section 4.19] of the Zcash Protocol Specification. Users of this constructor
+    /// should only call it with note components that have been fully validated by
+    /// decrypting a received note according to [Section 4.19].
+    ///
+    /// [Section 4.19]: https://zips.z.cash/protocol/protocol.pdf#saplingandorchardinband
+    pub fn from_parts(
+        asset_type: AssetType,
+        recipient: PaymentAddress,
+        value: NoteValue,
+        rseed: Rseed,
+    ) -> Self {
+        Note {
+            asset_type,
+            recipient,
+            value,
+            rseed,
+        }
+    }
+
+    /// Returns the recipient of this note.
+    pub fn recipient(&self) -> PaymentAddress {
+        self.recipient
+    }
+
+    /// Returns the value of this note.
+    pub fn value(&self) -> NoteValue {
+        self.value
+    }
+
+    /// Returns the rseed value of this note.
+    pub fn rseed(&self) -> &Rseed {
+        &self.rseed
     }
 
     /// Computes the note commitment, returning the full point.
@@ -592,13 +650,15 @@ impl Note {
         note_contents.extend_from_slice(&self.asset_type.asset_generator().to_bytes());
 
         // Writing the value in little endian
-        note_contents.write_u64::<LittleEndian>(self.value).unwrap();
+        note_contents
+            .write_u64::<LittleEndian>(self.value.into())
+            .unwrap();
 
         // Write g_d
-        note_contents.extend_from_slice(&self.g_d.to_bytes());
+        note_contents.extend_from_slice(&self.recipient.g_d().unwrap().to_bytes());
 
         // Write pk_d
-        note_contents.extend_from_slice(&self.pk_d.to_bytes());
+        note_contents.extend_from_slice(&self.recipient.pk_d().to_bytes());
 
         assert_eq!(note_contents.len(), 32 + 32 + 32 + 8);
 
@@ -644,6 +704,9 @@ impl Note {
             .get_u()
     }
 
+    /// Defined in [Zcash Protocol Spec § 4.7.2: Sending Notes (Sapling)][saplingsend].
+    ///
+    /// [saplingsend]: https://zips.z.cash/protocol/protocol.pdf#saplingsend
     pub fn rcm(&self) -> jubjub::Fr {
         match self.rseed {
             Rseed::BeforeZip212(rcm) => rcm,
@@ -653,6 +716,8 @@ impl Note {
         }
     }
 
+    /// Derives `esk` from the internal `Rseed` value, or generates a random value if this
+    /// note was created with a v1 (i.e. pre-ZIP 212) note plaintext.
     pub fn generate_or_derive_esk<R: RngCore + CryptoRng>(&self, rng: &mut R) -> jubjub::Fr {
         self.generate_or_derive_esk_internal(rng)
     }
@@ -688,11 +753,11 @@ impl BorshSerialize for Note {
         // Write asset type
         self.asset_type.serialize(writer)?;
         // Write note value
-        writer.write_u64::<LittleEndian>(self.value)?;
-        // Write diversified base
-        writer.write_all(&self.g_d.to_bytes())?;
+        writer.write_u64::<LittleEndian>(self.value().inner())?;
+        // Write diversifier
+        writer.write_all(&self.recipient().diversifier().0)?;
         // Write diversified transmission key
-        writer.write_all(&self.pk_d.to_bytes())?;
+        writer.write_all(&self.recipient().pk_d().to_bytes())?;
         match self.rseed {
             Rseed::BeforeZip212(rcm) => {
                 // Write note plaintext lead byte
@@ -717,9 +782,10 @@ impl BorshDeserialize for Note {
         let asset_type = AssetType::deserialize(buf)?;
         // Read note value
         let value = buf.read_u64::<LittleEndian>()?;
-        // Read diversified base
-        let g_d_bytes = <[u8; 32]>::deserialize(buf)?;
-        let g_d = Option::from(jubjub::SubgroupPoint::from_bytes(&g_d_bytes))
+        // Read diversifier
+        let diversifier = Diversifier(<[u8; 11]>::deserialize(buf)?);
+        diversifier
+            .g_d()
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "g_d not in field"))?;
         // Read diversified transmission key
         let pk_d_bytes = <[u8; 32]>::deserialize(buf)?;
@@ -739,9 +805,8 @@ impl BorshDeserialize for Note {
         // Finally construct note object
         Ok(Note {
             asset_type,
-            value,
-            g_d,
-            pk_d,
+            value: NoteValue::from_raw(value),
+            recipient: PaymentAddress::from_parts(diversifier, pk_d).unwrap(),
             rseed,
         })
     }
@@ -799,13 +864,12 @@ pub mod testing {
     prop_compose! {
         pub fn arb_note(value: NoteValue)(
             asset_type in crate::asset_type::testing::arb_asset_type(),
-            addr in arb_payment_address(),
+            recipient in arb_payment_address(),
             rseed in prop::array::uniform32(prop::num::u8::ANY).prop_map(Rseed::AfterZip212)
                 ) -> Note {
             Note {
                 value: value.into(),
-                g_d: addr.g_d().unwrap(), // this unwrap is safe because arb_payment_address always generates an address with a valid g_d
-                pk_d: *addr.pk_d(),
+                recipient,
                 rseed,
                 asset_type
             }

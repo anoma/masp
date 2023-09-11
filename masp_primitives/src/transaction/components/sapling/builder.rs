@@ -20,7 +20,7 @@ use crate::{
         redjubjub::{PrivateKey, Signature},
         spend_sig_internal,
         util::generate_random_rseed_internal,
-        Diversifier, Node, Note, PaymentAddress,
+        Diversifier, Node, Note, NoteValue, PaymentAddress,
     },
     transaction::{
         builder::Progress,
@@ -110,7 +110,7 @@ impl<K> fees::InputView<(), K> for SpendDescriptionInfo<K> {
     }
 
     fn value(&self) -> u64 {
-        self.note.value
+        self.note.value().inner()
     }
 
     fn asset_type(&self) -> AssetType {
@@ -142,23 +142,16 @@ impl SaplingOutputInfo {
         ovk: Option<OutgoingViewingKey>,
         to: PaymentAddress,
         asset_type: AssetType,
-        value: u64,
+        value: NoteValue,
         memo: MemoBytes,
     ) -> Result<Self, Error> {
-        let g_d = to.g_d().ok_or(Error::InvalidAddress)?;
-        if value > MAX_MONEY {
+        if value.inner() > MAX_MONEY {
             return Err(Error::InvalidAmount);
         }
 
         let rseed = generate_random_rseed_internal(params, target_height, rng);
 
-        let note = Note {
-            g_d,
-            pk_d: *to.pk_d(),
-            value,
-            rseed,
-            asset_type,
-        };
+        let note = Note::from_parts(asset_type, to, value, rseed);
 
         Ok(SaplingOutputInfo {
             ovk,
@@ -174,7 +167,7 @@ impl SaplingOutputInfo {
         ctx: &mut Pr::SaplingProvingContext,
         rng: &mut R,
     ) -> OutputDescription<GrothProofBytes> {
-        let encryptor = sapling_note_encryption::<P>(self.ovk, self.note, self.to, self.memo);
+        let encryptor = sapling_note_encryption::<P>(self.ovk, self.note.clone(), self.memo);
 
         let (zkproof, cv) = prover.output_proof(
             ctx,
@@ -182,7 +175,7 @@ impl SaplingOutputInfo {
             self.to,
             self.note.rcm(),
             self.note.asset_type,
-            self.note.value,
+            self.note.value().inner(),
         );
 
         let cmu = self.note.cmu();
@@ -205,7 +198,7 @@ impl SaplingOutputInfo {
 
 impl fees::OutputView for SaplingOutputInfo {
     fn value(&self) -> u64 {
-        self.note.value
+        self.note.value().inner()
     }
 
     fn asset_type(&self) -> AssetType {
@@ -457,7 +450,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         ovk: Option<OutgoingViewingKey>,
         to: PaymentAddress,
         asset_type: AssetType,
-        value: u64,
+        value: NoteValue,
         memo: MemoBytes,
     ) -> Result<(), Error> {
         let output = SaplingOutputInfo::new_internal(
@@ -549,7 +542,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                             spend.note.rseed,
                             spend.alpha,
                             spend.note.asset_type,
-                            spend.note.value,
+                            spend.note.value().inner(),
                             anchor,
                             spend.merkle_path.clone(),
                         )
@@ -652,11 +645,11 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                             }
                             (diversifier, g_d)
                         };
-                        let (pk_d, payment_address) = loop {
+                        let payment_address = loop {
                             let dummy_ivk = jubjub::Fr::random(&mut rng);
                             let pk_d = g_d * dummy_ivk;
                             if let Some(addr) = PaymentAddress::from_parts(diversifier, pk_d) {
-                                break (pk_d, addr);
+                                break addr;
                             }
                         };
 
@@ -665,18 +658,21 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
 
                         (
                             payment_address,
-                            Note {
-                                g_d,
-                                pk_d,
+                            Note::from_parts(
+                                AssetType::new(b"dummy").unwrap(),
+                                payment_address,
+                                NoteValue::from_raw(0),
                                 rseed,
-                                value: 0,
-                                asset_type: AssetType::new(b"dummy").unwrap(),
-                            },
+                            ),
                         )
                     };
 
                     let esk = dummy_note.generate_or_derive_esk_internal(&mut rng);
-                    let epk = dummy_note.g_d * esk;
+                    let epk = dummy_note
+                        .recipient()
+                        .g_d()
+                        .expect("checked at construction")
+                        * esk;
 
                     let (zkproof, cv) = prover.output_proof(
                         ctx,
@@ -684,7 +680,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                         dummy_to,
                         dummy_note.rcm(),
                         dummy_note.asset_type,
-                        dummy_note.value,
+                        dummy_note.value().inner(),
                     );
 
                     let cmu = dummy_note.cmu();
