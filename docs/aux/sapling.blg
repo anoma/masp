@@ -1,0 +1,4 @@
+[0] Config.pm:307> INFO - This is Biber 2.19
+[0] Config.pm:310> INFO - Logfile is 'aux/sapling.blg'
+[36] biber-darwin:340> INFO - === Sun Sep 17, 2023, 15:40:24
+[45] Biber.pm:419> INFO - Reading 'aux/sapling.bcf'
