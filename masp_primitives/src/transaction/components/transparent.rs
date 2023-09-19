@@ -172,13 +172,13 @@ impl TxOut {
 }
 
 impl BorshDeserialize for TxOut {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
     }
 }
 
 impl BorshSerialize for TxOut {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write(writer)
     }
 }

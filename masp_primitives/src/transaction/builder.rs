@@ -116,14 +116,14 @@ impl Progress {
 
 /// Generates a [`Transaction`] from its inputs and outputs.
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
-pub struct Builder<P, R, Key = ExtendedSpendingKey, Notifier = Sender<Progress>> {
+pub struct Builder<P, RN, Key = ExtendedSpendingKey, Notifier = Sender<Progress>> {
     params: P,
-    rng: R,
+    rng: RN,
     target_height: BlockHeight,
     expiry_height: BlockHeight,
     transparent_builder: TransparentBuilder,
     sapling_builder: SaplingBuilder<P, Key>,
-    #[borsh_skip]
+    #[borsh(skip)]
     progress_notifier: Option<Notifier>,
 }
 

@@ -34,8 +34,8 @@ use crate::{
     },
     zip32::ExtendedSpendingKey,
 };
-use borsh::maybestd::io::Write;
 use borsh::{BorshDeserialize, BorshSerialize};
+use std::io::Write;
 
 /// If there are any shielded inputs, always have at least two shielded outputs, padding
 /// with dummy outputs if necessary. See <https://github.com/zcash/zcash/issues/3615>.
@@ -76,7 +76,7 @@ pub struct SpendDescriptionInfo<Key = ExtendedSpendingKey> {
 }
 
 impl<Key: BorshSerialize> BorshSerialize for SpendDescriptionInfo<Key> {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         self.extsk.serialize(writer)?;
         self.diversifier.serialize(writer)?;
         self.note.serialize(writer)?;
@@ -86,13 +86,14 @@ impl<Key: BorshSerialize> BorshSerialize for SpendDescriptionInfo<Key> {
 }
 
 impl<Key: BorshDeserialize> BorshDeserialize for SpendDescriptionInfo<Key> {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        let extsk = Key::deserialize(buf)?;
-        let diversifier = Diversifier::deserialize(buf)?;
-        let note = Note::deserialize(buf)?;
-        let alpha: Option<_> = jubjub::Fr::from_bytes(&<[u8; 32]>::deserialize(buf)?).into();
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let extsk = Key::deserialize_reader(reader)?;
+        let diversifier = Diversifier::deserialize_reader(reader)?;
+        let note = Note::deserialize_reader(reader)?;
+        let alpha: Option<_> =
+            jubjub::Fr::from_bytes(&<[u8; 32]>::deserialize_reader(reader)?).into();
         let alpha = alpha.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
-        let merkle_path = MerklePath::<Node>::deserialize(buf)?;
+        let merkle_path = MerklePath::<Node>::deserialize_reader(reader)?;
         Ok(SpendDescriptionInfo {
             extsk,
             diversifier,
@@ -280,7 +281,7 @@ pub struct SaplingBuilder<P, Key = ExtendedSpendingKey> {
 }
 
 impl<P: BorshSerialize, Key: BorshSerialize> BorshSerialize for SaplingBuilder<P, Key> {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         self.params.serialize(writer)?;
         self.spend_anchor.map(|x| x.to_bytes()).serialize(writer)?;
         self.target_height.serialize(writer)?;
@@ -295,23 +296,23 @@ impl<P: BorshSerialize, Key: BorshSerialize> BorshSerialize for SaplingBuilder<P
 }
 
 impl<P: BorshDeserialize, Key: BorshDeserialize> BorshDeserialize for SaplingBuilder<P, Key> {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        let params = P::deserialize(buf)?;
-        let spend_anchor: Option<Option<_>> =
-            Option::<[u8; 32]>::deserialize(buf)?.map(|x| bls12_381::Scalar::from_bytes(&x).into());
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let params = P::deserialize_reader(reader)?;
+        let spend_anchor: Option<Option<_>> = Option::<[u8; 32]>::deserialize_reader(reader)?
+            .map(|x| bls12_381::Scalar::from_bytes(&x).into());
         let spend_anchor = spend_anchor
             .map(|x| x.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData)))
             .transpose()?;
-        let target_height = BlockHeight::deserialize(buf)?;
-        let value_balance = I128Sum::deserialize(buf)?;
-        let convert_anchor: Option<Option<_>> =
-            Option::<[u8; 32]>::deserialize(buf)?.map(|x| bls12_381::Scalar::from_bytes(&x).into());
+        let target_height = BlockHeight::deserialize_reader(reader)?;
+        let value_balance = I128Sum::deserialize_reader(reader)?;
+        let convert_anchor: Option<Option<_>> = Option::<[u8; 32]>::deserialize_reader(reader)?
+            .map(|x| bls12_381::Scalar::from_bytes(&x).into());
         let convert_anchor = convert_anchor
             .map(|x| x.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData)))
             .transpose()?;
-        let spends = Vec::<SpendDescriptionInfo<Key>>::deserialize(buf)?;
-        let converts = Vec::<ConvertDescriptionInfo>::deserialize(buf)?;
-        let outputs = Vec::<SaplingOutputInfo>::deserialize(buf)?;
+        let spends = Vec::<SpendDescriptionInfo<Key>>::deserialize_reader(reader)?;
+        let converts = Vec::<ConvertDescriptionInfo>::deserialize_reader(reader)?;
+        let outputs = Vec::<SaplingOutputInfo>::deserialize_reader(reader)?;
         Ok(SaplingBuilder {
             params,
             spend_anchor,
