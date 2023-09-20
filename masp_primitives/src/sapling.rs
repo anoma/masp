@@ -314,7 +314,7 @@ impl BorshDeserialize for ViewingKey {
 
 impl PartialOrd for ViewingKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.to_bytes().partial_cmp(&other.to_bytes())
+        Some(self.cmp(other))
     }
 }
 
@@ -462,7 +462,7 @@ impl FromStr for PaymentAddress {
 
 impl PartialOrd for PaymentAddress {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.to_bytes().partial_cmp(&other.to_bytes())
+        Some(self.cmp(other))
     }
 }
 impl Ord for PaymentAddress {
@@ -538,7 +538,7 @@ impl TryFrom<u64> for NoteValue {
     type Error = ();
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        if value <= MAX_MONEY as u64 {
+        if value <= MAX_MONEY {
             Ok(NoteValue(value))
         } else {
             Err(())
@@ -759,7 +759,7 @@ pub mod testing {
     };
 
     prop_compose! {
-        pub fn arb_note_value()(value in 0u64..=MAX_MONEY as u64) -> NoteValue {
+        pub fn arb_note_value()(value in 0u64..=MAX_MONEY) -> NoteValue {
             NoteValue::try_from(value).unwrap()
         }
     }
@@ -767,7 +767,7 @@ pub mod testing {
     prop_compose! {
         /// The
         pub fn arb_positive_note_value(bound: u64)(
-            value in 1u64..=(min(bound, MAX_MONEY as u64))
+            value in 1u64..=(min(bound, MAX_MONEY))
         ) -> NoteValue {
             NoteValue::try_from(value).unwrap()
         }
@@ -826,7 +826,7 @@ mod tests {
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(10))]
         #[test]
-        fn note_serialization(note in arb_positive_note_value(MAX_MONEY as u64).prop_flat_map(arb_note)) {
+        fn note_serialization(note in arb_positive_note_value(MAX_MONEY).prop_flat_map(arb_note)) {
             // BorshSerialize
             let borsh = note.try_to_vec().unwrap();
             // BorshDeserialize

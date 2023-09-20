@@ -368,7 +368,7 @@ impl<P: consensus::Parameters> BatchDomain for SaplingDomain<P> {
         shared_secrets
             .into_iter()
             .map(|s| s.and_then(|_| secrets_affine.next()))
-            .zip(ephemeral_keys.into_iter())
+            .zip(ephemeral_keys)
             .map(|(secret, ephemeral_key)| {
                 secret.map(|dhsecret| {
                     Blake2bParams::new()
@@ -389,7 +389,7 @@ impl<P: consensus::Parameters> BatchDomain for SaplingDomain<P> {
         let ephemeral_keys: Vec<_> = ephemeral_keys.collect();
         let epks = jubjub::AffinePoint::batch_from_bytes(ephemeral_keys.iter().map(|b| b.0));
         epks.into_iter()
-            .zip(ephemeral_keys.into_iter())
+            .zip(ephemeral_keys)
             .map(|(epk, ephemeral_key)| {
                 (
                     epk.map(jubjub::ExtendedPoint::from)

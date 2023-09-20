@@ -645,7 +645,7 @@ pub mod testing {
 
     prop_compose! {
         pub fn arb_i128_sum()(asset_type in arb_asset_type(), amt in i128::MIN..i128::MAX) -> I128Sum {
-            ValueSum::from_pair(asset_type, amt as i128).unwrap()
+            ValueSum::from_pair(asset_type, amt).unwrap()
         }
     }
 

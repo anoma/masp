@@ -215,9 +215,9 @@ pub struct BatchEntry<'a> {
 
 // TODO: #82: This is a naive implementation currently,
 // and doesn't use multiexp.
-pub fn batch_verify<'a, R: RngCore>(
+pub fn batch_verify<R: RngCore>(
     mut rng: &mut R,
-    batch: &[BatchEntry<'a>],
+    batch: &[BatchEntry<'_>],
     p_g: SubgroupPoint,
 ) -> bool {
     let mut acc = ExtendedPoint::identity();

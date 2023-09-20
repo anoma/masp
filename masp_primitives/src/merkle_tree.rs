@@ -303,7 +303,6 @@ impl<Node> CommitmentTree<Node> {
                 left,
                 right,
                 parents: (1..DEPTH)
-                    .into_iter()
                     .map(|i| {
                         if upos & (1 << i) == 0 {
                             None
