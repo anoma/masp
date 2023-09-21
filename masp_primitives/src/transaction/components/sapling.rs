@@ -498,12 +498,12 @@ pub struct ConvertDescriptionV5 {
 }
 
 impl ConvertDescriptionV5 {
-    pub fn read<R: Read>(mut reader: &mut R) -> io::Result<Self> {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         // Consensus rules (§4.4) & (§4.5):
         // - Canonical encoding is enforced here.
         // - "Not small order" is enforced in SaplingVerificationContext::(check_spend()/check_output())
         //   (located in zcash_proofs::sapling::verifier).
-        let cv = read_point(&mut reader, "cv")?;
+        let cv = read_point(reader, "cv")?;
 
         Ok(ConvertDescriptionV5 { cv })
     }
@@ -644,7 +644,7 @@ pub mod testing {
     }
 
     prop_compose! {
-        /// produce a spend description with invalid data (useful only for serialization
+        /// produce a convert description with invalid data (useful only for serialization
         /// roundtrip testing).
         pub fn arb_convert_description()(
             cv in arb_extended_point(),
