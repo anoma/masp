@@ -485,7 +485,7 @@ impl BorshDeserialize for PaymentAddress {
     fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
         let mut data = [0u8; 43];
         reader.read_exact(&mut data)?;
-        let res = Self::from_bytes(&mut data.try_into().unwrap());
+        let res = Self::from_bytes(&data);
         let pa = res.ok_or_else(|| io::Error::from(io::ErrorKind::InvalidData))?;
         Ok(pa)
     }
