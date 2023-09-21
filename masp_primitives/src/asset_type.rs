@@ -179,7 +179,7 @@ impl Hash for AssetType {
 
 impl PartialOrd for AssetType {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.get_identifier().partial_cmp(other.get_identifier())
+        Some(self.cmp(other))
     }
 }
 

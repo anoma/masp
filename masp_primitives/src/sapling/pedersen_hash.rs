@@ -32,10 +32,7 @@ pub fn pedersen_hash<I>(personalization: Personalization, bits: I) -> jubjub::Su
 where
     I: IntoIterator<Item = bool>,
 {
-    let mut bits = personalization
-        .get_bits()
-        .into_iter()
-        .chain(bits.into_iter());
+    let mut bits = personalization.get_bits().into_iter().chain(bits);
 
     let mut result = jubjub::SubgroupPoint::identity();
     let mut generators = PEDERSEN_HASH_EXP_TABLE.iter();

@@ -864,7 +864,7 @@ pub mod testing {
         fn arb_bundle()(n_notes in 1..30usize)(
             extsk in arb_extended_spending_key(),
             spendable_notes in vec(
-                arb_positive_note_value(MAX_MONEY as u64 / 10000).prop_flat_map(arb_note),
+                arb_positive_note_value(MAX_MONEY / 10000).prop_flat_map(arb_note),
                 n_notes
             ),
             commitment_trees in vec(

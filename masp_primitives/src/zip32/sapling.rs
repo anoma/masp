@@ -554,13 +554,7 @@ impl BorshSerialize for ExtendedFullViewingKey {
 
 impl PartialOrd for ExtendedFullViewingKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let a = self
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedFullViewingKey");
-        let b = other
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedFullViewingKey");
-        a.partial_cmp(&b)
+        Some(self.cmp(other))
     }
 }
 
@@ -878,13 +872,7 @@ impl FromStr for ExtendedSpendingKey {
 
 impl PartialOrd for ExtendedSpendingKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let a = self
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedSpendingKey");
-        let b = other
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedSpendingKey");
-        a.partial_cmp(&b)
+        Some(self.cmp(other))
     }
 }
 
