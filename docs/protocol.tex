@@ -762,6 +762,8 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\spendStatement}{\term{Spend statement}}
 \newcommand{\spendStatements}{\terms{Spend statement}}
 \newcommand{\SpendStatement}{\titleterm{Spend Statement}}
+\newcommand{\convertStatement}{\term{Convert statement}}
+\newcommand{\ConvertStatement}{\titleterm{Convert Statement}}
 \newcommand{\spendProof}{\term{Spend proof}}
 \newcommand{\spendAuthSignature}{\term{spend authorization signature}}
 \newcommand{\spendAuthSignatures}{\terms{spend authorization signature}}
@@ -1340,6 +1342,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\NotePositionBase}{\mathcal{J}}
 \newcommand{\NotePositionTypeSprout}{\binaryrange{\MerkleDepthSprout}}
 \newcommand{\NotePositionTypeSapling}{\binaryrange{\MerkleDepthSapling}}
+\newcommand{\NotePositionTypeConvert}{\binaryrange{\MerkleDepthConvert}}
 \newcommand{\Diversifier}{\mathsf{d}}
 \newcommand{\DiversifierLength}{\mathsf{\ell_{\Diversifier}}}
 \newcommand{\DiversifierType}{\bitseq{\DiversifierLength}}
@@ -1408,6 +1411,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\ValueCommitGenTrapdoor}{\ValueCommitAlg\mathsf{.GenTrapdoor}}
 \newcommand{\ValueCommitInput}{\ValueCommitAlg\mathsf{.Input}}
 \newcommand{\ValueCommitOutput}{\ValueCommitAlg\mathsf{.Output}}
+\newcommand{\ValueCommitConvert}{\ValueCommitAlg\mathsf{.Convert}}
 \newcommand{\ValueCommitValueBase}{\mathcal{V}}
 \newcommand{\ValueCommitRandBase}{\mathcal{R}}
 
@@ -1481,6 +1485,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\Value}{\mathsf{v}}
 \newcommand{\ValueNew}[1]{\Value^\mathsf{new}_{#1}}
 \newcommand{\ValueOld}[1]{\Value^\mathsf{old}_{#1}}
+\newcommand{\ValueConvert}[1]{\Value^\mathsf{convert}_{#1}}
 \newcommand{\ValueLength}{\ell_{\mathsf{value}}}
 \newcommand{\ValueType}{\binaryrange{\ValueLength}}
 \newcommand{\ValueCommitType}{\bigrange{-\SignedScalarLimitJ}{\SignedScalarLimitJ}}
@@ -1489,12 +1494,14 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\ValueCommitRandLength}{\mathsf{\ell_{\ValueCommitRand}}}
 \newcommand{\ValueCommitRandOld}[1]{\ValueCommitRand^\mathsf{old}_{#1}}
 \newcommand{\ValueCommitRandNew}[1]{\ValueCommitRand^\mathsf{new}_{#1}}
+\newcommand{\ValueCommitRandConvert}[1]{\ValueCommitRand^\mathsf{convert}_{#1}}
 \newcommand{\NoteTuple}[1]{\mathbf{n}_{#1}}
 \newcommand{\NoteTypeSprout}{\optSprout{\mathsf{Note}}}
 \newcommand{\NoteTypeSapling}{\mathsf{Note^{Sapling}}}
 \newcommand{\NoteTypeMASP}{\mathsf{Note^{MASP}}}
 \newcommand{\NoteToken}{\mathsf{t}}
 \newcommand{\NoteValueBase}{\mathsf{vb}}
+\newcommand{\AllowedConversionValueBase}{\mathsf{vb}}
 \newcommand{\NoteTokenLength}{\mathsf{\ell_{\NoteToken}}}
 \newcommand{\NoteTokenType}{\bitseq{\NoteTokenLength}}
 \newcommand{\NotePlaintext}[1]{\mathbf{np}_{#1}}
@@ -1516,10 +1523,12 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\cv}{\mathsf{cv}}
 \newcommand{\cvOld}[1]{\cv^\mathsf{old}_{#1}}
 \newcommand{\cvNew}[1]{\cv^\mathsf{new}_{#1}}
+\newcommand{\cvAllowedConversion}[1]{\cv^\mathsf{AllowedConversion}_{#1}}
 \newcommand{\cm}{\mathsf{cm}}
 \newcommand{\cmU}{\cm_{\kern -0.06em u}}
 \newcommand{\cmOld}[1]{\cm^\mathsf{old}_{#1}}
 \newcommand{\cmNew}[1]{\cm^\mathsf{new}_{#1}}
+\newcommand{\cmAllowedConversion}[1]{\cm^\mathsf{convert}_{#1}}
 \newcommand{\snOld}[1]{\mathsf{sn}^\mathsf{old}_{#1}}
 \newcommand{\nf}{\mathsf{nf}}
 \newcommand{\nfOld}[1]{\nf^\mathsf{old}_{#1}}
@@ -1706,6 +1715,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\MerkleDepth}{\mathsf{MerkleDepth}}
 \newcommand{\MerkleDepthSprout}{\optSprout{\MerkleDepth}}
 \newcommand{\MerkleDepthSapling}{\MerkleDepth^\mathsf{Sapling}}
+\newcommand{\MerkleDepthConvert}{\MerkleDepth^\mathsf{Convert}}
 \newcommand{\MerkleDepthSproutOrSapling}{\MerkleDepth^\mathsf{Sprout\sapling{,Sapling}}}
 \newcommand{\MerkleNode}[2]{\mathsf{M}^{#1}_{#2}}
 \newcommand{\MerkleSibling}{\mathsf{sibling}}
@@ -1715,9 +1725,11 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\MerkleHashLength}{\mathsf{\ell_{Merkle}}}
 \newcommand{\MerkleHashLengthSprout}{\mathsf{\ell_{\sprout{Merkle}\notsprout{MerkleSprout}}}}
 \newcommand{\MerkleHashLengthSapling}{\mathsf{\ell_{MerkleSapling}}}
+\newcommand{\MerkleHashLengthConvert}{\mathsf{\ell_{MerkleConvert}}}
 \newcommand{\MerkleHash}{\bitseq{\MerkleHashLength}}
 \newcommand{\MerkleHashSprout}{\bitseq{\MerkleHashLengthSprout}}
 \newcommand{\MerkleHashSapling}{\bitseq{\MerkleHashLengthSapling}}
+\newcommand{\MerkleHashConvert}{\bitseq{\MerkleHashLengthConvert}}
 \newcommand{\MerkleLayer}{\range{0}{\MerkleDepth-1}}
 \newcommand{\MerkleLayerSprout}{\range{0}{\MerkleDepthSprout-1}}
 \newcommand{\MerkleLayerSapling}{\range{0}{\MerkleDepthSapling-1}}
@@ -1832,10 +1844,12 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\OutputVerify}{\Output\mathsf{.Verify}}
 \newcommand{\OutputProve}{\Output\mathsf{.Prove}}
 \newcommand{\OutputProof}{\Output\mathsf{.Proof}}
+\newcommand{\Convert}{\mathsf{ZKConvert}}
 \newcommand{\Proof}[1]{\pi_{\!{#1}}}
 \newcommand{\ProofJoinSplit}{\pi_\JoinSplit}
 \newcommand{\ProofSpend}{\pi_\Spend}
 \newcommand{\ProofOutput}{\pi_\Output}
+\newcommand{\ProofConvert}{\pi_\Convert}
 \newcommand{\zkproof}{\mathtt{zkproof}}
 \newcommand{\POUR}{\texttt{POUR}}
 \newcommand{\Prob}[2]{\mathrm{Pr}\scalebox{0.88}{\ensuremath{
@@ -1862,6 +1876,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\nOld}[1]{\NoteTuple{#1}^\mathsf{old}}
 \newcommand{\nNew}[1]{\NoteTuple{#1}^\mathsf{new}}
 \newcommand{\vOld}[1]{\mathsf{v}_{#1}^\mathsf{old}}
+\newcommand{\vAllowedConversion}[1]{\mathsf{v}_{#1}^\mathsf{convert}}
 \newcommand{\vNew}[1]{\mathsf{v}_{#1}^\mathsf{new}}
 \newcommand{\RandomSeed}{\mathsf{randomSeed}}
 \newcommand{\rt}{\mathsf{rt}}
@@ -2097,6 +2112,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 %\newcommand{\masp}[1]{\texorpdfstring{{\hl{#1}}}{#1}}
 \newcommand{\masp}[1]{\texorpdfstring{{\color{purple}{#1}}}{#1}}
 \newcommand{\maspaddition}[1]{\texorpdfstring{{\color{blue}{#1}}}{#1}}
+\newcommand{\convert}[1]{\texorpdfstring{{\color{brown}{#1}}}{#1}}
     
 \begin{document}
 
@@ -2282,7 +2298,7 @@ However, there are also factors in favor of the rejection sampling approach:
 \item Rejection sampling is conceptually somewhat simpler and easier to reason about
 \item Rejection sampling is typically less expensive in total circuit operations, reducing the total cost
 \item Rejection sampling primarily uses well-audited primitives and existing code/gadgets; potentially less novel code and fewer bugs than implementing new gadgets
-\item Rejection sapling is already used widely in  $\Sapling$ to derive group hashes (for Pedersen hashes and commitments. In particular, the circuits permit using exactly the existing $\Sapling$ $\GroupJHash{}$ to derive the asset generator (among other possible choices) while the RFC is a draft.
+\item Rejection sapling is already used widely in  $\Sapling$ to derive group hashes for Pedersen hashes and commitments. In particular, the circuits permit using exactly the existing $\Sapling$ $\GroupJHash{}$ to derive the asset generator (among other possible choices) while the RFC is a draft.
 \end{enumerate}
 
 Unfortunately, supporting both RFC and rejection sampling based asset generator derivation in the same circuits appears impractical at the moment. At minimum, the added complexity of supporting both would increase the potential for implementation bugs. 
@@ -2310,7 +2326,7 @@ The (in)ability to witness the negation of an asset generator is one specific ex
 
 It is similarly important that for every pair of asset generators, no discrete log relationship should be feasibly known between them. Otherwise, the non-exchangeability or non-forgeability of those assets become broken; either a positive amount of one asset may be converted into a positive amount of the other asset, or positive amounts of both assets may be created from an overall zero incoming note value (depending on the exact discrete log relationship known). Therefore, a critically important security property of the $\BlakeTwosGeneric$ hash is \textit{Discrete Logarithm Independence} of its outputs interpreted as curve points. As the original $\Sapling$ specification describes, Discrete Logarithm Independence holds almost surely for a random oracle, and is stronger than (and implies) collision resistance. 
 
-For the purposes of analyzing the security of the circuits, the desired security property is that it is infeasible to (adversarially) find two asset identifiers with a known discrete log relationship between their corresponding asset generators. The security of the circuits will be based on that hardness assumption. The security assumption may be weakened by not allowing the asset identifier to be selected entirely freely (e.g. including a randomness beacon, as in the $\Sapling$ $\GroupJHash{}$. 
+For the purposes of analyzing the security of the circuits, the desired security property is that it is infeasible to (adversarially) find two asset identifiers with a known discrete log relationship between their corresponding asset generators. The security of the circuits will be based on that hardness assumption. The security assumption may be weakened by not allowing the asset identifier to be selected entirely freely (e.g. including a randomness beacon, as in the $\Sapling$ $\GroupJHash{}$). 
 
 }
 
@@ -2575,7 +2591,7 @@ performs the following steps:
         \begin{tabular}{@{\hskip 2em}r@{\;}l}
 %          $\cvNew{}$ &$:= \ValueCommit{\ValueCommitRandNew{}}(\ValueNew{})$ \\[1ex]$
 	$\NoteValueBase$ &$:= \abstJ(\PRFvcgMASP{\NoteToken}) $\\[1ex]
-          $\cvNew{}$ &$:= \scalarmult{\ValueNew{}\ParamJ{h}}{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $ \\[1ex]
+          $\cvNew{}$ &$:= \scalarmult{\ValueNew{}\ParamJ{h}}{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \FindGroupJHash\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $ \\[1ex]
           $\cmNew{}$ &$:= \NoteCommitMASP{\NoteCommitRandNew{}}(\reprJ\Of{\DiversifiedTransmitBase},
                                                                    \reprJ\Of{\DiversifiedTransmitPublic},
                                                                    \ValueNew{},\reprJ\Of{\NoteValueBase})$
@@ -2636,7 +2652,7 @@ A \dummy{} \masp{MASP} input \note is constructed as follows:
                                     = \NoteCommitMASP{\NoteCommitRand}(\reprJ\Of{\DiversifiedTransmitBase},
                                                                           \reprJ\Of{\DiversifiedTransmitPublic},
                                                                           \vOld{},
-                                                                           \reprJ\Of{\GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}})$.}
+                                                                           \reprJ\Of{\FindGroupJHash\Of{\ascii{MASP\_\_r\_},\ascii{r}}})$.}
   \item Compute $\nfOld{} = \PRFnfSapling{\AuthProvePublicRepr}(\reprJ(\NoteAddressRand))$.
   \item Construct a \dummy \merklePath $\TreePath{}$ for use in the
         \auxiliaryInput to the \spendStatement (this will not be checked, because $\vOld{} = 0$).
@@ -2797,7 +2813,7 @@ breaking the binding property of the \valueCommitmentScheme.
 The above argument shows only that $\Value^* = 0 \pmod{\ParamJ{r}}$; in order to show that
 $\vSum = 0$, we will also demonstrate that it does not overflow $\ValueCommitType$.
 
-The $\spendStatements$ prove that all of $\vOld{\alln}$ are in $\ValueType$.
+The \spendStatements prove that all of $\vOld{\alln}$ are in $\ValueType$.
 Similarly the $\outputStatements$ prove that all of $\vNew{\allm}$ are in $\ValueType$.
 $\vBalance$ is encoded in the \transaction as a signed two's complement $64$-bit integer
 in the range $\range{-2^{63}}{2^{63}-1}$. $\ValueLength$ is defined as 64, so $\vSum$
@@ -3081,7 +3097,7 @@ as defined in the original \Sapling specification, from $\cmU = \ExtractJ(\cmOld
 
 \snarkcondition{Value commitment integrity}{spendvaluecommitmentintegrity}
 %$\cvOld{} = \ValueCommit{\ValueCommitRandOld{}}(\vOld{})$.
-\masp{$\cvOld{} = \scalarmult{\ValueOld{} \ParamJ{h} }{\NoteValueBase} + \scalarmult{\ValueCommitRandOld{}}{ \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $}
+\masp{$\cvOld{} = \scalarmult{\ValueOld{} \ParamJ{h} }{\NoteValueBase} + \scalarmult{\ValueCommitRandOld{}}{ \FindGroupJHash\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $}
 
 \snarkcondition{Small order checks}{spendnonsmall}
 $\DiversifiedTransmitBase$ and $\AuthSignPublic$ \masp{and $\NoteValueBase$}
@@ -3128,7 +3144,7 @@ $\DiversifiedTransmitPublic = \scalarmult{\InViewingKey}{\DiversifiedTransmitBas
         ($\AuthSignBase$ is as defined in the original \Sapling specifcation.)
         
         \item \masp{
-        Note that the asset identifier is \textit{not} witnessed in the $\SpendStatement$. Since the validity of $\NoteValueBase$ is witnessed in the $\OutputStatement$ and included in the $\Note$ commitment, the asset generator is validated when the $\Note$ commitment is validated.
+        Note that the asset identifier is \textit{not} witnessed in the $\spendStatement$. Since the validity of $\NoteValueBase$ is witnessed in the $\OutputStatement$ and included in the $\Note$ commitment, the asset generator is validated when the $\Note$ commitment is validated.
         }
 \end{pnotes}
 } %sapling
@@ -3178,7 +3194,7 @@ where $\DiversifiedTransmitBaseRepr = \reprJ\Of{\DiversifiedTransmitBase}$ and \
 
 \snarkcondition{Value commitment integrity}{outputvaluecommitmentintegrity}
 %$\cvNew{} = \ValueCommit{\ValueCommitRandNew{}}(\vNew{})$.
-\masp{$\cvNew{} =  \scalarmult{\ValueNew{} \ParamJ{h}}{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \GroupJHash{\URS}\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $  }
+\masp{$\cvNew{} =  \scalarmult{\ValueNew{} \ParamJ{h}}{\NoteValueBase} + \scalarmult{\ValueCommitRandNew{}}{ \FindGroupJHash\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $  }
 
 \masp{
 \snarkcondition{Value base integrity}{outputvaluebaseintegrity}
@@ -3219,6 +3235,171 @@ $\EphemeralPublic = \scalarmult{\EphemeralPrivate}{\DiversifiedTransmitBase}$.
   for zero-knowledge, it therefore does not make a difference if the prover uses a (possible) congruent 
   value of $\alpha, \EphemeralPrivate, \AuthProvePrivate$.
     }
+
+\convert{
+  \introsection
+  \lsubsubsection{Convert}{convert}
+  
+  Ordinarily, a MASP transaction that does not shield or unshield assets must achieve a homomorphic 
+  net value balance of 0. Since every asset type has a pseudorandomly derived asset generator, it is 
+  not ordinarily feasible to achieve a net value balance of 0 for the transaction without each asset 
+  type independently having a net value balance of 0. Therefore, intentional burning and minting of 
+  assets typically requires a public ``turnstile'' where some collection of assets are unshielded, burned 
+  or minted in a public transaction, and then reshielded. Since this turnstile publicly reveals asset 
+  types and amounts, privacy is affected.
+  
+  The goal is to design an extension to MASP that allows for burning and minting assets according to a predetermined, 
+  fixed, public ratio, but without explicitly publicly revealing asset types or amounts in individual transactions.
+  
+  In the MASP, each Spend or Output circuit only verifies the integrity of spending or creation of a specific note, 
+  and does not verify the integrity of a transaction as a whole. To ensure that a transaction containing Spend 
+  and Output descriptions does not violate the invariants of the shielded pool (such as the total 
+  unspent balance of each asset in the pool) the value commitments are added homomorphically and this 
+  homomorphic sum is opened to reveal the transaction has a net value balance of 0. When shielded assets are burned 
+  or minted in a MASP transaction, the homomorphic net value balance must be nonzero, and offset by shielding 
+  or unshielding a corresponding amount of each asset.
+  
+  Instead of requiring the homomorphic sum of Spend and Output value commitments to sum to 0, 
+  burning and minting of assets can be enabled by allowing the homomorphic sum of Spend and Output 
+  value commitments to sum to either 0 or a multiple of an allowed conversion ratio. For example, if 
+  distinct assets A and B can be converted in a 1-1 ratio (meaning one unit of A can be burned to 
+  mint one unit of B) then the Spend and Output value commitments may sum to a nonzero value.
+  
+  Let $A_1, A_2, \ldots, A_n$ be distinct asset types. An \textit{allowed conversion} is a list of tuples
+   $\{(A_1, V_1), (A_2, V_2), \ldots (A_n, V_n)\}$ where $V_1, \ldots, V_n$ are signed integers.
+  
+  The \textit{asset generator} of an allowed conversion is defined to be: $vb = [V_1] vb_1 + \ldots + [V_n] vb_n$
+  where $vb_i$ is the asset generator of asset $A_i$. 
+  
+  Each allowed conversion is committed to a Jubjub point using a binding Bowe-Hopwood commitment 
+  of its asset generator (it is not necessary to be hiding). All allowed conversion commitments 
+  are stored in a public Merkle tree, similar to the Note commitment tree. Since the contents of 
+  this tree are entirely public, allowed conversions may be added, removed, or modified at any time.
+  
+  In order for an unbalanced transaction containing burns and mints to get a net value balance of zero, 
+  one or more value commitments burning and minting assets must be added to the value balance. Similar 
+  to how Spend and Output circuits check the validity of their respective value commitments, the Convert 
+  circuit checks the validity and integrity of:
+  
+  \begin{enumerate}
+  \item    There exists an allowed conversion commitment in the Merkle tree, and
+  \item    The imbalance in the value commitment is a multiple of an allowed conversion's asset generator
+  \end{enumerate}
+  
+  In particular, this informally requires a Convert circuit with public inputs:
+  
+  \[(rt, cv^{mint})\]
+  
+  and private input:
+  
+  \[(path, pos, cm, v, rcv, vb)\]
+  
+  and the circuit checks:
+  \begin{enumerate}
+  \item Merkle Path validity: $path, pos$ is a valid Merkle path from $cm$ to $rt$.
+  \item Allowed conversion commitment integrity: $cm$ opens to $repr(vb)$
+  \item Value commitment integrity: $cv^{mint} = [8*v] vb + [rcv] R$ where $R$ is the value commitment randomness base
+  \end{enumerate} 
+
+  Note that 8 is the cofactor of the Jubjub curve.
+  
+  Previously, the transaction consisted of Spend and Output descriptions, and a value balance check that the value commitment $cv^{in} - cv^{out}$ opens to 0. Now, the transaction validity includes:
+  
+  \begin{enumerate}
+  \item Checking the Convert description includes a valid and current $rt$
+  \item Checking the value commitment $cv^{in} + cv^{mint} - cv^{out}$ opens to 0
+  \end{enumerate}
+  
+  Directionality of allowed conversions must be enforced as well. That is, $v$ must be a non-negative 
+  64 bit integer. If negative values of $v$ are allowed (or equivalently, unbounded large values of 
+  $v$ in the prime order scalar field of the Jubjub curve) then an allowed conversion could happen 
+  in the reverse direction, burning the assets intended to be minted and vice versa. 
+  
+  It is also critical not to allow cycles. For example, if $\{(A_1, -1), (A_2, 2)\}$ and $\{(A_1, 1), (A_2, -1)\}$ 
+  are allowed conversions, then an unlimited amount of $A_2$ may be minted from a nonzero amount of $A_1$. Since 
+  
+  It may theoretically be possible to implement similar mechanisms with only the existing Spend and Output 
+  circuits. For example, a Merkle tree of many Notes could be created with asset generator $[-1] vb_1 + vb_2$ 
+  and many different values, allowing anyone to Spend these public Notes, which will only balance if proper 
+  amounts of asset type 1 are Spent and asset type 2 are Output.
+  
+  However, the Nullifier integrity check of the Spend circuit reveals the nullifier of each of these Notes. 
+  This removes the privacy of the conversion as the public nullifier is linkable to the allowed conversion. 
+  In addition, each Note has a fixed value, preventing arbitrary value conversions. In general, it 
+  does not seem feasible to use only the Spend and Output circuits to implement the desired mechanisms.
+  
+  In principle, as long as the Merkle tree only contains allowed conversions, this should 
+  permit the allowed conversions while maintaining other invariants. Note that since the asset 
+  generators are not derived in the circuit, all sequences of values and asset types are allowed. 
+  
+     \lsubsubsection{\ConvertStatement{}}{convertstatement}
+
+The new MASP Convert circuit has 47358 constraints. 
+
+\vspace{-1ex}
+Let $\ScalarLength$, $\ValueCommitAlg$, $\NoteCommitSaplingAlg$, $\GroupJ$, $\SubgroupJ$, $\reprJ$, $\ParamJ{q}$, $\ParamJ{r}$, $\ParamJ{h}$, \\ 
+$\ExtractJ \typecolon \SubgroupJ \rightarrow \MerkleHashSapling$ ,  $\AuthProveBase$ be as defined in the original \Sapling specification.
+
+Let $\MerkleDepthConvert=\MerkleDepthSapling$ and $\MerkleHashLengthConvert = \MerkleHashLengthSapling$.
+
+\intropart
+\vspace{0.5ex}
+A valid instance of $\ProofConvert$ assures that given a \primaryInput:
+
+\vspace{-1ex}
+\begin{formulae}
+  \item $\oparen\rt \typecolon \MerkleHashConvert,\\
+         \hparen\cvAllowedConversion{} \typecolon \ValueCommitConvert\cparen$
+\end{formulae}
+
+\vspace{-2ex}
+\introlist
+the prover knows an \auxiliaryInput:
+
+\vspace{-1ex}
+\begin{formulae}
+  \item $\oparen\TreePath{} \typecolon \typeexp{\MerkleHash}{\MerkleDepthConvert},\\
+         \hparen\NotePosition \typecolon \NotePositionTypeConvert,\vspace{0.4ex}\\
+         \hparen\vAllowedConversion{} \typecolon \ValueType,\\
+         \hparen\ValueCommitRandConvert{} \typecolon \binaryrange{\ScalarLength},\\
+         \hparen\cmAllowedConversion{} \typecolon \GroupJ,\\
+         \hparen\AllowedConversionValueBase \typecolon \GroupJ\cparen$ %masp
+\end{formulae}
+\vspace{-1.5ex}
+such that the following conditions hold:
+
+\vspace{0.5ex}
+\snarkcondition{AllowedConversion commitment integrity}{allowedconversioncommitmentintegrity}
+$\cmAllowedConversion{} = \mathsf{PedersenHashToPoint}(''MASP\_\_PH'', [1]^6||\reprJ\Of{\AllowedConversionValueBase})$.%masp
+
+\snarkcondition{Merkle path validity}{spendmerklepathvalidity}
+Either $\vAllowedConversion{} = 0$; or $(\TreePath{}, \NotePosition)$ is a valid \merklePath of depth $\MerkleDepthConvert$, from $\cmU = \ExtractJ(\cmAllowedConversion{})$ to the \anchor $\rt$.
+
+\snarkcondition{Value commitment integrity}{spendvaluecommitmentintegrity}
+%$\cvOld{} = \ValueCommit{\ValueCommitRandOld{}}(\vOld{})$.
+$\cvAllowedConversion{} = \scalarmult{\ValueConvert{} \ParamJ{h} }{\AllowedConversionValueBase} + \scalarmult{\ValueCommitRandConvert{}}{ \FindGroupJHash\Of{\ascii{MASP\_\_r\_},\ascii{r}}} $
+
+\snarkcondition{Small order checks}{spendnonsmall}
+$\AllowedConversionValueBase$ is not of small order, i.e.\ $\scalarmult{\ParamJ{h}}{\AllowedConversionValueBase} \neq \ZeroJ$
+
+The form and encoding of \convertStatement proofs may be Groth16.
+
+\begin{pnotes}
+  \item Public and \auxiliaryInputs{} \MUST be constrained to have the types specified. In particular,
+        see the original \Sapling specifcation, for required validity checks on compressed
+        representations of \jubjubCurve points.
+
+        The $\ValueCommitConvert$ type also represent points, i.e. $\GroupJ$.
+  \item In the Merkle path validity check, each \merkleLayer does \emph{not} check that its
+        input bit sequence is a canonical encoding (in $\range{0}{\ParamS{r}-1}$) of the integer
+        from the previous \merkleLayer.
+  \item It is \emph{not} checked that $\ValueCommitRandConvert{} < \ParamJ{r}$.
+        \item 
+        Note that the asset identifiers are \textit{not} witnessed in the \convertStatement. 
+        Since $\AllowedConversionValueBase$ is publicly computed (or is otherwise trusted), the \convertStatement
+        assumes that $\AllowedConversionValueBase$ provides a correct allowed conversion.
+\end{pnotes}
+}
 
 \begin{comment}
 \sapling{
