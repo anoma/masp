@@ -85,7 +85,7 @@ impl MapAuth<Authorized, Authorized> for () {
     }
 }
 
-#[derive(Clone, Debug, BorshSerialize, BorshDeserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Bundle<A: Authorization + PartialEq + BorshSerialize + BorshDeserialize> {
     pub shielded_spends: Vec<SpendDescription<A>>,
     pub shielded_converts: Vec<ConvertDescription<A::Proof>>,

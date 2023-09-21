@@ -255,14 +255,14 @@ impl<Node: Hashable> FrozenCommitmentTree<Node> {
 }
 
 impl<Node: BorshSerialize> BorshSerialize for FrozenCommitmentTree<Node> {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         (&self.0, self.1).serialize(writer)
     }
 }
 
 impl<Node: BorshDeserialize> BorshDeserialize for FrozenCommitmentTree<Node> {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        let tup: (Vec<Node>, usize) = BorshDeserialize::deserialize(buf)?;
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let tup: (Vec<Node>, usize) = BorshDeserialize::deserialize_reader(reader)?;
         Ok(Self(tup.0, tup.1))
     }
 }
@@ -470,14 +470,14 @@ impl<Node: Hashable> CommitmentTree<Node> {
 }
 
 impl<Node: Hashable> BorshSerialize for CommitmentTree<Node> {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write(writer)
     }
 }
 
 impl<Node: Hashable> BorshDeserialize for CommitmentTree<Node> {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
     }
 }
 
@@ -698,14 +698,14 @@ impl<Node: Hashable> IncrementalWitness<Node> {
 }
 
 impl<Node: Hashable> BorshSerialize for IncrementalWitness<Node> {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write(writer)
     }
 }
 
 impl<Node: Hashable> BorshDeserialize for IncrementalWitness<Node> {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
     }
 }
 
@@ -761,17 +761,18 @@ impl<Node: Hashable> MerklePath<Node> {
 }
 
 impl<Node: Hashable> BorshDeserialize for MerklePath<Node> {
-    fn deserialize(witness: &mut &[u8]) -> Result<Self, std::io::Error> {
+    fn deserialize_reader<R: Read>(witness: &mut R) -> Result<Self, std::io::Error> {
         // Skip the first byte, which should be "depth" to signify the length of
         // the following vector of Pedersen hashes.
-        let depth = witness[0] as usize;
-        *witness = &witness[1..];
+        let depth = witness.read_u8()? as usize;
 
         // Begin to construct the authentication path
         // Do not use any data in the witness after the expected depth
-        let iter = witness[..33 * depth + 8].chunks_exact(33);
-        // Update the witness to its final position
-        *witness = &witness[33 * depth + 8..];
+        let mut iter = vec![];
+        let _ = witness
+            .take((33 * depth + 8usize) as u64)
+            .read_to_end(&mut iter)?;
+        let iter = iter.chunks_exact(33);
         // Read the position from the witness
         let position = iter.remainder().read_u64::<LittleEndian>()?;
 

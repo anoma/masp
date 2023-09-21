@@ -301,14 +301,14 @@ impl ViewingKey {
 }
 
 impl BorshSerialize for ViewingKey {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write(writer)
     }
 }
 
 impl BorshDeserialize for ViewingKey {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
     }
 }
 
@@ -477,18 +477,16 @@ impl Hash for PaymentAddress {
 }
 
 impl BorshSerialize for PaymentAddress {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write(self.to_bytes().as_ref()).and(Ok(()))
     }
 }
 impl BorshDeserialize for PaymentAddress {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        let data = buf
-            .get(..43)
-            .ok_or_else(|| io::Error::from(io::ErrorKind::UnexpectedEof))?;
-        let res = Self::from_bytes(data.try_into().unwrap());
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut data = [0u8; 43];
+        reader.read_exact(&mut data)?;
+        let res = Self::from_bytes(&data);
         let pa = res.ok_or_else(|| io::Error::from(io::ErrorKind::InvalidData))?;
-        *buf = &buf[43..];
         Ok(pa)
     }
 }
@@ -684,7 +682,7 @@ impl Note {
 }
 
 impl BorshSerialize for Note {
-    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> io::Result<()> {
         // Write asset type
         self.asset_type.serialize(writer)?;
         // Write note value
@@ -712,23 +710,23 @@ impl BorshSerialize for Note {
 }
 
 impl BorshDeserialize for Note {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
         // Read asset type
-        let asset_type = AssetType::deserialize(buf)?;
+        let asset_type = AssetType::deserialize_reader(reader)?;
         // Read note value
-        let value = buf.read_u64::<LittleEndian>()?;
+        let value = reader.read_u64::<LittleEndian>()?;
         // Read diversified base
-        let g_d_bytes = <[u8; 32]>::deserialize(buf)?;
+        let g_d_bytes = <[u8; 32]>::deserialize_reader(reader)?;
         let g_d = Option::from(jubjub::SubgroupPoint::from_bytes(&g_d_bytes))
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "g_d not in field"))?;
         // Read diversified transmission key
-        let pk_d_bytes = <[u8; 32]>::deserialize(buf)?;
+        let pk_d_bytes = <[u8; 32]>::deserialize_reader(reader)?;
         let pk_d = Option::from(jubjub::SubgroupPoint::from_bytes(&pk_d_bytes))
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "pk_d not in field"))?;
         // Read note plaintext lead byte
-        let rseed_type = buf.read_u8()?;
+        let rseed_type = reader.read_u8()?;
         // Read rseed
-        let rseed_bytes = <[u8; 32]>::deserialize(buf)?;
+        let rseed_bytes = <[u8; 32]>::deserialize_reader(reader)?;
         let rseed = if rseed_type == 0x01 {
             let data = Option::from(jubjub::Fr::from_bytes(&rseed_bytes))
                 .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "rseed not in field"))?;
@@ -820,7 +818,7 @@ mod tests {
         sapling::Note,
         transaction::components::amount::MAX_MONEY,
     };
-    use borsh::{BorshDeserialize, BorshSerialize};
+    use borsh::BorshDeserialize;
     use proptest::prelude::*;
 
     proptest! {
@@ -828,7 +826,7 @@ mod tests {
         #[test]
         fn note_serialization(note in arb_positive_note_value(MAX_MONEY).prop_flat_map(arb_note)) {
             // BorshSerialize
-            let borsh = note.try_to_vec().unwrap();
+            let borsh = borsh::to_vec(&note).unwrap();
             // BorshDeserialize
             let de_note: Note = BorshDeserialize::deserialize(&mut borsh.as_ref()).unwrap();
             prop_assert_eq!(note, de_note);

@@ -24,7 +24,7 @@ chacha20 = { version = "0.9", default-features = false }
 chacha20poly1305 = { version = "0.10", default-features = false }
 rand_core = { version = "0.6", default-features = false }
 subtle = { version = "2.3", default-features = false }
-borsh = { version = "0.9", features = ["const-generics"] }
+borsh = {version = "1.0.0-alpha.4", features = ["schema", "derive"]}
 
 [features]
 default = ["alloc"]

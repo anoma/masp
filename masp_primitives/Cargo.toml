@@ -73,7 +73,7 @@ blake2s_simd = "1"
 aes = "0.8"
 fpe = "0.6"
 
-borsh = { version = "0.9", features = ["const-generics"] }
+borsh = {version = "1.0.0-alpha.4", features = ["schema", "derive"]}
 [dependencies.masp_note_encryption]
 version = "0.2"
 path = "../masp_note_encryption"

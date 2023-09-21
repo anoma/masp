@@ -10,6 +10,7 @@ use blake2b_simd::Hash as Blake2bHash;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ff::PrimeField;
 use memuse::DynamicUsage;
+use std::collections::BTreeMap;
 use std::{
     fmt::{self, Debug},
     hash::Hash,
@@ -283,23 +284,20 @@ impl TransactionData<Authorized> {
 }
 
 impl BorshSerialize for Transaction {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write(writer)
     }
 }
 
 impl BorshDeserialize for Transaction {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf, BranchId::MASP)
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader, BranchId::MASP)
     }
 }
 
 impl borsh::BorshSchema for Transaction {
     fn add_definitions_recursively(
-        _definitions: &mut std::collections::HashMap<
-            borsh::schema::Declaration,
-            borsh::schema::Definition,
-        >,
+        _definitions: &mut BTreeMap<borsh::schema::Declaration, borsh::schema::Definition>,
     ) {
     }
 
