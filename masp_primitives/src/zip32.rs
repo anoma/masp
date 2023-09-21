@@ -151,7 +151,7 @@ mod tests {
         let too_big = DiversifierIndex([
             0xff, 0xff, 0xff, 0xff, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ]);
-        assert!(matches!(u32::try_from(too_big), Err(_)));
+        assert!(u32::try_from(too_big).is_err());
     }
 }
 

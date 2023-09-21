@@ -17,7 +17,7 @@ use std::{
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
-    #[borsh_skip]
+    #[borsh(skip)]
     nonce: Option<u8>,
 }
 
@@ -148,6 +148,15 @@ impl AssetType {
     pub fn get_nonce(&self) -> Option<u8> {
         self.nonce
     }
+
+    /// Deserialize an AssetType object
+    pub fn read<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut atype = [0; crate::constants::ASSET_IDENTIFIER_LENGTH];
+        reader.read_exact(&mut atype)?;
+        AssetType::from_identifier(&atype).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
+        })
+    }
 }
 
 impl PartialEq for AssetType {
@@ -170,7 +179,7 @@ impl Hash for AssetType {
 
 impl PartialOrd for AssetType {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.get_identifier().partial_cmp(other.get_identifier())
+        Some(self.cmp(other))
     }
 }
 

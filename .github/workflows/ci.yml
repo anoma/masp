@@ -1,11 +1,18 @@
 name: CI checks
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
 
 jobs:
   test:
     name: Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # This condition ensures that this job will not run on pull requests in draft state
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
@@ -22,7 +29,7 @@ jobs:
         run: echo "MASP_PARAMS=$(cargo run --release --example get-params-path --features directories)" >> $GITHUB_ENV
       - name: Cache MASP parameters
         id: cache-params
-        uses: actions/cache@v3.2.4
+        uses: actions/cache@v3.3.2
         with:
           path: ${{ env.MASP_PARAMS }}
           key: ${{ runner.os }}-params

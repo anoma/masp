@@ -10,6 +10,7 @@ use blake2b_simd::Hash as Blake2bHash;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ff::PrimeField;
 use memuse::DynamicUsage;
+use std::collections::BTreeMap;
 use std::{
     fmt::{self, Debug},
     hash::Hash,
@@ -283,23 +284,20 @@ impl TransactionData<Authorized> {
 }
 
 impl BorshSerialize for Transaction {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write(writer)
     }
 }
 
 impl BorshDeserialize for Transaction {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf, BranchId::MASP)
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader, BranchId::MASP)
     }
 }
 
 impl borsh::BorshSchema for Transaction {
     fn add_definitions_recursively(
-        _definitions: &mut std::collections::HashMap<
-            borsh::schema::Declaration,
-            borsh::schema::Definition,
-        >,
+        _definitions: &mut BTreeMap<borsh::schema::Declaration, borsh::schema::Definition>,
     ) {
     }
 
@@ -439,11 +437,7 @@ impl Transaction {
 
         let shielded_spends = sd_v5s
             .into_iter()
-            .zip(
-                v_spend_proofs
-                    .into_iter()
-                    .zip(v_spend_auth_sigs.into_iter()),
-            )
+            .zip(v_spend_proofs.into_iter().zip(v_spend_auth_sigs))
             .map(|(sd_5, (zkproof, spend_auth_sig))| {
                 // the following `unwrap` is safe because we know n_spends > 0.
                 sd_5.into_spend_description(spend_anchor.unwrap(), zkproof, spend_auth_sig)
@@ -452,13 +446,13 @@ impl Transaction {
 
         let shielded_converts = cd_v5s
             .into_iter()
-            .zip(v_convert_proofs.into_iter())
+            .zip(v_convert_proofs)
             .map(|(cd_5, zkproof)| cd_5.into_convert_description(convert_anchor.unwrap(), zkproof))
             .collect();
 
         let shielded_outputs = od_v5s
             .into_iter()
-            .zip(v_output_proofs.into_iter())
+            .zip(v_output_proofs)
             .map(|(od_5, zkproof)| od_5.into_output_description(zkproof))
             .collect();
 

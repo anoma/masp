@@ -516,13 +516,13 @@ impl std::fmt::Debug for ExtendedFullViewingKey {
 }
 
 impl BorshDeserialize for ExtendedSpendingKey {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
     }
 }
 
 impl BorshSerialize for ExtendedSpendingKey {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write(writer)
     }
 }
@@ -541,37 +541,27 @@ impl<'a> From<&'a ExtendedSpendingKey> for ExtendedFullViewingKey {
 }
 
 impl BorshDeserialize for ExtendedFullViewingKey {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
     }
 }
 
 impl BorshSerialize for ExtendedFullViewingKey {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write(writer)
     }
 }
 
 impl PartialOrd for ExtendedFullViewingKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let a = self
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedFullViewingKey");
-        let b = other
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedFullViewingKey");
-        a.partial_cmp(&b)
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for ExtendedFullViewingKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        let a = self
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedFullViewingKey");
-        let b = other
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedFullViewingKey");
+        let a = borsh::to_vec(self).expect("unable to canonicalize ExtendedFullViewingKey");
+        let b = borsh::to_vec(other).expect("unable to canonicalize ExtendedFullViewingKey");
         a.cmp(&b)
     }
 }
@@ -878,24 +868,14 @@ impl FromStr for ExtendedSpendingKey {
 
 impl PartialOrd for ExtendedSpendingKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let a = self
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedSpendingKey");
-        let b = other
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedSpendingKey");
-        a.partial_cmp(&b)
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for ExtendedSpendingKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        let a = self
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedSpendingKey");
-        let b = other
-            .try_to_vec()
-            .expect("unable to canonicalize ExtendedSpendingKey");
+        let a = borsh::to_vec(self).expect("unable to canonicalize ExtendedSpendingKey");
+        let b = borsh::to_vec(other).expect("unable to canonicalize ExtendedSpendingKey");
         a.cmp(&b)
     }
 }
