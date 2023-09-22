@@ -203,8 +203,8 @@ mod tests {
             + ValueSum::from_pair(btc(), 6i128).unwrap()
             + ValueSum::from_pair(xan(), 7i128).unwrap();
         // Right operand
-        let b =
-            ValueSum::from_pair(zec(), 2i128).unwrap() + ValueSum::from_pair(xan(), 10i128).unwrap();
+        let b = ValueSum::from_pair(zec(), 2i128).unwrap()
+            + ValueSum::from_pair(xan(), 10i128).unwrap();
         // Test homomorphism
         assert_eq!(
             AllowedConversion::from(a.clone() + b.clone()),
