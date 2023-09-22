@@ -150,9 +150,9 @@ fn test_convert_circuit_with_bls12_381() {
         let output_asset = AssetType::new(format!("asset {}", i + 1).as_bytes()).unwrap();
         let mint_asset = AssetType::new(b"reward").unwrap();
 
-        let spend_value = -(i as i32 + 1);
-        let output_value = i as i32 + 1;
-        let mint_value = i as i32 + 1;
+        let spend_value = -(i as i128 + 1);
+        let output_value = i as i128 + 1;
+        let mint_value = i as i128 + 1;
 
         let allowed_conversion: AllowedConversion = (ValueSum::from_pair(spend_asset, spend_value)
             .unwrap()
