@@ -160,13 +160,9 @@ impl ValueSum<AssetType, i32> {
     /// different assets
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
-            let mut atype = [0; 32];
+            let atype = AssetType::read(reader)?;
             let mut value = [0; 4];
-            reader.read_exact(&mut atype)?;
             reader.read_exact(&mut value)?;
-            let atype = AssetType::from_identifier(&atype).ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
-            })?;
             Ok((atype, i32::from_le_bytes(value)))
         })?;
         let mut ret = Self::zero();
@@ -195,13 +191,9 @@ impl ValueSum<AssetType, i64> {
     /// different assets
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
-            let mut atype = [0; 32];
+            let atype = AssetType::read(reader)?;
             let mut value = [0; 8];
-            reader.read_exact(&mut atype)?;
             reader.read_exact(&mut value)?;
-            let atype = AssetType::from_identifier(&atype).ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
-            })?;
             Ok((atype, i64::from_le_bytes(value)))
         })?;
         let mut ret = Self::zero();
@@ -230,13 +222,9 @@ impl ValueSum<AssetType, i128> {
     /// different assets
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let vec = Vector::read(reader, |reader| {
-            let mut atype = [0; 32];
+            let atype = AssetType::read(reader)?;
             let mut value = [0; 16];
-            reader.read_exact(&mut atype)?;
             reader.read_exact(&mut value)?;
-            let atype = AssetType::from_identifier(&atype).ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
-            })?;
             Ok((atype, i128::from_le_bytes(value)))
         })?;
         let mut ret = Self::zero();
@@ -657,7 +645,7 @@ pub mod testing {
 
     prop_compose! {
         pub fn arb_i128_sum()(asset_type in arb_asset_type(), amt in i128::MIN..i128::MAX) -> I128Sum {
-            ValueSum::from_pair(asset_type, amt as i128).unwrap()
+            ValueSum::from_pair(asset_type, amt).unwrap()
         }
     }
 
@@ -676,40 +664,131 @@ pub mod testing {
 
 #[cfg(test)]
 mod tests {
-    use super::{zec, I64Sum, ValueSum, MAX_MONEY};
+    use super::{zec, I128Sum, I32Sum, I64Sum, ValueSum, MAX_MONEY};
 
     #[test]
     fn amount_in_range() {
-        let zero = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00\x00\x00\x00\x00";
+        let mut bytes = Vec::with_capacity(100);
+
+        macro_rules! test_vector {
+            ($amount:ident) => {{
+                bytes.clear();
+                $amount.write(&mut bytes).unwrap();
+                format!(
+                    "b\"{}\",\n",
+                    std::str::from_utf8(
+                        &bytes
+                            .iter()
+                            .flat_map(|b| std::ascii::escape_default(*b))
+                            .collect::<Vec<_>>(),
+                    )
+                    .unwrap()
+                )
+            }};
+        }
+        macro_rules! value_amount {
+            ($t:ty, $val:expr) => {{
+                let mut amount = <$t>::from_pair(zec(), 1).unwrap();
+                *amount.0.get_mut(&zec()).unwrap() = $val;
+                amount
+            }};
+        }
+
+        let test_amounts_i32 = [
+            value_amount!(I32Sum, 0), // zec() asset with value 0
+            I32Sum::from_pair(zec(), -1).unwrap(),
+            I32Sum::from_pair(zec(), i32::MAX).unwrap(),
+            I32Sum::from_pair(zec(), -i32::MAX).unwrap(),
+        ];
+
+        let test_amounts_i64 = [
+            value_amount!(I64Sum, 0), // zec() asset with value 0
+            I64Sum::from_pair(zec(), -1).unwrap(),
+            I64Sum::from_pair(zec(), i64::MAX).unwrap(),
+            I64Sum::from_pair(zec(), -i64::MAX).unwrap(),
+        ];
+
+        let test_amounts_i128 = [
+            value_amount!(I128Sum, 0), // zec() asset with value 0
+            I128Sum::from_pair(zec(), MAX_MONEY as i128).unwrap(),
+            value_amount!(I128Sum, MAX_MONEY as i128 + 1),
+            I128Sum::from_pair(zec(), -(MAX_MONEY as i128)).unwrap(),
+            value_amount!(I128Sum, -(MAX_MONEY as i128 - 1)),
+        ];
+
+        println!(
+            "let test_vectors_i32 = [{}];",
+            test_amounts_i32
+                .iter()
+                .map(|a| test_vector!(a))
+                .collect::<String>()
+        );
+        println!(
+            "let test_vectors_i64 = [{}];",
+            test_amounts_i64
+                .iter()
+                .map(|a| test_vector!(a))
+                .collect::<String>()
+        );
+
+        println!(
+            "let test_vectors_i128 = [{}];",
+            test_amounts_i128
+                .iter()
+                .map(|a| test_vector!(a))
+                .collect::<String>()
+        );
+
+        let zero = b"\x00";
+        let test_vectors_i32 = [b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00",
+        b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff",
+        b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\x7f",
+        b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x00\x00\x80",
+        ];
+        let test_vectors_i64 = [b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00\x00\x00\x00\x00",
+        b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\xff",
+        b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\x7f",
+        b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x00\x00\x00\x00\x00\x00\x80",
+        ];
+        let test_vectors_i128 = [b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+        b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00",
+        b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00",
+        b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff",
+        b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x02\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff",
+        ];
+
+        assert_eq!(
+            I32Sum::read(&mut test_vectors_i32[0].as_ref()).unwrap(),
+            ValueSum::zero()
+        );
+        assert_eq!(
+            I64Sum::read(&mut test_vectors_i64[0].as_ref()).unwrap(),
+            ValueSum::zero()
+        );
+        assert_eq!(
+            I128Sum::read(&mut test_vectors_i128[0].as_ref()).unwrap(),
+            ValueSum::zero()
+        );
+
+        assert_eq!(I32Sum::read(&mut zero.as_ref()).unwrap(), ValueSum::zero());
         assert_eq!(I64Sum::read(&mut zero.as_ref()).unwrap(), ValueSum::zero());
+        assert_eq!(I128Sum::read(&mut zero.as_ref()).unwrap(), ValueSum::zero());
 
-        let neg_one = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\xff";
-        assert_eq!(
-            I64Sum::read(&mut neg_one.as_ref()).unwrap(),
-            I64Sum::from_pair(zec(), -1).unwrap()
-        );
-
-        let max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\xff\xff\xff\xff\xff\xff\xff\x7f";
-
-        assert_eq!(
-            I64Sum::read(&mut max_money.as_ref()).unwrap(),
-            I64Sum::from_pair(zec(), i64::MAX).unwrap()
-        );
-
-        //let max_money_p1 = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x40\x07\x5a\xf0\x75\x07\x00";
-        //assert!(ValueSum::read(&mut max_money_p1.as_ref()).is_err());
-
-        //let mut neg_max_money = [0u8; 41];
-        //let mut amount = ValueSum::from_pair(zec(), -MAX_MONEY).unwrap();
-        //*amount.0.get_mut(&zec()).unwrap() = i64::MIN;
-        //amount.write(&mut neg_max_money.as_mut());
-        //dbg!(std::str::from_utf8(&neg_max_money.as_ref().iter().map(|b| std::ascii::escape_default(*b)).flatten().collect::<Vec<_>>()).unwrap());
-
-        let neg_max_money = b"\x01\x94\xf3O\xfdd\xef\n\xc3i\x08\xfd\xdf\xec\x05hX\x06)\xc4Vq\x0f\xa1\x86\x83\x12\xa8\x7f\xbf\n\xa5\t\x01\x00\x00\x00\x00\x00\x00\x80";
-        assert_eq!(
-            I64Sum::read(&mut neg_max_money.as_ref()).unwrap(),
-            I64Sum::from_pair(zec(), -i64::MAX).unwrap()
-        );
+        test_vectors_i32
+            .iter()
+            .skip(1)
+            .zip(test_amounts_i32.iter().skip(1))
+            .for_each(|(tv, ta)| assert_eq!(I32Sum::read(&mut tv.as_ref()).unwrap(), *ta));
+        test_vectors_i64
+            .iter()
+            .skip(1)
+            .zip(test_amounts_i64.iter().skip(1))
+            .for_each(|(tv, ta)| assert_eq!(I64Sum::read(&mut tv.as_ref()).unwrap(), *ta));
+        test_vectors_i128
+            .iter()
+            .skip(1)
+            .zip(test_amounts_i128.iter().skip(1))
+            .for_each(|(tv, ta)| assert_eq!(I128Sum::read(&mut tv.as_ref()).unwrap(), *ta));
     }
 
     #[test]

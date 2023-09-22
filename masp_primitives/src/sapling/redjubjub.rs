@@ -58,25 +58,25 @@ impl Hash for PublicKey {
 }
 
 impl BorshDeserialize for PublicKey {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Ok(Self(read_point(buf, "public key")?))
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self(read_point(reader, "public key")?))
     }
 }
 
 impl BorshSerialize for PublicKey {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         BorshSerialize::serialize(&self.0.to_bytes(), writer)
     }
 }
 
 impl BorshDeserialize for Signature {
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        Self::read(buf)
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
     }
 }
 
 impl BorshSerialize for Signature {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write(writer)
     }
 }
@@ -215,9 +215,9 @@ pub struct BatchEntry<'a> {
 
 // TODO: #82: This is a naive implementation currently,
 // and doesn't use multiexp.
-pub fn batch_verify<'a, R: RngCore>(
+pub fn batch_verify<R: RngCore>(
     mut rng: &mut R,
-    batch: &[BatchEntry<'a>],
+    batch: &[BatchEntry<'_>],
     p_g: SubgroupPoint,
 ) -> bool {
     let mut acc = ExtendedPoint::identity();

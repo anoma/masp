@@ -111,7 +111,7 @@ impl From<I128Sum> for AllowedConversion {
 }
 
 impl BorshSerialize for AllowedConversion {
-    fn serialize<W: Write>(&self, writer: &mut W) -> borsh::maybestd::io::Result<()> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.assets.write(writer)?;
         writer.write_all(&self.generator.to_bytes())?;
         Ok(())
@@ -122,10 +122,10 @@ impl BorshDeserialize for AllowedConversion {
     /// This deserialization is unsafe because it does not do the expensive
     /// computation of checking whether the asset generator corresponds to the
     /// deserialized amount.
-    fn deserialize(buf: &mut &[u8]) -> borsh::maybestd::io::Result<Self> {
-        let assets = I128Sum::read(buf)?;
+    fn deserialize_reader<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let assets = I128Sum::read(reader)?;
         let gen_bytes =
-            <<jubjub::ExtendedPoint as GroupEncoding>::Repr as BorshDeserialize>::deserialize(buf)?;
+            <<jubjub::ExtendedPoint as GroupEncoding>::Repr as BorshDeserialize>::deserialize_reader(reader)?;
         let generator = Option::from(jubjub::ExtendedPoint::from_bytes(&gen_bytes))
             .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidData))?;
         let allowed_conversion: AllowedConversion = assets.clone().into();
