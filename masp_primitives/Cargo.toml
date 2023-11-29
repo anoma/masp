@@ -1,7 +1,7 @@
 [package]
 name = "masp_primitives"
 description = "Rust implementations of the experimental MASP primitives (derived from zcash_primitives)"
-version = "0.9.0"
+version = "1.0.0"
 authors = [
     "Jack Grigg <jack@z.cash>",
     "Kris Nuttycombe <kris@electriccoin.co>",
@@ -73,9 +73,9 @@ blake2s_simd = "1"
 aes = "0.8"
 fpe = "0.6"
 
-borsh = {version = "1.0.0-alpha.4", features = ["schema", "derive"]}
+borsh = {version = "1.2.0", features = ["unstable__schema", "derive"]}
 [dependencies.masp_note_encryption]
-version = "0.2"
+version = "1.0.0"
 path = "../masp_note_encryption"
 features = ["pre-zip-212"]
 
