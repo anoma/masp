@@ -75,6 +75,25 @@ pub struct SpendDescriptionInfo<Key = ExtendedSpendingKey> {
     merkle_path: MerklePath<Node>,
 }
 
+impl<Key> SpendDescriptionInfo<Key> {
+    /// Constructs a [`SpendDescriptionInfo`] from its constituent parts.
+    pub fn new(
+        extsk: Key,
+        diversifier: Diversifier,
+        note: Note,
+        alpha: jubjub::Fr,
+        merkle_path: MerklePath<Node>,
+    ) -> Self {
+        Self {
+            extsk,
+            diversifier,
+            note,
+            alpha,
+            merkle_path,
+        }
+    }
+}
+
 impl<Key: BorshSerialize> BorshSerialize for SpendDescriptionInfo<Key> {
     fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         self.extsk.serialize(writer)?;
@@ -133,7 +152,17 @@ pub struct SaplingOutputInfo {
     note: Note,
     memo: MemoBytes,
 }
-
+impl SaplingOutputInfo {
+    /// Constructs a [`SaplingOutputInfo`] from its constituent parts.
+    pub fn new(
+        ovk: Option<OutgoingViewingKey>,
+        to: PaymentAddress,
+        note: Note,
+        memo: MemoBytes,
+    ) -> Self {
+        Self { ovk, to, note, memo }
+    }
+}
 impl SaplingOutputInfo {
     #[allow(clippy::too_many_arguments)]
     fn new_internal<P: consensus::Parameters, R: RngCore>(
@@ -792,6 +821,16 @@ pub struct ConvertDescriptionInfo {
     merkle_path: MerklePath<Node>,
 }
 
+impl ConvertDescriptionInfo {
+    /// Constructs a [`ConvertDescriptionInfo`] from its constituent parts.
+    pub fn new(allowed: AllowedConversion, value: u64, merkle_path: MerklePath<Node>) -> Self {
+        Self {
+            allowed,
+            value,
+            merkle_path,
+        }
+    }
+}
 impl fees::ConvertView for ConvertDescriptionInfo {
     fn value(&self) -> u64 {
         self.value
