@@ -426,17 +426,7 @@ where
     type Output = ValueSum<Unit, Value>;
 
     fn add(self, rhs: &ValueSum<Unit, Value>) -> Self::Output {
-        let mut comps = self.0.clone();
-        for (atype, amount) in rhs.components() {
-            comps.insert(
-                atype.clone(),
-                self.get(atype)
-                    .checked_add(amount)
-                    .expect("overflow detected"),
-            );
-        }
-        comps.retain(|_, v| *v != Value::default());
-        ValueSum(comps)
+        self.checked_add(rhs).expect("overflow detected")
     }
 }
 
@@ -456,6 +446,28 @@ where
 
     fn add(self, rhs: ValueSum<Unit, Value>) -> Self::Output {
         self + &rhs
+    }
+}
+
+impl<Unit, Value> CheckedAdd for ValueSum<Unit, Value>
+where
+    Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
+    Value: BorshSerialize
+        + BorshDeserialize
+        + PartialEq
+        + Eq
+        + Copy
+        + Default
+        + PartialOrd
+        + CheckedAdd,
+{
+    fn checked_add(&self, v: &Self) -> Option<Self> {
+        let mut comps = self.0.clone();
+        for (atype, amount) in v.components() {
+            comps.insert(atype.clone(), self.get(atype).checked_add(amount)?);
+        }
+        comps.retain(|_, v| *v != Value::default());
+        Some(ValueSum(comps))
     }
 }
 
@@ -528,17 +540,7 @@ where
     type Output = ValueSum<Unit, Value>;
 
     fn sub(self, rhs: &ValueSum<Unit, Value>) -> Self::Output {
-        let mut comps = self.0.clone();
-        for (atype, amount) in rhs.components() {
-            comps.insert(
-                atype.clone(),
-                self.get(atype)
-                    .checked_sub(amount)
-                    .expect("overflow detected"),
-            );
-        }
-        comps.retain(|_, v| *v != Value::default());
-        ValueSum(comps)
+        self.checked_sub(rhs).expect("underflow detected")
     }
 }
 
@@ -551,6 +553,21 @@ where
 
     fn sub(self, rhs: ValueSum<Unit, Value>) -> Self::Output {
         self - &rhs
+    }
+}
+
+impl<Unit, Value> CheckedSub for ValueSum<Unit, Value>
+where
+    Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
+    Value: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + CheckedSub,
+{
+    fn checked_sub(&self, v: &Self) -> Option<Self> {
+        let mut comps = self.0.clone();
+        for (atype, amount) in v.components() {
+            comps.insert(atype.clone(), self.get(atype).checked_sub(amount)?);
+        }
+        comps.retain(|_, v| *v != Value::default());
+        Some(ValueSum(comps))
     }
 }
 
