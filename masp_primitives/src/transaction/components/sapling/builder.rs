@@ -162,6 +162,19 @@ impl SaplingOutputInfo {
     ) -> Self {
         Self { ovk, to, note, memo }
     }
+    /// Returns the recipient of the new output.
+    pub fn recipient(&self) -> PaymentAddress {
+        self.to
+    }
+
+    /// Returns the value of the output.
+    pub fn note(&self) -> Note {
+        self.note
+    }
+
+    pub fn ovk(&self) -> Option<OutgoingViewingKey> { self.ovk }
+
+    pub fn memo(&self) -> MemoBytes { self.memo.clone() }
 }
 impl SaplingOutputInfo {
     #[allow(clippy::too_many_arguments)]
