@@ -843,6 +843,18 @@ impl ConvertDescriptionInfo {
             merkle_path,
         }
     }
+
+    pub fn allowed(&self) -> AllowedConversion {
+        self.allowed.clone()
+    }
+
+    pub fn value(&self) -> u64 {
+        self.value
+    }
+
+    pub fn merkle_path(&self) -> MerklePath<Node> {
+        self.merkle_path.clone()
+    }
 }
 impl fees::ConvertView for ConvertDescriptionInfo {
     fn value(&self) -> u64 {
