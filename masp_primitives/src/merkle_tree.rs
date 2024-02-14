@@ -2,6 +2,11 @@
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
+use borsh::schema::add_definition;
+use borsh::schema::Declaration;
+use borsh::schema::Definition;
+use borsh::schema::Fields;
+use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
 use core::convert::TryFrom;
 use incrementalmerkletree::{
@@ -9,6 +14,7 @@ use incrementalmerkletree::{
     bridgetree::{self, Leaf},
     Altitude,
 };
+use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 use std::iter::repeat;
@@ -711,7 +717,7 @@ impl<Node: Hashable> BorshDeserialize for IncrementalWitness<Node> {
 
 /// A path from a position in a particular commitment tree to the root of that tree.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MerklePath<Node: Hashable> {
+pub struct MerklePath<Node> {
     pub auth_path: Vec<(Node, bool)>,
     pub position: u64,
 }
@@ -834,6 +840,37 @@ impl<Node: Hashable> BorshSerialize for MerklePath<Node> {
         // Write bit vector indicating positions
         witness.write_u64::<LittleEndian>(position)?;
         Ok(())
+    }
+}
+
+impl<Node: BorshSchema> BorshSchema for MerklePath<Node> {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Sequence {
+            length_width: 1,
+            length_range: ((u8::MIN as u64)..=(u8::MAX as u64)),
+            elements: <(u8, Node)>::declaration(),
+        };
+        add_definition(
+            format!(r#"{}::auth_path"#, Self::declaration()),
+            definition,
+            definitions,
+        );
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                (
+                    "auth_path".into(),
+                    format!(r#"{}::auth_path"#, Self::declaration()),
+                ),
+                ("position".into(), u64::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <(u8, Node)>::add_definitions_recursively(definitions);
+        u64::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        format!(r#"MerklePath<{}>"#, Node::declaration())
     }
 }
 

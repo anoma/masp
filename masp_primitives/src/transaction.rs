@@ -1,4 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 
 pub mod builder;
 pub mod components;
@@ -35,7 +35,19 @@ use self::{
     txid::{to_txid, BlockTxCommitmentDigester, TxIdDigester},
 };
 
-#[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash, Debug)]
+#[derive(
+    Clone,
+    Copy,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+    Hash,
+    Debug,
+    BorshSerialize,
+    BorshDeserialize,
+    BorshSchema,
+)]
 pub struct TransparentAddress(pub [u8; 20]);
 
 pub const GROTH_PROOF_SIZE: usize = 48 + 96 + 48;

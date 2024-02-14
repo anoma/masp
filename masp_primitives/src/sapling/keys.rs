@@ -8,6 +8,7 @@ use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
     keys::prf_expand,
 };
+use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
@@ -32,7 +33,9 @@ pub enum DecodingError {
 }
 
 /// An outgoing viewing key
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
+)]
 pub struct OutgoingViewingKey(pub [u8; 32]);
 
 /// A Sapling expanded spending key

@@ -1,4 +1,5 @@
 use crate::asset_type::AssetType;
+use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
 use num_traits::{CheckedAdd, CheckedMul, CheckedNeg, CheckedSub, One};
 use std::cmp::Ordering;
@@ -46,7 +47,9 @@ pub type I128Sum = ValueSum<AssetType, i128>;
 
 pub type U128Sum = ValueSum<AssetType, u128>;
 
-#[derive(Clone, Default, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
+#[derive(
+    Clone, Default, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema, Hash,
+)]
 pub struct ValueSum<
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize,
     Value: BorshSerialize + BorshDeserialize + PartialEq + Eq,

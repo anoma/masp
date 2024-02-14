@@ -6,6 +6,7 @@ use crate::{
     sapling::ValueCommitment,
 };
 use blake2s_simd::Params as Blake2sParams;
+use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
 use group::{cofactor::CofactorGroup, Group, GroupEncoding};
 use std::{
@@ -14,7 +15,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq, BorshSchema)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
     #[borsh(skip)]

@@ -13,6 +13,7 @@ use crate::{
         TransparentAddress,
     },
 };
+use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -45,7 +46,7 @@ impl fees::InputView for InvalidTransparentInput {
 }
 
 #[cfg(feature = "transparent-inputs")]
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
 struct TransparentInputInfo {
     coin: TxOut,
 }
@@ -57,7 +58,7 @@ impl fees::InputView for TransparentInputInfo {
     }
 }
 
-#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize, BorshSchema)]
 pub struct TransparentBuilder {
     #[cfg(feature = "transparent-inputs")]
     inputs: Vec<TransparentInputInfo>,
