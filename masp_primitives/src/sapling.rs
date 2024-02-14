@@ -215,6 +215,43 @@ impl ProofGenerationKey {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct NullifierDerivingKey(pub jubjub::SubgroupPoint);
 
+impl BorshSerialize for NullifierDerivingKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.0.to_bytes())
+    }
+}
+
+impl BorshDeserialize for NullifierDerivingKey {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let nk = {
+            let mut buf = [0u8; 32];
+            reader.read_exact(&mut buf)?;
+            jubjub::SubgroupPoint::from_bytes(&buf)
+        };
+        if nk.is_none().into() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "nk not in prime-order subgroup",
+            ));
+        }
+        Ok(Self(nk.unwrap()))
+    }
+}
+
+impl BorshSchema for NullifierDerivingKey {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::UnnamedFields(vec![<[u8; 32]>::declaration()]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "NullifierDerivingKey".into()
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct ViewingKey {
     pub ak: jubjub::SubgroupPoint,
@@ -315,6 +352,24 @@ impl BorshSerialize for ViewingKey {
 impl BorshDeserialize for ViewingKey {
     fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
         Self::read(reader)
+    }
+}
+
+impl BorshSchema for ViewingKey {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("ak".into(), <[u8; 32]>::declaration()),
+                ("nk".into(), NullifierDerivingKey::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+        NullifierDerivingKey::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "ViewingKey".into()
     }
 }
 

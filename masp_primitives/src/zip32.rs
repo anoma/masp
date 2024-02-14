@@ -2,13 +2,20 @@
 //!
 //! [ZIP 32]: https://zips.z.cash/zip-0032
 
+use borsh::schema::add_definition;
+use borsh::schema::Declaration;
+use borsh::schema::Definition;
+use borsh::schema::Fields;
+use borsh::BorshSchema;
 use memuse::{self, DynamicUsage};
+use std::collections::BTreeMap;
 use std::convert::{TryFrom, TryInto};
 
 use crate::sapling::{Diversifier, NullifierDerivingKey, PaymentAddress, ViewingKey};
 
 pub mod sapling;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 #[deprecated(note = "Please use the types exported from the `zip32::sapling` module instead.")]
 pub use sapling::{
     sapling_address, sapling_default_address, sapling_derive_internal_fvk, sapling_find_address,
@@ -16,6 +23,7 @@ pub use sapling::{
     ZIP32_SAPLING_FVFP_PERSONALIZATION, ZIP32_SAPLING_INT_PERSONALIZATION,
     ZIP32_SAPLING_MASTER_PERSONALIZATION,
 };
+use std::io::{Read, Write};
 
 // ZIP 32 structures
 
@@ -46,8 +54,36 @@ impl ChildIndex {
     }
 }
 
+impl BorshSerialize for ChildIndex {
+    fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        self.value().serialize(writer)
+    }
+}
+
+impl BorshDeserialize for ChildIndex {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        u32::deserialize_reader(reader).map(Self::from_index)
+    }
+}
+
+impl BorshSchema for ChildIndex {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::UnnamedFields(vec![u32::declaration()]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        u32::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "ChildIndex".into()
+    }
+}
+
 /// A BIP-32 chain code
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
+)]
 pub struct ChainCode([u8; 32]);
 
 impl ChainCode {

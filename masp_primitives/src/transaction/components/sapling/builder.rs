@@ -248,7 +248,7 @@ impl fees::OutputView for SaplingOutputInfo {
 }
 
 /// Metadata about a transaction created by a [`SaplingBuilder`].
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
 pub struct SaplingMetadata {
     spend_indices: Vec<usize>,
     convert_indices: Vec<usize>,
