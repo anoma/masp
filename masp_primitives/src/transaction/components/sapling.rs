@@ -4,6 +4,7 @@ use ff::PrimeField;
 use group::GroupEncoding;
 use memuse::DynamicUsage;
 
+use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
 use std::io::{self, Read, Write};
@@ -12,7 +13,10 @@ use masp_note_encryption::{
     EphemeralKeyBytes, ShieldedOutput, COMPACT_NOTE_SIZE, ENC_CIPHERTEXT_SIZE,
 };
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::schema::add_definition;
+use borsh::schema::Definition;
+use borsh::schema::Fields;
+use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 
 use crate::{
     consensus,
@@ -43,7 +47,7 @@ impl Authorization for Unproven {
     type AuthSig = ();
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
 pub struct Authorized {
     pub binding_sig: redjubjub::Signature,
 }
@@ -267,6 +271,34 @@ impl SpendDescriptionV5 {
     }
 }
 
+impl BorshDeserialize for SpendDescriptionV5 {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
+    }
+}
+
+impl BorshSchema for SpendDescriptionV5 {
+    fn add_definitions_recursively(
+        definitions: &mut BTreeMap<borsh::schema::Declaration, borsh::schema::Definition>,
+    ) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("cv".into(), <[u8; 32]>::declaration()),
+                ("nullifier".into(), Nullifier::declaration()),
+                ("rk".into(), PublicKey::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+        Nullifier::add_definitions_recursively(definitions);
+        PublicKey::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> borsh::schema::Declaration {
+        "SpendDescriptionV5".into()
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct OutputDescription<Proof: Clone> {
     pub cv: jubjub::ExtendedPoint,
@@ -374,6 +406,37 @@ impl OutputDescriptionV5 {
             out_ciphertext: self.out_ciphertext,
             zkproof,
         }
+    }
+}
+
+impl BorshDeserialize for OutputDescriptionV5 {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
+    }
+}
+
+impl BorshSchema for OutputDescriptionV5 {
+    fn add_definitions_recursively(
+        definitions: &mut BTreeMap<borsh::schema::Declaration, borsh::schema::Definition>,
+    ) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("cv".into(), <[u8; 32]>::declaration()),
+                ("cmu".into(), <[u8; 32]>::declaration()),
+                ("ephemeral_key".into(), EphemeralKeyBytes::declaration()),
+                ("enc_ciphertext".into(), <[u8; 580 + 32]>::declaration()),
+                ("out_ciphertext".into(), <[u8; 80]>::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+        EphemeralKeyBytes::add_definitions_recursively(definitions);
+        <[u8; 580 + 32]>::add_definitions_recursively(definitions);
+        <[u8; 80]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> borsh::schema::Declaration {
+        "OutputDescriptionV5".into()
     }
 }
 
@@ -517,6 +580,28 @@ impl ConvertDescriptionV5 {
             anchor,
             zkproof,
         }
+    }
+}
+
+impl BorshDeserialize for ConvertDescriptionV5 {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
+    }
+}
+
+impl BorshSchema for ConvertDescriptionV5 {
+    fn add_definitions_recursively(
+        definitions: &mut BTreeMap<borsh::schema::Declaration, borsh::schema::Definition>,
+    ) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![("cv".into(), <[u8; 32]>::declaration())]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> borsh::schema::Declaration {
+        "ConvertDescriptionV5".into()
     }
 }
 

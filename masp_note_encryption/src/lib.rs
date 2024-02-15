@@ -21,6 +21,8 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 #[cfg(feature = "alloc")]
+use crate::alloc::string::ToString;
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use core::convert::TryInto;
@@ -34,7 +36,7 @@ use cipher::KeyIvInit;
 
 //use crate::constants::ASSET_IDENTIFIER_LENGTH;
 pub const ASSET_IDENTIFIER_LENGTH: usize = 32;
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use rand_core::RngCore;
 use subtle::{Choice, ConstantTimeEq};
 
@@ -77,7 +79,18 @@ impl AsRef<[u8]> for OutgoingCipherKey {
 /// Newtype representing the byte encoding of an [`EphemeralPublicKey`].
 ///
 /// [`EphemeralPublicKey`]: Domain::EphemeralPublicKey
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    BorshSerialize,
+    BorshDeserialize,
+    BorshSchema,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+)]
 pub struct EphemeralKeyBytes(pub [u8; 32]);
 
 impl AsRef<[u8]> for EphemeralKeyBytes {

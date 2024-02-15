@@ -34,6 +34,10 @@ use self::{
     },
     txid::{to_txid, BlockTxCommitmentDigester, TxIdDigester},
 };
+use borsh::schema::add_definition;
+use borsh::schema::Fields;
+use borsh::schema::{Declaration, Definition};
+use std::ops::RangeInclusive;
 
 #[derive(
     Clone,
@@ -152,6 +156,35 @@ impl TxVersion {
         match consensus_branch_id {
             BranchId::MASP => TxVersion::MASPv5,
         }
+    }
+}
+
+impl BorshSerialize for TxVersion {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl BorshDeserialize for TxVersion {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
+    }
+}
+
+impl BorshSchema for TxVersion {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("header".into(), u32::declaration()),
+                ("version_group_id".into(), u32::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        u32::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "TxVersion".into()
     }
 }
 
@@ -307,10 +340,190 @@ impl BorshDeserialize for Transaction {
     }
 }
 
-impl borsh::BorshSchema for Transaction {
+fn untagged_vec<X: BorshSchema>(length_range: RangeInclusive<u64>) -> Definition {
+    Definition::Sequence {
+        length_width: 0,
+        length_range,
+        elements: X::declaration(),
+    }
+}
+
+fn untagged_option<X: BorshSchema>() -> Definition {
+    Definition::Enum {
+        tag_width: 0,
+        variants: vec![
+            (0, "None".into(), <()>::declaration()),
+            (1, "Some".into(), X::declaration()),
+        ],
+    }
+}
+
+impl BorshSchema for Transaction {
     fn add_definitions_recursively(
-        _definitions: &mut BTreeMap<borsh::schema::Declaration, borsh::schema::Definition>,
+        definitions: &mut BTreeMap<borsh::schema::Declaration, borsh::schema::Definition>,
     ) {
+        let definition = Definition::Enum {
+            tag_width: 1,
+            variants: vec![
+                (253, "u16".into(), u16::declaration()),
+                (254, "u32".into(), u32::declaration()),
+                (255, "u64".into(), u64::declaration()),
+            ],
+        };
+        add_definition(
+            format!("{}::CompactSize", Self::declaration()),
+            definition,
+            definitions,
+        );
+        add_definition(
+            format!("{}::vin", Self::declaration()),
+            untagged_vec::<TxIn<_>>(u64::MIN..=u64::MAX),
+            definitions,
+        );
+        add_definition(
+            format!("{}::vout", Self::declaration()),
+            untagged_vec::<TxOut>(u64::MIN..=u64::MAX),
+            definitions,
+        );
+        add_definition(
+            format!("{}::sd_v5s", Self::declaration()),
+            untagged_vec::<SpendDescriptionV5>(u64::MIN..=u64::MAX),
+            definitions,
+        );
+        add_definition(
+            format!("{}::cd_v5s", Self::declaration()),
+            untagged_vec::<ConvertDescriptionV5>(u64::MIN..=u64::MAX),
+            definitions,
+        );
+        add_definition(
+            format!("{}::od_v5s", Self::declaration()),
+            untagged_vec::<OutputDescriptionV5>(u64::MIN..=u64::MAX),
+            definitions,
+        );
+        add_definition(
+            format!("{}::value_balance", Self::declaration()),
+            untagged_option::<I128Sum>(),
+            definitions,
+        );
+        add_definition(
+            format!("{}::spend_anchor", Self::declaration()),
+            untagged_option::<[u8; 32]>(),
+            definitions,
+        );
+        add_definition(
+            format!("{}::convert_anchor", Self::declaration()),
+            untagged_option::<[u8; 32]>(),
+            definitions,
+        );
+        add_definition(
+            format!("{}::v_spend_proofs", Self::declaration()),
+            untagged_vec::<[u8; GROTH_PROOF_SIZE]>(u64::MIN..=u64::MAX),
+            definitions,
+        );
+        add_definition(
+            format!("{}::v_spend_auth_sigs", Self::declaration()),
+            untagged_vec::<redjubjub::Signature>(u64::MIN..=u64::MAX),
+            definitions,
+        );
+        add_definition(
+            format!("{}::v_convert_proofs", Self::declaration()),
+            untagged_vec::<[u8; GROTH_PROOF_SIZE]>(u64::MIN..=u64::MAX),
+            definitions,
+        );
+        add_definition(
+            format!("{}::v_output_proofs", Self::declaration()),
+            untagged_vec::<[u8; GROTH_PROOF_SIZE]>(u64::MIN..=u64::MAX),
+            definitions,
+        );
+        add_definition(
+            format!("{}::authorization", Self::declaration()),
+            untagged_option::<sapling::Authorized>(),
+            definitions,
+        );
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("version".into(), TxVersion::declaration()),
+                ("consensus_branch_id".into(), BranchId::declaration()),
+                ("lock_time".into(), u32::declaration()),
+                ("expiry_height".into(), BlockHeight::declaration()),
+                (
+                    "vin::count".into(),
+                    format!("{}::CompactSize", Self::declaration()),
+                ),
+                ("vin".into(), format!("{}::vin", Self::declaration())),
+                (
+                    "vout::count".into(),
+                    format!("{}::CompactSize", Self::declaration()),
+                ),
+                ("vout".into(), format!("{}::vout", Self::declaration())),
+                (
+                    "sd_v5s::count".into(),
+                    format!("{}::CompactSize", Self::declaration()),
+                ),
+                ("sd_v5s".into(), format!("{}::sd_v5s", Self::declaration())),
+                (
+                    "cd_v5s::count".into(),
+                    format!("{}::CompactSize", Self::declaration()),
+                ),
+                ("cd_v5s".into(), format!("{}::cd_v5s", Self::declaration())),
+                (
+                    "od_v5s::count".into(),
+                    format!("{}::CompactSize", Self::declaration()),
+                ),
+                ("od_v5s".into(), format!("{}::od_v5s", Self::declaration())),
+                (
+                    "value_balance".into(),
+                    format!("{}::value_balance", Self::declaration()),
+                ),
+                (
+                    "spend_anchor".into(),
+                    format!("{}::spend_anchor", Self::declaration()),
+                ),
+                (
+                    "convert_anchor".into(),
+                    format!("{}::convert_anchor", Self::declaration()),
+                ),
+                (
+                    "v_spend_proofs".into(),
+                    format!("{}::v_spend_proofs", Self::declaration()),
+                ),
+                (
+                    "v_spend_auth_sigs".into(),
+                    format!("{}::v_spend_auth_sigs", Self::declaration()),
+                ),
+                (
+                    "v_convert_proofs".into(),
+                    format!("{}::v_convert_proofs", Self::declaration()),
+                ),
+                (
+                    "v_output_proofs".into(),
+                    format!("{}::v_output_proofs", Self::declaration()),
+                ),
+                (
+                    "authorization".into(),
+                    format!("{}::authorization", Self::declaration()),
+                ),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+        redjubjub::Signature::add_definitions_recursively(definitions);
+        <[u8; GROTH_PROOF_SIZE]>::add_definitions_recursively(definitions);
+        sapling::Authorized::add_definitions_recursively(definitions);
+        I128Sum::add_definitions_recursively(definitions);
+        TxIn::add_definitions_recursively(definitions);
+        TxOut::add_definitions_recursively(definitions);
+        SpendDescriptionV5::add_definitions_recursively(definitions);
+        ConvertDescriptionV5::add_definitions_recursively(definitions);
+        OutputDescriptionV5::add_definitions_recursively(definitions);
+        u8::add_definitions_recursively(definitions);
+        u16::add_definitions_recursively(definitions);
+        u32::add_definitions_recursively(definitions);
+        u64::add_definitions_recursively(definitions);
+        TxVersion::add_definitions_recursively(definitions);
+        <()>::add_definitions_recursively(definitions);
+        BranchId::add_definitions_recursively(definitions);
+        BlockHeight::add_definitions_recursively(definitions);
     }
 
     fn declaration() -> borsh::schema::Declaration {
@@ -416,7 +629,7 @@ impl Transaction {
         let n_spends = sd_v5s.len();
         let n_converts = cd_v5s.len();
         let n_outputs = od_v5s.len();
-        let value_balance = if n_spends > 0 || n_outputs > 0 {
+        let value_balance = if n_spends > 0 || n_converts > 0 || n_outputs > 0 {
             Self::read_i128_sum(&mut reader)?
         } else {
             ValueSum::zero()
@@ -441,7 +654,7 @@ impl Transaction {
         let v_convert_proofs = Array::read(&mut reader, n_converts, |r| sapling::read_zkproof(r))?;
         let v_output_proofs = Array::read(&mut reader, n_outputs, |r| sapling::read_zkproof(r))?;
 
-        let binding_sig = if n_spends > 0 || n_outputs > 0 {
+        let binding_sig = if n_spends > 0 || n_converts > 0 || n_outputs > 0 {
             Some(redjubjub::Signature::read(&mut reader)?)
         } else {
             None
@@ -565,6 +778,7 @@ impl Transaction {
                 bundle.authorization.binding_sig.write(&mut writer)?;
             }
         } else {
+            CompactSize::write(&mut writer, 0)?;
             CompactSize::write(&mut writer, 0)?;
             CompactSize::write(&mut writer, 0)?;
         }

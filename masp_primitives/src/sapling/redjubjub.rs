@@ -6,11 +6,15 @@
 use crate::transaction::components::sapling::read_point;
 
 use super::util::hash_to_scalar;
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::schema::add_definition;
+use borsh::schema::Definition;
+use borsh::schema::Fields;
+use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use ff::{Field, PrimeField};
 use group::GroupEncoding;
 use jubjub::{AffinePoint, ExtendedPoint, SubgroupPoint};
 use rand_core::RngCore;
+use std::collections::BTreeMap;
 use std::{
     cmp::Ordering,
     hash::{Hash, Hasher},
@@ -34,7 +38,7 @@ fn h_star(a: &[u8], b: &[u8]) -> jubjub::Fr {
     hash_to_scalar(b"MASP__RedJubjubH", a, b)
 }
 
-#[derive(Copy, Clone, Debug, PartialOrd, PartialEq, Ord, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialOrd, PartialEq, Ord, Eq, Hash, BorshSchema)]
 pub struct Signature {
     rbar: [u8; 32],
     sbar: [u8; 32],
@@ -66,6 +70,22 @@ impl BorshDeserialize for PublicKey {
 impl BorshSerialize for PublicKey {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         BorshSerialize::serialize(&self.0.to_bytes(), writer)
+    }
+}
+
+impl BorshSchema for PublicKey {
+    fn add_definitions_recursively(
+        definitions: &mut BTreeMap<borsh::schema::Declaration, borsh::schema::Definition>,
+    ) {
+        let definition = Definition::Struct {
+            fields: Fields::UnnamedFields(vec![<[u8; 32]>::declaration()]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> borsh::schema::Declaration {
+        "PublicKey".into()
     }
 }
 

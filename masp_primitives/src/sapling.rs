@@ -639,7 +639,17 @@ impl BorshDeserialize for Rseed {
 
 /// Typesafe wrapper for nullifier values.
 #[derive(
-    Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, BorshSerialize, BorshDeserialize,
+    Copy,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    BorshSerialize,
+    BorshDeserialize,
+    BorshSchema,
 )]
 pub struct Nullifier(pub [u8; 32]);
 

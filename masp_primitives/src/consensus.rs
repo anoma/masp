@@ -1,10 +1,14 @@
 //! Consensus logic and parameters.
 
+use borsh::schema::add_definition;
+use borsh::schema::Definition;
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use memuse::DynamicUsage;
 use std::cmp::{Ord, Ordering};
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt;
+use std::io::{Error, ErrorKind, Read, Write};
 use std::ops::{Add, Bound, RangeBounds, Sub};
 
 /// A wrapper type representing blockchain heights. Safe conversion from
@@ -264,6 +268,37 @@ impl From<BranchId> for u32 {
         match consensus_branch_id {
             BranchId::MASP => 0xe9ff_75a6,
         }
+    }
+}
+
+impl BorshSerialize for BranchId {
+    fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        u32::from(*self).serialize(writer)
+    }
+}
+
+impl BorshDeserialize for BranchId {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        u32::deserialize_reader(reader)?
+            .try_into()
+            .map_err(|x| Error::new(ErrorKind::InvalidInput, x))
+    }
+}
+
+impl BorshSchema for BranchId {
+    fn add_definitions_recursively(
+        definitions: &mut BTreeMap<borsh::schema::Declaration, borsh::schema::Definition>,
+    ) {
+        let definition = Definition::Enum {
+            tag_width: 4,
+            variants: vec![(0xe9ff_75a6, "MASP".into(), <()>::declaration())],
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <()>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> borsh::schema::Declaration {
+        "BranchId".into()
     }
 }
 
