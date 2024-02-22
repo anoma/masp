@@ -17,14 +17,14 @@ mod batch;
 pub use batch::BatchValidator;
 
 /// A context object for verifying the Sapling components of a Zcash transaction.
-struct SaplingVerificationContextInner {
+pub struct SaplingVerificationContextInner {
     // (sum of the Spend value commitments) - (sum of the Output value commitments)
     cv_sum: jubjub::ExtendedPoint,
 }
 
 impl SaplingVerificationContextInner {
     /// Construct a new context to be used with a single transaction.
-    fn new() -> Self {
+    pub fn new() -> Self {
         SaplingVerificationContextInner {
             cv_sum: jubjub::ExtendedPoint::identity(),
         }
@@ -33,7 +33,7 @@ impl SaplingVerificationContextInner {
     /// Perform consensus checks on a Sapling SpendDescription, while
     /// accumulating its value commitment inside the context for later use.
     #[allow(clippy::too_many_arguments)]
-    fn check_spend<C>(
+    pub fn check_spend<C>(
         &mut self,
         cv: jubjub::ExtendedPoint,
         anchor: bls12_381::Scalar,
@@ -101,7 +101,7 @@ impl SaplingVerificationContextInner {
     /// Perform consensus checks on a Convert SpendDescription, while
     /// accumulating its value commitment inside the context for later use.
     #[allow(clippy::too_many_arguments)]
-    fn check_convert<C>(
+    pub fn check_convert<C>(
         &mut self,
         cv: jubjub::ExtendedPoint,
         anchor: bls12_381::Scalar,
@@ -132,7 +132,7 @@ impl SaplingVerificationContextInner {
 
     /// Perform consensus checks on a Sapling OutputDescription, while
     /// accumulating its value commitment inside the context for later use.
-    fn check_output(
+    pub fn check_output(
         &mut self,
         cv: jubjub::ExtendedPoint,
         cmu: bls12_381::Scalar,
@@ -170,7 +170,7 @@ impl SaplingVerificationContextInner {
     /// Perform consensus checks on the valueBalance and bindingSig parts of a
     /// Sapling transaction. All SpendDescriptions and OutputDescriptions must
     /// have been checked before calling this function.
-    fn final_check(
+    pub fn final_check(
         &self,
         value_balance: I128Sum,
         sighash_value: &[u8; 32],
