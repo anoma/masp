@@ -37,7 +37,7 @@ where
 
     for (i, (chunk, window)) in by.chunks(3).zip(base.iter()).enumerate() {
         let chunk_a = chunk
-            .get(0)
+            .first()
             .cloned()
             .unwrap_or_else(|| Boolean::constant(false));
         let chunk_b = chunk
