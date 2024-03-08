@@ -1,4 +1,8 @@
 use crate::asset_type::AssetType;
+use borsh::schema::add_definition;
+use borsh::schema::Fields;
+use borsh::schema::{Declaration, Definition};
+use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
 use num_traits::{CheckedAdd, CheckedMul, CheckedNeg, CheckedSub, One};
 use std::cmp::Ordering;
@@ -46,7 +50,7 @@ pub type I128Sum = ValueSum<AssetType, i128>;
 
 pub type U128Sum = ValueSum<AssetType, u128>;
 
-#[derive(Clone, Default, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash)]
 pub struct ValueSum<
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize,
     Value: BorshSerialize + BorshDeserialize + PartialEq + Eq,
@@ -152,6 +156,87 @@ where
         let mut val = self.clone();
         val.0.remove(&index);
         val
+    }
+}
+
+impl<Unit, Value> BorshSerialize for ValueSum<Unit, Value>
+where
+    Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
+    Value: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy,
+{
+    fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let vec: Vec<_> = self.components().collect();
+        Vector::write(writer, vec.as_ref(), |writer, elt| {
+            elt.0.serialize(writer)?;
+            elt.1.serialize(writer)?;
+            Ok(())
+        })
+    }
+}
+
+impl<Unit, Value> BorshDeserialize for ValueSum<Unit, Value>
+where
+    Unit: Hash + Ord + BorshSerialize + BorshDeserialize,
+    Value: BorshSerialize + BorshDeserialize + PartialEq + Eq,
+{
+    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        let vec = Vector::read(reader, |reader| {
+            let atype = Unit::deserialize_reader(reader)?;
+            let value = Value::deserialize_reader(reader)?;
+            Ok((atype, value))
+        })?;
+        Ok(Self(vec.into_iter().collect()))
+    }
+}
+
+impl<Unit, Value> BorshSchema for ValueSum<Unit, Value>
+where
+    Unit: Hash + Ord + BorshSerialize + BorshDeserialize + BorshSchema,
+    Value: BorshSerialize + BorshDeserialize + PartialEq + Eq + BorshSchema,
+{
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Enum {
+            tag_width: 1,
+            variants: vec![
+                (253, "u16".into(), u16::declaration()),
+                (254, "u32".into(), u32::declaration()),
+                (255, "u64".into(), u64::declaration()),
+            ],
+        };
+        add_definition(
+            format!("{}::CompactSize", Self::declaration()),
+            definition,
+            definitions,
+        );
+        let definition = Definition::Sequence {
+            length_width: 0,
+            length_range: u64::MIN..=u64::MAX,
+            elements: <(Unit, Value)>::declaration(),
+        };
+        add_definition(
+            format!("{}::Sequence", Self::declaration()),
+            definition,
+            definitions,
+        );
+        let definition = Definition::Struct {
+            fields: Fields::UnnamedFields(vec![
+                format!("{}::CompactSize", Self::declaration()),
+                format!("{}::Sequence", Self::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        u16::add_definitions_recursively(definitions);
+        u32::add_definitions_recursively(definitions);
+        u64::add_definitions_recursively(definitions);
+        <(Unit, Value)>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        format!(
+            r#"ValueSum<{}, {}>"#,
+            Unit::declaration(),
+            Value::declaration()
+        )
     }
 }
 

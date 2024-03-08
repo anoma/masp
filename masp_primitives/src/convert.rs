@@ -5,8 +5,14 @@ use crate::{
     },
     transaction::components::amount::{I128Sum, ValueSum},
 };
+use borsh::schema::add_definition;
+use borsh::schema::Declaration;
+use borsh::schema::Definition;
+use borsh::schema::Fields;
+use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
 use group::{Curve, GroupEncoding};
+use std::collections::BTreeMap;
 use std::{
     io::{self, Write},
     iter::Sum,
@@ -107,6 +113,24 @@ impl From<I128Sum> for AllowedConversion {
             assets,
             generator: asset_generator,
         }
+    }
+}
+
+impl BorshSchema for AllowedConversion {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("assets".into(), I128Sum::declaration()),
+                ("generator".into(), <[u8; 32]>::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        I128Sum::add_definitions_recursively(definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "AllowedConversion".into()
     }
 }
 

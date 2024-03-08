@@ -16,9 +16,15 @@ use crate::{
 };
 use aes::Aes256;
 use blake2b_simd::Params as Blake2bParams;
+use borsh::schema::add_definition;
+use borsh::schema::Declaration;
+use borsh::schema::Definition;
+use borsh::schema::Fields;
+use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use fpe::ff1::{BinaryNumeralString, FF1};
+use std::collections::BTreeMap;
 use std::{
     cmp::Ordering,
     convert::TryInto,
@@ -137,7 +143,9 @@ impl FvkFingerprint {
 }
 
 /// A Sapling full viewing key tag
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
+)]
 struct FvkTag([u8; 4]);
 
 impl FvkTag {
@@ -151,7 +159,9 @@ impl FvkTag {
 }
 
 /// A key used to derive diversifiers for a particular child key
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
+)]
 pub struct DiversifierKey(pub [u8; 32]);
 
 impl DiversifierKey {
@@ -549,6 +559,32 @@ impl BorshDeserialize for ExtendedFullViewingKey {
 impl BorshSerialize for ExtendedFullViewingKey {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write(writer)
+    }
+}
+
+impl BorshSchema for ExtendedFullViewingKey {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("depth".into(), u8::declaration()),
+                ("parent_fvk_tag".into(), FvkTag::declaration()),
+                ("child_index".into(), ChildIndex::declaration()),
+                ("chain_code".into(), ChainCode::declaration()),
+                ("fvk".into(), FullViewingKey::declaration()),
+                ("dk".into(), DiversifierKey::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        u8::add_definitions_recursively(definitions);
+        FvkTag::add_definitions_recursively(definitions);
+        ChildIndex::add_definitions_recursively(definitions);
+        ChainCode::add_definitions_recursively(definitions);
+        FullViewingKey::add_definitions_recursively(definitions);
+        DiversifierKey::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "ExtendedFullViewingKey".into()
     }
 }
 

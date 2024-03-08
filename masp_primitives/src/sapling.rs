@@ -41,6 +41,12 @@ use self::{
     pedersen_hash::{pedersen_hash, Personalization},
     redjubjub::{PrivateKey, PublicKey, Signature},
 };
+use borsh::schema::add_definition;
+use borsh::schema::Declaration;
+use borsh::schema::Definition;
+use borsh::schema::Fields;
+use borsh::BorshSchema;
+use std::collections::BTreeMap;
 
 pub const SAPLING_COMMITMENT_TREE_DEPTH: usize = 32;
 
@@ -209,6 +215,43 @@ impl ProofGenerationKey {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct NullifierDerivingKey(pub jubjub::SubgroupPoint);
 
+impl BorshSerialize for NullifierDerivingKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.0.to_bytes())
+    }
+}
+
+impl BorshDeserialize for NullifierDerivingKey {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let nk = {
+            let mut buf = [0u8; 32];
+            reader.read_exact(&mut buf)?;
+            jubjub::SubgroupPoint::from_bytes(&buf)
+        };
+        if nk.is_none().into() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "nk not in prime-order subgroup",
+            ));
+        }
+        Ok(Self(nk.unwrap()))
+    }
+}
+
+impl BorshSchema for NullifierDerivingKey {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::UnnamedFields(vec![<[u8; 32]>::declaration()]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "NullifierDerivingKey".into()
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct ViewingKey {
     pub ak: jubjub::SubgroupPoint,
@@ -312,6 +355,24 @@ impl BorshDeserialize for ViewingKey {
     }
 }
 
+impl BorshSchema for ViewingKey {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("ak".into(), <[u8; 32]>::declaration()),
+                ("nk".into(), NullifierDerivingKey::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+        NullifierDerivingKey::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "ViewingKey".into()
+    }
+}
+
 impl PartialOrd for ViewingKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -341,7 +402,9 @@ impl SaplingIvk {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize)]
+#[derive(
+    Copy, Clone, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
+)]
 pub struct Diversifier(pub [u8; 11]);
 
 impl Diversifier {
@@ -490,6 +553,23 @@ impl BorshDeserialize for PaymentAddress {
         Ok(pa)
     }
 }
+impl BorshSchema for PaymentAddress {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("diversifier".into(), Diversifier::declaration()),
+                ("pk_d".into(), <[u8; 32]>::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        Diversifier::add_definitions_recursively(definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "PaymentAddress".into()
+    }
+}
 
 /// Enum for note randomness before and after [ZIP 212](https://zips.z.cash/zip-0212).
 ///
@@ -502,9 +582,74 @@ pub enum Rseed {
     AfterZip212([u8; 32]),
 }
 
+impl BorshSchema for Rseed {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Enum {
+            tag_width: 1,
+            variants: vec![
+                (1, "BeforeZip212".into(), <[u8; 32]>::declaration()),
+                (2, "AfterZip212".into(), <[u8; 32]>::declaration()),
+            ],
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "Rseed".into()
+    }
+}
+
+impl BorshSerialize for Rseed {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Rseed::BeforeZip212(rcm) => {
+                // Write note plaintext lead byte
+                writer.write_u8(1)?;
+                // Write rseed
+                writer.write_all(&rcm.to_repr())
+            }
+            Rseed::AfterZip212(rseed) => {
+                // Write note plaintext lead byte
+                writer.write_u8(2)?;
+                // Write rseed
+                writer.write_all(rseed)
+            }
+        }?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for Rseed {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        // Read note plaintext lead byte
+        let rseed_type = reader.read_u8()?;
+        // Read rseed
+        let rseed_bytes = <[u8; 32]>::deserialize_reader(reader)?;
+        let rseed = if rseed_type == 0x01 {
+            let data = Option::from(jubjub::Fr::from_bytes(&rseed_bytes))
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "rseed not in field"))?;
+            Rseed::BeforeZip212(data)
+        } else {
+            Rseed::AfterZip212(rseed_bytes)
+        };
+        Ok(rseed)
+    }
+}
+
 /// Typesafe wrapper for nullifier values.
 #[derive(
-    Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, BorshSerialize, BorshDeserialize,
+    Copy,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    BorshSerialize,
+    BorshDeserialize,
+    BorshSchema,
 )]
 pub struct Nullifier(pub [u8; 32]);
 
@@ -681,6 +826,29 @@ impl Note {
     }
 }
 
+impl BorshSchema for Note {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("asset_type".into(), AssetType::declaration()),
+                ("value".into(), u64::declaration()),
+                ("g_d".into(), <[u8; 32]>::declaration()),
+                ("pk_d".into(), <[u8; 32]>::declaration()),
+                ("rseed".into(), Rseed::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        AssetType::add_definitions_recursively(definitions);
+        u64::add_definitions_recursively(definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+        Rseed::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "Note".into()
+    }
+}
+
 impl BorshSerialize for Note {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> io::Result<()> {
         // Write asset type
@@ -691,20 +859,8 @@ impl BorshSerialize for Note {
         writer.write_all(&self.g_d.to_bytes())?;
         // Write diversified transmission key
         writer.write_all(&self.pk_d.to_bytes())?;
-        match self.rseed {
-            Rseed::BeforeZip212(rcm) => {
-                // Write note plaintext lead byte
-                writer.write_u8(1)?;
-                // Write rseed
-                writer.write_all(&rcm.to_repr())
-            }
-            Rseed::AfterZip212(rseed) => {
-                // Write note plaintext lead byte
-                writer.write_u8(2)?;
-                // Write rseed
-                writer.write_all(&rseed)
-            }
-        }?;
+        // Write the rseed
+        self.rseed.serialize(writer)?;
         Ok(())
     }
 }
@@ -724,16 +880,7 @@ impl BorshDeserialize for Note {
         let pk_d = Option::from(jubjub::SubgroupPoint::from_bytes(&pk_d_bytes))
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "pk_d not in field"))?;
         // Read note plaintext lead byte
-        let rseed_type = reader.read_u8()?;
-        // Read rseed
-        let rseed_bytes = <[u8; 32]>::deserialize_reader(reader)?;
-        let rseed = if rseed_type == 0x01 {
-            let data = Option::from(jubjub::Fr::from_bytes(&rseed_bytes))
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "rseed not in field"))?;
-            Rseed::BeforeZip212(data)
-        } else {
-            Rseed::AfterZip212(rseed_bytes)
-        };
+        let rseed = Rseed::deserialize_reader(reader)?;
         // Finally construct note object
         Ok(Note {
             asset_type,

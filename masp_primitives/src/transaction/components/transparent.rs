@@ -1,11 +1,16 @@
 //! Structs representing the components within Zcash transactions.
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use std::fmt::{self, Debug};
 use std::io::{self, Read, Write};
 
 use crate::asset_type::AssetType;
 use crate::transaction::TransparentAddress;
+use borsh::schema::add_definition;
+use borsh::schema::Declaration;
+use borsh::schema::Definition;
+use borsh::schema::Fields;
+use std::collections::BTreeMap;
 
 use super::amount::{BalanceError, I128Sum, ValueSum, MAX_MONEY};
 
@@ -124,6 +129,40 @@ impl TxIn<Authorized> {
     }
 }
 
+impl BorshSerialize for TxIn<Authorized> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl BorshDeserialize for TxIn<Authorized> {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
+    }
+}
+
+impl BorshSchema for TxIn<Authorized> {
+    fn add_definitions_recursively(
+        definitions: &mut BTreeMap<borsh::schema::Declaration, borsh::schema::Definition>,
+    ) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("asset_type".into(), AssetType::declaration()),
+                ("value".into(), u64::declaration()),
+                ("address".into(), TransparentAddress::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        AssetType::add_definitions_recursively(definitions);
+        u64::add_definitions_recursively(definitions);
+        TransparentAddress::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> borsh::schema::Declaration {
+        "TxIn<Authorized>".into()
+    }
+}
+
 #[derive(Clone, Debug, Hash, PartialOrd, PartialEq, Ord, Eq)]
 pub struct TxOut {
     pub asset_type: AssetType,
@@ -180,6 +219,26 @@ impl BorshDeserialize for TxOut {
 impl BorshSerialize for TxOut {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write(writer)
+    }
+}
+
+impl BorshSchema for TxOut {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("asset_type".into(), AssetType::declaration()),
+                ("value".into(), u64::declaration()),
+                ("address".into(), TransparentAddress::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        AssetType::add_definitions_recursively(definitions);
+        u64::add_definitions_recursively(definitions);
+        TransparentAddress::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "TxOut".into()
     }
 }
 

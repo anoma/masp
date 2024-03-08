@@ -8,9 +8,15 @@ use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
     keys::prf_expand,
 };
+use borsh::schema::add_definition;
+use borsh::schema::Declaration;
+use borsh::schema::Definition;
+use borsh::schema::Fields;
+use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
 use ff::PrimeField;
 use group::{Group, GroupEncoding};
+use std::collections::BTreeMap;
 use std::{
     fmt::{Display, Formatter},
     hash::{Hash, Hasher},
@@ -32,7 +38,9 @@ pub enum DecodingError {
 }
 
 /// An outgoing viewing key
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
+)]
 pub struct OutgoingViewingKey(pub [u8; 32]);
 
 /// A Sapling expanded spending key
@@ -205,6 +213,36 @@ impl FullViewingKey {
         self.write(&mut result[..])
             .expect("should be able to serialize a FullViewingKey");
         result
+    }
+}
+
+impl BorshSerialize for FullViewingKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.write(writer)
+    }
+}
+
+impl BorshDeserialize for FullViewingKey {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Self::read(reader)
+    }
+}
+
+impl BorshSchema for FullViewingKey {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("vk".into(), ViewingKey::declaration()),
+                ("ovk".into(), OutgoingViewingKey::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        ViewingKey::add_definitions_recursively(definitions);
+        OutgoingViewingKey::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "FullViewingKey".into()
     }
 }
 

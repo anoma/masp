@@ -34,7 +34,12 @@ use crate::{
     },
     zip32::ExtendedSpendingKey,
 };
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::schema::add_definition;
+use borsh::schema::Declaration;
+use borsh::schema::Definition;
+use borsh::schema::Fields;
+use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
+use std::collections::BTreeMap;
 use std::io::Write;
 
 /// If there are any shielded inputs, always have at least two shielded outputs, padding
@@ -73,6 +78,30 @@ pub struct SpendDescriptionInfo<Key = ExtendedSpendingKey> {
     note: Note,
     alpha: jubjub::Fr,
     merkle_path: MerklePath<Node>,
+}
+
+impl<Key: BorshSchema> BorshSchema for SpendDescriptionInfo<Key> {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("extsk".into(), Key::declaration()),
+                ("diversifier".into(), Diversifier::declaration()),
+                ("note".into(), Note::declaration()),
+                ("alpha".into(), <[u8; 32]>::declaration()),
+                ("merkle_path".into(), MerklePath::<[u8; 32]>::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        Key::add_definitions_recursively(definitions);
+        Diversifier::add_definitions_recursively(definitions);
+        Note::add_definitions_recursively(definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+        MerklePath::<[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        format!(r#"SpendDescriptionInfo<{}>"#, Key::declaration())
+    }
 }
 
 impl<Key: BorshSerialize> BorshSerialize for SpendDescriptionInfo<Key> {
@@ -125,7 +154,7 @@ impl<K> fees::InputView<(), K> for SpendDescriptionInfo<K> {
 
 /// A struct containing the information required in order to construct a
 /// MASP output to a transaction.
-#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize, BorshSchema)]
 pub struct SaplingOutputInfo {
     /// `None` represents the `ovk = ⊥` case.
     ovk: Option<OutgoingViewingKey>,
@@ -219,7 +248,7 @@ impl fees::OutputView for SaplingOutputInfo {
 }
 
 /// Metadata about a transaction created by a [`SaplingBuilder`].
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
 pub struct SaplingMetadata {
     spend_indices: Vec<usize>,
     convert_indices: Vec<usize>,
@@ -278,6 +307,45 @@ pub struct SaplingBuilder<P, Key = ExtendedSpendingKey> {
     spends: Vec<SpendDescriptionInfo<Key>>,
     converts: Vec<ConvertDescriptionInfo>,
     outputs: Vec<SaplingOutputInfo>,
+}
+
+impl<P: BorshSchema, Key: BorshSchema> BorshSchema for SaplingBuilder<P, Key> {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("params".into(), P::declaration()),
+                ("spend_anchor".into(), Option::<[u8; 32]>::declaration()),
+                ("target_height".into(), BlockHeight::declaration()),
+                ("value_balance".into(), I128Sum::declaration()),
+                ("convert_anchor".into(), Option::<[u8; 32]>::declaration()),
+                (
+                    "spends".into(),
+                    Vec::<SpendDescriptionInfo<Key>>::declaration(),
+                ),
+                (
+                    "converts".into(),
+                    Vec::<ConvertDescriptionInfo>::declaration(),
+                ),
+                ("outputs".into(), Vec::<SaplingOutputInfo>::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        P::add_definitions_recursively(definitions);
+        Option::<[u8; 32]>::add_definitions_recursively(definitions);
+        BlockHeight::add_definitions_recursively(definitions);
+        I128Sum::add_definitions_recursively(definitions);
+        Vec::<SpendDescriptionInfo<Key>>::add_definitions_recursively(definitions);
+        Vec::<ConvertDescriptionInfo>::add_definitions_recursively(definitions);
+        Vec::<SaplingOutputInfo>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        format!(
+            r#"SaplingBuilder<{}, {}>"#,
+            P::declaration(),
+            Key::declaration()
+        )
+    }
 }
 
 impl<P: BorshSerialize, Key: BorshSerialize> BorshSerialize for SaplingBuilder<P, Key> {
@@ -790,6 +858,26 @@ pub struct ConvertDescriptionInfo {
     allowed: AllowedConversion,
     value: u64,
     merkle_path: MerklePath<Node>,
+}
+
+impl BorshSchema for ConvertDescriptionInfo {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("allowed".into(), AllowedConversion::declaration()),
+                ("value".into(), u64::declaration()),
+                ("merkle_path".into(), MerklePath::<[u8; 32]>::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        AllowedConversion::add_definitions_recursively(definitions);
+        u64::add_definitions_recursively(definitions);
+        MerklePath::<[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "ConvertDescriptionInfo".into()
+    }
 }
 
 impl fees::ConvertView for ConvertDescriptionInfo {

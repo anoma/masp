@@ -1,6 +1,6 @@
 //! Structs for handling encrypted memos.
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use std::cmp::Ordering;
 use std::convert::{TryFrom, TryInto};
 use std::error;
@@ -48,7 +48,7 @@ impl fmt::Display for Error {
 impl error::Error for Error {}
 
 /// The unencrypted memo bytes received alongside a shielded note in a Zcash transaction.
-#[derive(Clone, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, BorshSerialize, BorshDeserialize, BorshSchema)]
 pub struct MemoBytes(pub(crate) Box<[u8; 512]>);
 
 impl fmt::Debug for MemoBytes {
