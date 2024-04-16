@@ -57,7 +57,7 @@ lazy_static = "1"
 proptest = { version = "1.0.0", optional = true }
 
 # - ZIP 339
-bip0039 = { version = "0.10", features = ["std", "all-languages"] }
+bip0039 = { version = "0.12", features = ["std", "all-languages"] }
 
 # Dependencies used internally:
 # (Breaking upgrades to these are usually backwards-compatible, but check MSRVs.)
