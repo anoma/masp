@@ -60,7 +60,7 @@ impl SaplingProvingContext {
         merkle_path: MerklePath<Node>,
         proving_key: &Parameters<Bls12>,
         verifying_key: &PreparedVerifyingKey<Bls12>,
-    ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint, PublicKey), ()> {
+    ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint, jubjub::Fr, PublicKey), ()> {
         // Initialize secure RNG
         let mut rng = OsRng;
 
@@ -155,7 +155,7 @@ impl SaplingProvingContext {
         // Accumulate the value commitment in the context
         self.cv_sum += value_commitment;
 
-        Ok((proof, value_commitment, rk))
+        Ok((proof, value_commitment, rcv, rk))
     }
 
     /// Create the value commitment and proof for a Sapling OutputDescription,
@@ -169,7 +169,7 @@ impl SaplingProvingContext {
         asset_type: AssetType,
         value: u64,
         proving_key: &Parameters<Bls12>,
-    ) -> (Proof<Bls12>, jubjub::ExtendedPoint) {
+    ) -> (Proof<Bls12>, jubjub::ExtendedPoint, jubjub::Fr) {
         // Initialize secure RNG
         let mut rng = OsRng;
 
@@ -209,7 +209,7 @@ impl SaplingProvingContext {
         // Accumulate the value commitment in the context. We do this to check internal consistency.
         self.cv_sum -= value_commitment_point; // Outputs subtract from the total.
 
-        (proof, value_commitment_point)
+        (proof, value_commitment_point, rcv)
     }
 
     /// Create the value commitment and proof for a ConvertDescription,
@@ -223,7 +223,7 @@ impl SaplingProvingContext {
         merkle_path: MerklePath<Node>,
         proving_key: &Parameters<Bls12>,
         verifying_key: &PreparedVerifyingKey<Bls12>,
-    ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint), ()> {
+    ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint, jubjub::Fr), ()> {
         // Initialize secure RNG
         let mut rng = OsRng;
 
@@ -277,7 +277,7 @@ impl SaplingProvingContext {
         // Accumulate the value commitment in the context
         self.cv_sum += value_commitment;
 
-        Ok((proof, value_commitment))
+        Ok((proof, value_commitment, rcv))
     }
 
     /// Create the bindingSig for a Sapling transaction. All calls to spend_proof()

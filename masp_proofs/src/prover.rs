@@ -171,8 +171,16 @@ impl TxProver for LocalTxProver {
         value: u64,
         anchor: bls12_381::Scalar,
         merkle_path: MerklePath<Node>,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()> {
-        let (proof, cv, rk) = ctx.spend_proof(
+    ) -> Result<
+        (
+            [u8; GROTH_PROOF_SIZE],
+            jubjub::ExtendedPoint,
+            jubjub::Fr,
+            PublicKey,
+        ),
+        (),
+    > {
+        let (proof, cv, rcv, rk) = ctx.spend_proof(
             proof_generation_key,
             diversifier,
             rseed,
@@ -190,7 +198,7 @@ impl TxProver for LocalTxProver {
             .write(&mut zkproof[..])
             .expect("should be able to serialize a proof");
 
-        Ok((zkproof, cv, rk))
+        Ok((zkproof, cv, rcv, rk))
     }
 
     fn output_proof(
@@ -201,8 +209,8 @@ impl TxProver for LocalTxProver {
         rcm: jubjub::Fr,
         asset_type: AssetType,
         value: u64,
-    ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint) {
-        let (proof, cv) = ctx.output_proof(
+    ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, jubjub::Fr) {
+        let (proof, cv, rcv) = ctx.output_proof(
             esk,
             payment_address,
             rcm,
@@ -216,7 +224,7 @@ impl TxProver for LocalTxProver {
             .write(&mut zkproof[..])
             .expect("should be able to serialize a proof");
 
-        (zkproof, cv)
+        (zkproof, cv, rcv)
     }
 
     fn convert_proof(
@@ -226,8 +234,8 @@ impl TxProver for LocalTxProver {
         value: u64,
         anchor: bls12_381::Scalar,
         merkle_path: MerklePath<Node>,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), ()> {
-        let (proof, cv) = ctx.convert_proof(
+    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, jubjub::Fr), ()> {
+        let (proof, cv, rcv) = ctx.convert_proof(
             allowed_conversion,
             value,
             anchor,
@@ -241,7 +249,7 @@ impl TxProver for LocalTxProver {
             .write(&mut zkproof[..])
             .expect("should be able to serialize a proof");
 
-        Ok((zkproof, cv))
+        Ok((zkproof, cv, rcv))
     }
 
     fn binding_sig(

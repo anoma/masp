@@ -203,10 +203,10 @@ impl SaplingOutputInfo {
         prover: &Pr,
         ctx: &mut Pr::SaplingProvingContext,
         rng: &mut R,
-    ) -> OutputDescription<GrothProofBytes> {
+    ) -> (OutputDescription<GrothProofBytes>, jubjub::Fr) {
         let encryptor = sapling_note_encryption::<P>(self.ovk, self.note, self.to, self.memo);
 
-        let (zkproof, cv) = prover.output_proof(
+        let (zkproof, cv, rcv) = prover.output_proof(
             ctx,
             *encryptor.esk(),
             self.to,
@@ -222,14 +222,17 @@ impl SaplingOutputInfo {
 
         let epk = *encryptor.epk();
 
-        OutputDescription {
-            cv,
-            cmu,
-            ephemeral_key: epk.to_bytes().into(),
-            enc_ciphertext,
-            out_ciphertext,
-            zkproof,
-        }
+        (
+            OutputDescription {
+                cv,
+                cmu,
+                ephemeral_key: epk.to_bytes().into(),
+                enc_ciphertext,
+                out_ciphertext,
+                zkproof,
+            },
+            rcv,
+        )
     }
 }
 
@@ -248,11 +251,91 @@ impl fees::OutputView for SaplingOutputInfo {
 }
 
 /// Metadata about a transaction created by a [`SaplingBuilder`].
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SaplingMetadata {
     spend_indices: Vec<usize>,
     convert_indices: Vec<usize>,
     output_indices: Vec<usize>,
+    spend_rcvs: Vec<jubjub::Fr>,
+    convert_rcvs: Vec<jubjub::Fr>,
+    output_rcvs: Vec<jubjub::Fr>,
+}
+
+impl BorshSchema for SaplingMetadata {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("spend_indices".into(), Vec::<usize>::declaration()),
+                ("convert_indices".into(), Vec::<usize>::declaration()),
+                ("output_indices".into(), Vec::<usize>::declaration()),
+                ("spend_rcvs".into(), Vec::<[u8; 32]>::declaration()),
+                ("convert_rcvs".into(), Vec::<[u8; 32]>::declaration()),
+                ("output_rcvs".into(), Vec::<[u8; 32]>::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        Vec::<usize>::add_definitions_recursively(definitions);
+        Vec::<[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "SaplingMetadata".into()
+    }
+}
+
+impl BorshSerialize for SaplingMetadata {
+    fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        self.spend_indices.serialize(writer)?;
+        self.convert_indices.serialize(writer)?;
+        self.output_indices.serialize(writer)?;
+        self.spend_rcvs
+            .iter()
+            .map(|rcv| rcv.to_bytes())
+            .collect::<Vec<[u8; 32]>>()
+            .serialize(writer)?;
+        self.convert_rcvs
+            .iter()
+            .map(|rcv| rcv.to_bytes())
+            .collect::<Vec<[u8; 32]>>()
+            .serialize(writer)?;
+        self.output_rcvs
+            .iter()
+            .map(|rcv| rcv.to_bytes())
+            .collect::<Vec<[u8; 32]>>()
+            .serialize(writer)?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for SaplingMetadata {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let spend_indices = Vec::<usize>::deserialize_reader(reader)?;
+        let convert_indices = Vec::<usize>::deserialize_reader(reader)?;
+        let output_indices = Vec::<usize>::deserialize_reader(reader)?;
+        let spend_rcvs = Vec::<[u8; 32]>::deserialize_reader(reader)?
+            .iter()
+            .map(|rcv| jubjub::Fr::from_bytes(rcv).into())
+            .collect::<Option<Vec<jubjub::Fr>>>()
+            .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
+        let convert_rcvs = Vec::<[u8; 32]>::deserialize_reader(reader)?
+            .iter()
+            .map(|rcv| jubjub::Fr::from_bytes(rcv).into())
+            .collect::<Option<Vec<jubjub::Fr>>>()
+            .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
+        let output_rcvs = Vec::<[u8; 32]>::deserialize_reader(reader)?
+            .iter()
+            .map(|rcv| jubjub::Fr::from_bytes(rcv).into())
+            .collect::<Option<Vec<jubjub::Fr>>>()
+            .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
+        Ok(SaplingMetadata {
+            spend_indices,
+            convert_indices,
+            output_indices,
+            spend_rcvs,
+            convert_rcvs,
+            output_rcvs,
+        })
+    }
 }
 
 impl SaplingMetadata {
@@ -261,6 +344,9 @@ impl SaplingMetadata {
             spend_indices: vec![],
             convert_indices: vec![],
             output_indices: vec![],
+            spend_rcvs: vec![],
+            convert_rcvs: vec![],
+            output_rcvs: vec![],
         }
     }
 
@@ -584,6 +670,17 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
             }
         }
 
+        // Setup the structures that will receive the value commitment randomness
+        tx_metadata
+            .spend_rcvs
+            .resize(indexed_spends.len(), jubjub::Fr::zero());
+        tx_metadata
+            .convert_rcvs
+            .resize(indexed_converts.len(), jubjub::Fr::zero());
+        tx_metadata
+            .output_rcvs
+            .resize(indexed_outputs.len(), jubjub::Fr::zero());
+
         // Randomize order of inputs and outputs
         indexed_spends.shuffle(&mut rng);
         indexed_converts.shuffle(&mut rng);
@@ -610,7 +707,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                         spend.merkle_path.position,
                     );
 
-                    let (zkproof, cv, rk) = prover
+                    let (zkproof, cv, rcv, rk) = prover
                         .spend_proof(
                             ctx,
                             proof_generation_key,
@@ -626,6 +723,9 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
 
                     // Record the post-randomized spend location
                     tx_metadata.spend_indices[pos] = i;
+
+                    // Map the post-randomized spends to commitment value randomness
+                    tx_metadata.spend_rcvs[i] = rcv;
 
                     // Update progress and send a notification on the channel
                     progress += 1;
@@ -661,7 +761,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                     .into_iter()
                     .enumerate()
                     .map(|(i, (pos, convert))| {
-                        let (zkproof, cv) = prover
+                        let (zkproof, cv, rcv) = prover
                             .convert_proof(
                                 ctx,
                                 convert.allowed.clone(),
@@ -673,6 +773,9 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
 
                         // Record the post-randomized spend location
                         tx_metadata.convert_indices[pos] = i;
+
+                        // Map the post-randomized converts to commitment value randomness
+                        tx_metadata.convert_rcvs[i] = rcv;
 
                         // Update progress and send a notification on the channel
                         progress += 1;
@@ -703,7 +806,10 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                     // Record the post-randomized output location
                     tx_metadata.output_indices[pos] = i;
 
-                    output.clone().build::<P, _, _>(prover, ctx, &mut rng)
+                    let (desc, rcv) = output.clone().build::<P, _, _>(prover, ctx, &mut rng);
+                    // Map the post-randomized outputs to commitment value randomness
+                    tx_metadata.output_rcvs[i] = rcv;
+                    desc
                 } else {
                     // This is a dummy output
                     let (dummy_to, dummy_note) = {
@@ -747,7 +853,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                     let esk = dummy_note.generate_or_derive_esk_internal(&mut rng);
                     let epk = dummy_note.g_d * esk;
 
-                    let (zkproof, cv) = prover.output_proof(
+                    let (zkproof, cv, rcv) = prover.output_proof(
                         ctx,
                         esk,
                         dummy_to,
@@ -755,6 +861,9 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                         dummy_note.asset_type,
                         dummy_note.value,
                     );
+
+                    // Map the post-randomized outputs to commitment value randomness
+                    tx_metadata.output_rcvs[i] = rcv;
 
                     let cmu = dummy_note.cmu();
 

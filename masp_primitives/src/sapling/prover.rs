@@ -38,7 +38,15 @@ pub trait TxProver {
         value: u64,
         anchor: bls12_381::Scalar,
         merkle_path: MerklePath<Node>,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()>;
+    ) -> Result<
+        (
+            [u8; GROTH_PROOF_SIZE],
+            jubjub::ExtendedPoint,
+            jubjub::Fr,
+            PublicKey,
+        ),
+        (),
+    >;
 
     /// Create the value commitment and proof for a MASP OutputDescription,
     /// while accumulating its value commitment randomness inside the context for later
@@ -52,7 +60,7 @@ pub trait TxProver {
         rcm: jubjub::Fr,
         asset_type: AssetType,
         value: u64,
-    ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint);
+    ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, jubjub::Fr);
 
     /// Create the value commitment, and proof for a MASP ConvertDescription,
     /// while accumulating its value commitment randomness inside
@@ -65,7 +73,7 @@ pub trait TxProver {
         value: u64,
         anchor: bls12_381::Scalar,
         merkle_path: MerklePath<Node>,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), ()>;
+    ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, jubjub::Fr), ()>;
 
     /// Create the `bindingSig` for a Sapling transaction. All calls to
     /// [`TxProver::spend_proof`] and [`TxProver::output_proof`] must be completed before
@@ -115,18 +123,24 @@ pub mod mock {
             value: u64,
             _anchor: bls12_381::Scalar,
             _merkle_path: MerklePath<Node>,
-        ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()> {
+        ) -> Result<
+            (
+                [u8; GROTH_PROOF_SIZE],
+                jubjub::ExtendedPoint,
+                jubjub::Fr,
+                PublicKey,
+            ),
+            (),
+        > {
             let mut rng = OsRng;
 
-            let cv = asset_type
-                .value_commitment(value, jubjub::Fr::random(&mut rng))
-                .commitment()
-                .into();
+            let rcv = jubjub::Fr::random(&mut rng);
+            let cv = asset_type.value_commitment(value, rcv).commitment().into();
 
             let rk =
                 PublicKey(proof_generation_key.ak.into()).randomize(ar, SPENDING_KEY_GENERATOR);
 
-            Ok(([0u8; GROTH_PROOF_SIZE], cv, rk))
+            Ok(([0u8; GROTH_PROOF_SIZE], cv, rcv, rk))
         }
 
         fn output_proof(
@@ -137,15 +151,13 @@ pub mod mock {
             _rcm: jubjub::Fr,
             asset_type: AssetType,
             value: u64,
-        ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint) {
+        ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, jubjub::Fr) {
             let mut rng = OsRng;
 
-            let cv = asset_type
-                .value_commitment(value, jubjub::Fr::random(&mut rng))
-                .commitment()
-                .into();
+            let rcv = jubjub::Fr::random(&mut rng);
+            let cv = asset_type.value_commitment(value, rcv).commitment().into();
 
-            ([0u8; GROTH_PROOF_SIZE], cv)
+            ([0u8; GROTH_PROOF_SIZE], cv, rcv)
         }
 
         fn convert_proof(
@@ -155,15 +167,16 @@ pub mod mock {
             value: u64,
             _anchor: bls12_381::Scalar,
             _merkle_path: MerklePath<Node>,
-        ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), ()> {
+        ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, jubjub::Fr), ()> {
             let mut rng = OsRng;
 
+            let rcv = jubjub::Fr::random(&mut rng);
             let cv = allowed_conversion
-                .value_commitment(value, jubjub::Fr::random(&mut rng))
+                .value_commitment(value, rcv)
                 .commitment()
                 .into();
 
-            Ok(([0u8; GROTH_PROOF_SIZE], cv))
+            Ok(([0u8; GROTH_PROOF_SIZE], cv, rcv))
         }
 
         fn binding_sig(
