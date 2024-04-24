@@ -20,7 +20,7 @@ use crate::{
         redjubjub::{PrivateKey, Signature},
         spend_sig_internal,
         util::generate_random_rseed_internal,
-        Diversifier, Node, Note, PaymentAddress,
+        Diversifier, Node, Note, PaymentAddress, Rseed,
     },
     transaction::{
         builder::Progress,
@@ -41,6 +41,112 @@ use borsh::schema::Fields;
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use std::collections::BTreeMap;
 use std::io::Write;
+
+pub trait Randomness {
+    /// Get the commitment value randomness for the ith spend description
+    fn spend_rcv(&mut self, i: usize) -> jubjub::Fr;
+    /// Get the commitment value randomness for the ith convert description
+    fn convert_rcv(&mut self, i: usize) -> jubjub::Fr;
+    /// Get the commitment value randomness for the ith output description
+    fn output_rcv(&mut self, i: usize) -> jubjub::Fr;
+    /// Get the spend authorization randomizer for the ith spend description
+    fn spend_alpha(&mut self, i: usize) -> jubjub::Fr;
+    /// Get the Rseed::BeforeZip212 for the ith spend description
+    fn rseed_before(&mut self, i: usize) -> jubjub::Fr;
+    /// Get the Rseed::AfterZip212 for the ith spend description
+    fn rseed_after(&mut self, i: usize) -> [u8; 32];
+}
+
+/// Pre-generated random parameters for MASPtTransactions
+pub struct StoredRandomness {
+    spend_rcvs: Vec<jubjub::Fr>,
+    convert_rcvs: Vec<jubjub::Fr>,
+    output_rcvs: Vec<jubjub::Fr>,
+    spend_alphas: Vec<jubjub::Fr>,
+    rseed_before: Vec<jubjub::Fr>,
+    rseed_after: Vec<[u8; 32]>,
+}
+
+impl Randomness for StoredRandomness {
+    fn spend_rcv(&mut self, i: usize) -> jubjub::Fr {
+        self.spend_rcvs[i]
+    }
+    
+    fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
+        self.convert_rcvs[i]
+    }
+    
+    fn output_rcv(&mut self, i: usize) -> jubjub::Fr {
+        self.output_rcvs[i]
+    }
+
+    fn spend_alpha(&mut self, i: usize) -> jubjub::Fr {
+        self.spend_alphas[i]
+    }
+
+    fn rseed_before(&mut self, i: usize) -> jubjub::Fr {
+        self.rseed_before[i]
+    }
+
+    fn rseed_after(&mut self, i: usize) -> [u8; 32] {
+        self.rseed_after[i]
+    }
+}
+
+/// Lazily generated random parameters for MASP transactions
+pub struct RngRandomness<R: RngCore> {
+    rng: R,
+    spend_rcvs: BTreeMap<usize, jubjub::Fr>,
+    convert_rcvs: BTreeMap<usize, jubjub::Fr>,
+    output_rcvs: BTreeMap<usize, jubjub::Fr>,
+    spend_alphas: BTreeMap<usize, jubjub::Fr>,
+    rseed_before: BTreeMap<usize, jubjub::Fr>,
+    rseed_after: BTreeMap<usize, [u8; 32]>,
+}
+
+impl<R: RngCore> RngRandomness<R> {
+    pub fn new(rng: R) -> Self {
+        Self {
+            rng,
+            spend_rcvs: BTreeMap::new(),
+            convert_rcvs: BTreeMap::new(),
+            output_rcvs: BTreeMap::new(),
+            spend_alphas: BTreeMap::new(),
+            rseed_before: BTreeMap::new(),
+            rseed_after: BTreeMap::new(),
+        }
+    }
+}
+
+impl<R: RngCore> Randomness for RngRandomness<R> {
+    fn spend_rcv(&mut self, i: usize) -> jubjub::Fr {
+        *self.spend_rcvs.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+    }
+    
+    fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
+        *self.convert_rcvs.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+    }
+    
+    fn output_rcv(&mut self, i: usize) -> jubjub::Fr {
+        *self.output_rcvs.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+    }
+
+    fn spend_alpha(&mut self, i: usize) -> jubjub::Fr {
+        *self.spend_alphas.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+    }
+
+    fn rseed_before(&mut self, i: usize) -> jubjub::Fr {
+        *self.rseed_before.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+    }
+
+    fn rseed_after(&mut self, i: usize) -> [u8; 32] {
+        *self.rseed_after.entry(i).or_insert_with(|| {
+            let mut buffer = [0u8; 32];
+            self.rng.fill_bytes(&mut buffer);
+            buffer
+        })
+    }
+}
 
 /// If there are any shielded inputs, always have at least two shielded outputs, padding
 /// with dummy outputs if necessary. See <https://github.com/zcash/zcash/issues/3615>.
@@ -76,7 +182,6 @@ pub struct SpendDescriptionInfo<Key = ExtendedSpendingKey> {
     extsk: Key,
     diversifier: Diversifier,
     note: Note,
-    alpha: jubjub::Fr,
     merkle_path: MerklePath<Node>,
 }
 
@@ -86,16 +191,14 @@ impl<Key: BorshSchema> BorshSchema for SpendDescriptionInfo<Key> {
             fields: Fields::NamedFields(vec![
                 ("extsk".into(), Key::declaration()),
                 ("diversifier".into(), Diversifier::declaration()),
-                ("note".into(), Note::declaration()),
-                ("alpha".into(), <[u8; 32]>::declaration()),
+                ("note".into(), Note::<Rseed>::declaration()),
                 ("merkle_path".into(), MerklePath::<[u8; 32]>::declaration()),
             ]),
         };
         add_definition(Self::declaration(), definition, definitions);
         Key::add_definitions_recursively(definitions);
         Diversifier::add_definitions_recursively(definitions);
-        Note::add_definitions_recursively(definitions);
-        <[u8; 32]>::add_definitions_recursively(definitions);
+        Note::<Rseed>::add_definitions_recursively(definitions);
         MerklePath::<[u8; 32]>::add_definitions_recursively(definitions);
     }
 
@@ -109,7 +212,6 @@ impl<Key: BorshSerialize> BorshSerialize for SpendDescriptionInfo<Key> {
         self.extsk.serialize(writer)?;
         self.diversifier.serialize(writer)?;
         self.note.serialize(writer)?;
-        self.alpha.to_bytes().serialize(writer)?;
         self.merkle_path.serialize(writer)
     }
 }
@@ -119,15 +221,11 @@ impl<Key: BorshDeserialize> BorshDeserialize for SpendDescriptionInfo<Key> {
         let extsk = Key::deserialize_reader(reader)?;
         let diversifier = Diversifier::deserialize_reader(reader)?;
         let note = Note::deserialize_reader(reader)?;
-        let alpha: Option<_> =
-            jubjub::Fr::from_bytes(&<[u8; 32]>::deserialize_reader(reader)?).into();
-        let alpha = alpha.ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
         let merkle_path = MerklePath::<Node>::deserialize_reader(reader)?;
         Ok(SpendDescriptionInfo {
             extsk,
             diversifier,
             note,
-            alpha,
             merkle_path,
         })
     }
@@ -159,16 +257,13 @@ pub struct SaplingOutputInfo {
     /// `None` represents the `ovk = ⊥` case.
     ovk: Option<OutgoingViewingKey>,
     to: PaymentAddress,
-    note: Note,
+    note: Note<()>,
     memo: MemoBytes,
 }
 
 impl SaplingOutputInfo {
     #[allow(clippy::too_many_arguments)]
-    fn new_internal<P: consensus::Parameters, R: RngCore>(
-        params: &P,
-        rng: &mut R,
-        target_height: BlockHeight,
+    fn new_internal(
         ovk: Option<OutgoingViewingKey>,
         to: PaymentAddress,
         asset_type: AssetType,
@@ -180,13 +275,11 @@ impl SaplingOutputInfo {
             return Err(Error::InvalidAmount);
         }
 
-        let rseed = generate_random_rseed_internal(params, target_height, rng);
-
         let note = Note {
             g_d,
             pk_d: *to.pk_d(),
             value,
-            rseed,
+            rseed: (),
             asset_type,
         };
 
@@ -203,19 +296,29 @@ impl SaplingOutputInfo {
         prover: &Pr,
         ctx: &mut Pr::SaplingProvingContext,
         rng: &mut R,
+        rcv: jubjub::Fr,
+        rseed: Rseed,
     ) -> OutputDescription<GrothProofBytes> {
-        let encryptor = sapling_note_encryption::<P>(self.ovk, self.note, self.to, self.memo);
+        let note = Note {
+            rseed,
+            value: self.note.value,
+            g_d: self.note.g_d,
+            pk_d: self.note.pk_d,
+            asset_type: self.note.asset_type,
+        };
+        let encryptor = sapling_note_encryption::<P>(self.ovk, note, self.to, self.memo);
 
         let (zkproof, cv) = prover.output_proof(
             ctx,
             *encryptor.esk(),
             self.to,
-            self.note.rcm(),
+            note.rcm(),
             self.note.asset_type,
             self.note.value,
+            rcv,
         );
 
-        let cmu = self.note.cmu();
+        let cmu = note.cmu();
 
         let enc_ciphertext = encryptor.encrypt_note_plaintext();
         let out_ciphertext = encryptor.encrypt_outgoing_plaintext(&cv, &cmu, rng);
@@ -449,9 +552,8 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
     ///
     /// Returns an error if the given Merkle path does not have the same anchor as the
     /// paths for previous Sapling notes.
-    pub fn add_spend<R: RngCore>(
+    pub fn add_spend(
         &mut self,
-        mut rng: R,
         extsk: ExtendedSpendingKey,
         diversifier: Diversifier,
         note: Note,
@@ -468,8 +570,6 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
             self.spend_anchor = Some(merkle_path.root(node).into())
         }
 
-        let alpha = jubjub::Fr::random(&mut rng);
-
         self.value_balance += ValueSum::from_pair(note.asset_type, note.value.into())
             .map_err(|_| Error::InvalidAmount)?;
 
@@ -477,7 +577,6 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
             extsk,
             diversifier,
             note,
-            alpha,
             merkle_path,
         });
 
@@ -520,9 +619,8 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
 
     /// Adds a Sapling address to send funds to.
     #[allow(clippy::too_many_arguments)]
-    pub fn add_output<R: RngCore>(
+    pub fn add_output(
         &mut self,
-        mut rng: R,
         ovk: Option<OutgoingViewingKey>,
         to: PaymentAddress,
         asset_type: AssetType,
@@ -530,9 +628,6 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         memo: MemoBytes,
     ) -> Result<(), Error> {
         let output = SaplingOutputInfo::new_internal(
-            &self.params,
-            &mut rng,
-            self.target_height,
             ovk,
             to,
             asset_type,
@@ -548,11 +643,12 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         Ok(())
     }
 
-    pub fn build<Pr: TxProver, R: RngCore>(
+    pub fn build<Pr: TxProver, R: RngCore, S: Randomness>(
         self,
         prover: &Pr,
         ctx: &mut Pr::SaplingProvingContext,
         mut rng: R,
+        mrng: &mut S,
         target_height: BlockHeight,
         progress_notifier: Option<&Sender<Progress>>,
     ) -> Result<Option<Bundle<Unauthorized>>, Error> {
@@ -616,11 +712,12 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                             proof_generation_key,
                             spend.diversifier,
                             spend.note.rseed,
-                            spend.alpha,
+                            mrng.spend_alpha(i),
                             spend.note.asset_type,
                             spend.note.value,
                             anchor,
                             spend.merkle_path.clone(),
+                            mrng.spend_rcv(i),
                         )
                         .map_err(|_| Error::SpendProof)?;
 
@@ -668,6 +765,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                                 convert.value,
                                 anchor,
                                 convert.merkle_path,
+                                mrng.convert_rcv(i),
                             )
                             .map_err(|_| Error::ConvertProof)?;
 
@@ -699,11 +797,18 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
             .into_iter()
             .enumerate()
             .map(|(i, output)| {
+                let rseed = generate_random_rseed_internal(
+                    &params,
+                    target_height,
+                    mrng.rseed_before(i),
+                    mrng.rseed_after(i),
+                );
+                
                 let result = if let Some((pos, output)) = output {
                     // Record the post-randomized output location
                     tx_metadata.output_indices[pos] = i;
 
-                    output.clone().build::<P, _, _>(prover, ctx, &mut rng)
+                    output.clone().build::<P, _, _>(prover, ctx, &mut rng, mrng.output_rcv(i), rseed)
                 } else {
                     // This is a dummy output
                     let (dummy_to, dummy_note) = {
@@ -729,9 +834,6 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                             }
                         };
 
-                        let rseed =
-                            generate_random_rseed_internal(&params, target_height, &mut rng);
-
                         (
                             payment_address,
                             Note {
@@ -754,6 +856,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                         dummy_note.rcm(),
                         dummy_note.asset_type,
                         dummy_note.value,
+                        mrng.output_rcv(i),
                     );
 
                     let cmu = dummy_note.cmu();
@@ -816,11 +919,12 @@ impl SpendDescription<Unauthorized> {
 }
 
 impl Bundle<Unauthorized> {
-    pub fn apply_signatures<Pr: TxProver, R: RngCore>(
+    pub fn apply_signatures<Pr: TxProver, R: RngCore, S: Randomness>(
         self,
         prover: &Pr,
         ctx: &mut Pr::SaplingProvingContext,
         rng: &mut R,
+        mrng: &mut S,
         sighash_bytes: &[u8; 32],
     ) -> Result<(Bundle<Authorized>, SaplingMetadata), Error> {
         let binding_sig = prover
@@ -832,10 +936,11 @@ impl Bundle<Unauthorized> {
                 shielded_spends: self
                     .shielded_spends
                     .iter()
-                    .map(|spend| {
+                    .enumerate()
+                    .map(|(i, spend)| {
                         spend.apply_signature(spend_sig_internal(
                             PrivateKey(spend.spend_auth_sig.extsk.expsk.ask),
-                            spend.spend_auth_sig.alpha,
+                            mrng.spend_alpha(i),
                             sighash_bytes,
                             rng,
                         ))
@@ -915,7 +1020,6 @@ impl<P1, K1> SaplingBuilder<P1, K1> {
                     extsk: f.map_key(x.extsk),
                     diversifier: x.diversifier,
                     note: x.note,
-                    alpha: x.alpha,
                     merkle_path: x.merkle_path,
                 })
                 .collect(),
@@ -947,7 +1051,7 @@ pub mod testing {
         zip32::sapling::testing::arb_extended_spending_key,
     };
 
-    use super::SaplingBuilder;
+    use super::{SaplingBuilder, RngRandomness};
 
     prop_compose! {
         fn arb_bundle()(n_notes in 1..30usize)(
@@ -965,6 +1069,7 @@ pub mod testing {
             diversifiers in vec(prop::array::uniform11(any::<u8>()).prop_map(Diversifier), n_notes),
             target_height in arb_branch_id().prop_flat_map(|b| arb_height(b, &TEST_NETWORK)),
             rng_seed in prop::array::uniform32(any::<u8>()),
+            mrng_seed in prop::array::uniform32(any::<u8>()),
             fake_sighash_bytes in prop::array::uniform32(any::<u8>()),
         ) -> Bundle<Authorized> {
             let mut builder = SaplingBuilder::new(TEST_NETWORK, target_height.unwrap());
@@ -972,7 +1077,6 @@ pub mod testing {
 
             for ((note, path), diversifier) in spendable_notes.into_iter().zip(commitment_trees.into_iter()).zip(diversifiers.into_iter()) {
                 builder.add_spend(
-                    &mut rng,
                     extsk,
                     diversifier,
                     note,
@@ -981,19 +1085,22 @@ pub mod testing {
             }
 
             let prover = MockTxProver;
+            let mut mrng = RngRandomness::new(StdRng::from_seed(mrng_seed));
 
             let bundle = builder.build(
                 &prover,
                 &mut (),
                 &mut rng,
+                &mut mrng,
                 target_height.unwrap(),
-                None
+                None,
             ).unwrap().unwrap();
 
             let (bundle, _) = bundle.apply_signatures(
                 &prover,
                 &mut (),
                 &mut rng,
+                &mut mrng,
                 &fake_sighash_bytes,
             ).unwrap();
 

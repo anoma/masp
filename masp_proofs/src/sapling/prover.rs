@@ -3,7 +3,7 @@ use bellman::{
     groth16::{create_random_proof, verify_proof, Parameters, PreparedVerifyingKey, Proof},
 };
 use bls12_381::Bls12;
-use group::{ff::Field, Curve, GroupEncoding};
+use group::{Curve, GroupEncoding};
 use masp_primitives::{
     asset_type::AssetType,
     constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR},
@@ -60,12 +60,10 @@ impl SaplingProvingContext {
         merkle_path: MerklePath<Node>,
         proving_key: &Parameters<Bls12>,
         verifying_key: &PreparedVerifyingKey<Bls12>,
+        rcv: jubjub::Fr,
     ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint, PublicKey), ()> {
         // Initialize secure RNG
         let mut rng = OsRng;
-
-        // We create the randomness of the value commitment
-        let rcv = jubjub::Fr::random(&mut rng);
 
         // Accumulate the value commitment randomness in the context
         {
@@ -169,14 +167,10 @@ impl SaplingProvingContext {
         asset_type: AssetType,
         value: u64,
         proving_key: &Parameters<Bls12>,
+        rcv: jubjub::Fr,
     ) -> (Proof<Bls12>, jubjub::ExtendedPoint) {
         // Initialize secure RNG
         let mut rng = OsRng;
-
-        // We construct ephemeral randomness for the value commitment. This
-        // randomness is not given back to the caller, but the synthetic
-        // blinding factor `bsk` is accumulated in the context.
-        let rcv = jubjub::Fr::random(&mut rng);
 
         // Accumulate the value commitment randomness in the context
         {
@@ -223,12 +217,10 @@ impl SaplingProvingContext {
         merkle_path: MerklePath<Node>,
         proving_key: &Parameters<Bls12>,
         verifying_key: &PreparedVerifyingKey<Bls12>,
+        rcv: jubjub::Fr,
     ) -> Result<(Proof<Bls12>, jubjub::ExtendedPoint), ()> {
         // Initialize secure RNG
         let mut rng = OsRng;
-
-        // We create the randomness of the value commitment
-        let rcv = jubjub::Fr::random(&mut rng);
 
         // Accumulate the value commitment randomness in the context
         {
