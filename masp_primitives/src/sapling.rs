@@ -696,7 +696,7 @@ impl From<NoteValue> for u64 {
 }
 
 #[derive(Clone, Debug, Copy)]
-pub struct Note {
+pub struct Note<R = Rseed> {
     /// The asset type that the note represents
     pub asset_type: AssetType,
     /// The value of the note
@@ -706,7 +706,7 @@ pub struct Note {
     /// The public key of the address, g_d^ivk
     pub pk_d: jubjub::SubgroupPoint,
     /// rseed
-    pub rseed: Rseed,
+    pub rseed: R,
 }
 
 impl PartialEq for Note {
@@ -826,7 +826,7 @@ impl Note {
     }
 }
 
-impl BorshSchema for Note {
+impl<T: BorshSchema> BorshSchema for Note<T> {
     fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
         let definition = Definition::Struct {
             fields: Fields::NamedFields(vec![
@@ -834,14 +834,14 @@ impl BorshSchema for Note {
                 ("value".into(), u64::declaration()),
                 ("g_d".into(), <[u8; 32]>::declaration()),
                 ("pk_d".into(), <[u8; 32]>::declaration()),
-                ("rseed".into(), Rseed::declaration()),
+                ("rseed".into(), T::declaration()),
             ]),
         };
         add_definition(Self::declaration(), definition, definitions);
         AssetType::add_definitions_recursively(definitions);
         u64::add_definitions_recursively(definitions);
         <[u8; 32]>::add_definitions_recursively(definitions);
-        Rseed::add_definitions_recursively(definitions);
+        T::add_definitions_recursively(definitions);
     }
 
     fn declaration() -> Declaration {
@@ -849,7 +849,7 @@ impl BorshSchema for Note {
     }
 }
 
-impl BorshSerialize for Note {
+impl<T: BorshSerialize> BorshSerialize for Note<T> {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> io::Result<()> {
         // Write asset type
         self.asset_type.serialize(writer)?;
@@ -865,7 +865,7 @@ impl BorshSerialize for Note {
     }
 }
 
-impl BorshDeserialize for Note {
+impl<T: BorshDeserialize> BorshDeserialize for Note<T> {
     fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
         // Read asset type
         let asset_type = AssetType::deserialize_reader(reader)?;
@@ -880,7 +880,7 @@ impl BorshDeserialize for Note {
         let pk_d = Option::from(jubjub::SubgroupPoint::from_bytes(&pk_d_bytes))
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "pk_d not in field"))?;
         // Read note plaintext lead byte
-        let rseed = Rseed::deserialize_reader(reader)?;
+        let rseed = T::deserialize_reader(reader)?;
         // Finally construct note object
         Ok(Note {
             asset_type,
