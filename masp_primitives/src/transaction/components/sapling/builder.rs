@@ -5,7 +5,7 @@ use std::sync::mpsc::Sender;
 
 use ff::Field;
 use group::GroupEncoding;
-use rand::{seq::SliceRandom, RngCore};
+use rand::{seq::SliceRandom, CryptoRng, RngCore};
 
 use crate::{
     asset_type::AssetType,
@@ -20,7 +20,7 @@ use crate::{
         redjubjub::{PrivateKey, Signature},
         spend_sig_internal,
         util::generate_random_rseed_internal,
-        Diversifier, Node, Note, PaymentAddress, Rseed,
+        Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed,
     },
     transaction::{
         builder::Progress,
@@ -42,85 +42,141 @@ use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use std::collections::BTreeMap;
 use std::io::Write;
 
-pub trait Randomness {
+pub trait BuildParams {
     /// Get the commitment value randomness for the ith spend description
     fn spend_rcv(&mut self, i: usize) -> jubjub::Fr;
+    /// Get the spend authorization randomizer for the ith spend description
+    fn spend_alpha(&mut self, i: usize) -> jubjub::Fr;
+    /// Get the authorization signature for the ith spend description
+    fn auth_sig(&mut self, i: usize) -> Option<Signature>;
+    /// The proof generation key for the ith spend description
+    fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey>;
     /// Get the commitment value randomness for the ith convert description
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr;
     /// Get the commitment value randomness for the ith output description
     fn output_rcv(&mut self, i: usize) -> jubjub::Fr;
-    /// Get the spend authorization randomizer for the ith spend description
-    fn spend_alpha(&mut self, i: usize) -> jubjub::Fr;
     /// Get the Rseed::BeforeZip212 for the ith spend description
-    fn rseed_before(&mut self, i: usize) -> jubjub::Fr;
+    fn output_rcm(&mut self, i: usize) -> jubjub::Fr;
     /// Get the Rseed::AfterZip212 for the ith spend description
-    fn rseed_after(&mut self, i: usize) -> [u8; 32];
+    fn output_rseed(&mut self, i: usize) -> [u8; 32];
+}
+
+/// Parameters that go into constructing a spend description
+pub struct SpendBuildParams {
+    /// The commitment value randomness
+    rcv: jubjub::Fr,
+    /// The spend authorization randomizer
+    alpha: jubjub::Fr,
+    /// The authorization signature
+    auth_sig: Option<Signature>,
+    /// The proof generation key
+    proof_generation_key: Option<ProofGenerationKey>,
+}
+
+/// Parameters that go into constructing an output description
+pub struct ConvertBuildParams {
+    /// The commitment value randomness
+    rcv: jubjub::Fr,
+}
+
+/// Parameters that go into constructing an output description
+pub struct OutputBuildParams {
+    /// The commitment value randomness
+    rcv: jubjub::Fr,
+    /// The note rcm value
+    rcm: jubjub::Fr,
+    /// The note rseed value
+    rseed: [u8; 32],
 }
 
 /// Pre-generated random parameters for MASPtTransactions
-pub struct StoredRandomness {
-    spend_rcvs: Vec<jubjub::Fr>,
-    convert_rcvs: Vec<jubjub::Fr>,
-    output_rcvs: Vec<jubjub::Fr>,
-    spend_alphas: Vec<jubjub::Fr>,
-    rseed_before: Vec<jubjub::Fr>,
-    rseed_after: Vec<[u8; 32]>,
+pub struct StoredBuildParams {
+    /// The parameters required to construct spend descriptions
+    spend_params: Vec<SpendBuildParams>,
+    /// The parameters required to construct convert descriptions
+    convert_params: Vec<ConvertBuildParams>,
+    /// The parameters required to construct output descriptions
+    output_params: Vec<OutputBuildParams>,
 }
 
-impl Randomness for StoredRandomness {
+impl BuildParams for StoredBuildParams {
     fn spend_rcv(&mut self, i: usize) -> jubjub::Fr {
-        self.spend_rcvs[i]
-    }
-    
-    fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
-        self.convert_rcvs[i]
-    }
-    
-    fn output_rcv(&mut self, i: usize) -> jubjub::Fr {
-        self.output_rcvs[i]
+        self.spend_params[i].rcv
     }
 
     fn spend_alpha(&mut self, i: usize) -> jubjub::Fr {
-        self.spend_alphas[i]
+        self.spend_params[i].alpha
     }
 
-    fn rseed_before(&mut self, i: usize) -> jubjub::Fr {
-        self.rseed_before[i]
+    fn auth_sig(&mut self, i: usize) -> Option<Signature> {
+        self.spend_params[i].auth_sig
     }
 
-    fn rseed_after(&mut self, i: usize) -> [u8; 32] {
-        self.rseed_after[i]
+    fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey> {
+        self.spend_params[i].proof_generation_key.clone()
+    }
+    
+    fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
+        self.convert_params[i].rcv
+    }
+    
+    fn output_rcv(&mut self, i: usize) -> jubjub::Fr {
+        self.output_params[i].rcv
+    }
+
+    fn output_rcm(&mut self, i: usize) -> jubjub::Fr {
+        self.output_params[i].rcm
+    }
+
+    fn output_rseed(&mut self, i: usize) -> [u8; 32] {
+        self.output_params[i].rseed
     }
 }
 
 /// Lazily generated random parameters for MASP transactions
-pub struct RngRandomness<R: RngCore> {
+pub struct RngBuildParams<R: CryptoRng + RngCore> {
     rng: R,
     spend_rcvs: BTreeMap<usize, jubjub::Fr>,
+    spend_alphas: BTreeMap<usize, jubjub::Fr>,
+    auth_sigs: BTreeMap<usize, Signature>,
+    proof_generation_key: BTreeMap<usize, ProofGenerationKey>,
     convert_rcvs: BTreeMap<usize, jubjub::Fr>,
     output_rcvs: BTreeMap<usize, jubjub::Fr>,
-    spend_alphas: BTreeMap<usize, jubjub::Fr>,
-    rseed_before: BTreeMap<usize, jubjub::Fr>,
-    rseed_after: BTreeMap<usize, [u8; 32]>,
+    output_rcms: BTreeMap<usize, jubjub::Fr>,
+    output_rseeds: BTreeMap<usize, [u8; 32]>,
 }
 
-impl<R: RngCore> RngRandomness<R> {
+impl<R: CryptoRng + RngCore> RngBuildParams<R> {
     pub fn new(rng: R) -> Self {
         Self {
             rng,
             spend_rcvs: BTreeMap::new(),
+            spend_alphas: BTreeMap::new(),
+            auth_sigs: BTreeMap::new(),
+            proof_generation_key: BTreeMap::new(),
             convert_rcvs: BTreeMap::new(),
             output_rcvs: BTreeMap::new(),
-            spend_alphas: BTreeMap::new(),
-            rseed_before: BTreeMap::new(),
-            rseed_after: BTreeMap::new(),
+            output_rcms: BTreeMap::new(),
+            output_rseeds: BTreeMap::new(),
         }
     }
 }
 
-impl<R: RngCore> Randomness for RngRandomness<R> {
+impl<R: CryptoRng + RngCore> BuildParams for RngBuildParams<R> {
     fn spend_rcv(&mut self, i: usize) -> jubjub::Fr {
         *self.spend_rcvs.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+    }
+
+    fn spend_alpha(&mut self, i: usize) -> jubjub::Fr {
+        *self.spend_alphas.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+    }
+
+    fn auth_sig(&mut self, i: usize) -> Option<Signature> {
+        self.auth_sigs.get(&i).cloned()
+    }
+
+    fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey> {
+        self.proof_generation_key.get(&i).cloned()
     }
     
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
@@ -131,16 +187,12 @@ impl<R: RngCore> Randomness for RngRandomness<R> {
         *self.output_rcvs.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
     }
 
-    fn spend_alpha(&mut self, i: usize) -> jubjub::Fr {
-        *self.spend_alphas.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+    fn output_rcm(&mut self, i: usize) -> jubjub::Fr {
+        *self.output_rcms.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
     }
 
-    fn rseed_before(&mut self, i: usize) -> jubjub::Fr {
-        *self.rseed_before.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
-    }
-
-    fn rseed_after(&mut self, i: usize) -> [u8; 32] {
-        *self.rseed_after.entry(i).or_insert_with(|| {
+    fn output_rseed(&mut self, i: usize) -> [u8; 32] {
+        *self.output_rseeds.entry(i).or_insert_with(|| {
             let mut buffer = [0u8; 32];
             self.rng.fill_bytes(&mut buffer);
             buffer
@@ -643,12 +695,12 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         Ok(())
     }
 
-    pub fn build<Pr: TxProver, R: RngCore, S: Randomness>(
+    pub fn build<Pr: TxProver>(
         self,
         prover: &Pr,
         ctx: &mut Pr::SaplingProvingContext,
-        mut rng: R,
-        mrng: &mut S,
+        rng: &mut (impl CryptoRng + RngCore),
+        mrng: &mut impl BuildParams,
         target_height: BlockHeight,
         progress_notifier: Option<&Sender<Progress>>,
     ) -> Result<Option<Bundle<Unauthorized>>, Error> {
@@ -681,9 +733,9 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         }
 
         // Randomize order of inputs and outputs
-        indexed_spends.shuffle(&mut rng);
-        indexed_converts.shuffle(&mut rng);
-        indexed_outputs.shuffle(&mut rng);
+        indexed_spends.shuffle(rng);
+        indexed_converts.shuffle(rng);
+        indexed_outputs.shuffle(rng);
 
         // Keep track of the total number of steps computed
         let total_progress = indexed_spends.len() as u32 + indexed_outputs.len() as u32;
@@ -800,15 +852,15 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                 let rseed = generate_random_rseed_internal(
                     &params,
                     target_height,
-                    mrng.rseed_before(i),
-                    mrng.rseed_after(i),
+                    mrng.output_rcm(i),
+                    mrng.output_rseed(i),
                 );
                 
                 let result = if let Some((pos, output)) = output {
                     // Record the post-randomized output location
                     tx_metadata.output_indices[pos] = i;
 
-                    output.clone().build::<P, _, _>(prover, ctx, &mut rng, mrng.output_rcv(i), rseed)
+                    output.clone().build::<P, _, _>(prover, ctx, rng, mrng.output_rcv(i), rseed)
                 } else {
                     // This is a dummy output
                     let (dummy_to, dummy_note) = {
@@ -827,7 +879,9 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                             (diversifier, g_d)
                         };
                         let (pk_d, payment_address) = loop {
-                            let dummy_ivk = jubjub::Fr::random(&mut rng);
+                            let mut buf = [0; 64];
+                            rng.fill_bytes(&mut buf);
+                            let dummy_ivk = jubjub::Fr::from_bytes_wide(&buf);
                             let pk_d = g_d * dummy_ivk;
                             if let Some(addr) = PaymentAddress::from_parts(diversifier, pk_d) {
                                 break (pk_d, addr);
@@ -846,7 +900,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                         )
                     };
 
-                    let esk = dummy_note.generate_or_derive_esk_internal(&mut rng);
+                    let esk = dummy_note.generate_or_derive_esk_internal(rng);
                     let epk = dummy_note.g_d * esk;
 
                     let (zkproof, cv) = prover.output_proof(
@@ -919,7 +973,7 @@ impl SpendDescription<Unauthorized> {
 }
 
 impl Bundle<Unauthorized> {
-    pub fn apply_signatures<Pr: TxProver, R: RngCore, S: Randomness>(
+    pub fn apply_signatures<Pr: TxProver, R: RngCore, S: BuildParams>(
         self,
         prover: &Pr,
         ctx: &mut Pr::SaplingProvingContext,
@@ -1051,7 +1105,7 @@ pub mod testing {
         zip32::sapling::testing::arb_extended_spending_key,
     };
 
-    use super::{SaplingBuilder, RngRandomness};
+    use super::{SaplingBuilder, RngBuildParams};
 
     prop_compose! {
         fn arb_bundle()(n_notes in 1..30usize)(
@@ -1085,7 +1139,7 @@ pub mod testing {
             }
 
             let prover = MockTxProver;
-            let mut mrng = RngRandomness::new(StdRng::from_seed(mrng_seed));
+            let mut mrng = RngBuildParams::new(StdRng::from_seed(mrng_seed));
 
             let bundle = builder.build(
                 &prover,

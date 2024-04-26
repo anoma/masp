@@ -6,7 +6,7 @@ use std::sync::mpsc::Sender;
 
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 
-use rand::{rngs::OsRng, CryptoRng, RngCore};
+use rand::{CryptoRng, RngCore};
 
 use crate::{
     asset_type::AssetType,
@@ -21,7 +21,7 @@ use crate::{
             amount::{BalanceError, I128Sum, U64Sum, ValueSum, MAX_MONEY},
             sapling::{
                 self,
-                builder::{Randomness, SaplingBuilder, SaplingMetadata},
+                builder::{BuildParams, SaplingBuilder, SaplingMetadata},
             },
             transparent::{self, builder::TransparentBuilder},
         },
@@ -116,9 +116,8 @@ impl Progress {
 
 /// Generates a [`Transaction`] from its inputs and outputs.
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize, BorshSchema)]
-pub struct Builder<P, RN, Key = ExtendedSpendingKey, Notifier = Sender<Progress>> {
+pub struct Builder<P, Key = ExtendedSpendingKey, Notifier = Sender<Progress>> {
     params: P,
-    rng: RN,
     target_height: BlockHeight,
     expiry_height: BlockHeight,
     transparent_builder: TransparentBuilder,
@@ -127,7 +126,7 @@ pub struct Builder<P, RN, Key = ExtendedSpendingKey, Notifier = Sender<Progress>
     progress_notifier: Option<Notifier>,
 }
 
-impl<P, R, K, N> Builder<P, R, K, N> {
+impl<P, K, N> Builder<P, K, N> {
     /// Returns the network parameters that the builder has been configured for.
     pub fn params(&self) -> &P {
         &self.params
@@ -169,7 +168,7 @@ impl<P, R, K, N> Builder<P, R, K, N> {
     }
 }
 
-impl<P: consensus::Parameters> Builder<P, OsRng> {
+impl<P: consensus::Parameters> Builder<P> {
     /// Creates a new `Builder` targeted for inclusion in the block with the given height,
     /// using default values for general transaction fields and the default OS random.
     ///
@@ -178,32 +177,18 @@ impl<P: consensus::Parameters> Builder<P, OsRng> {
     /// The expiry height will be set to the given height plus the default transaction
     /// expiry delta (20 blocks).
     pub fn new(params: P, target_height: BlockHeight) -> Self {
-        Builder::new_with_rng(params, target_height, OsRng)
+        Self::new_internal(params, target_height)
     }
 }
 
-impl<P: consensus::Parameters, R: RngCore + CryptoRng> Builder<P, R> {
-    /// Creates a new `Builder` targeted for inclusion in the block with the given height
-    /// and randomness source, using default values for general transaction fields.
-    ///
-    /// # Default values
-    ///
-    /// The expiry height will be set to the given height plus the default transaction
-    /// expiry delta (20 blocks).
-    pub fn new_with_rng(params: P, target_height: BlockHeight, rng: R) -> Builder<P, R> {
-        Self::new_internal(params, rng, target_height)
-    }
-}
-
-impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
+impl<P: consensus::Parameters> Builder<P> {
     /// Common utility function for builder construction.
     ///
     /// WARNING: THIS MUST REMAIN PRIVATE AS IT ALLOWS CONSTRUCTION
     /// OF BUILDERS WITH NON-CryptoRng RNGs
-    fn new_internal(params: P, rng: R, target_height: BlockHeight) -> Builder<P, R> {
+    fn new_internal(params: P, target_height: BlockHeight) -> Builder<P> {
         Builder {
             params: params.clone(),
-            rng,
             target_height,
             expiry_height: target_height + DEFAULT_TX_EXPIRY_DELTA,
             transparent_builder: TransparentBuilder::empty(),
@@ -309,7 +294,8 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         self,
         prover: &impl TxProver,
         fee_rule: &FR,
-        mrng: &mut impl Randomness,
+        rng: &mut (impl CryptoRng + RngCore),
+        mrng: &mut impl BuildParams,
     ) -> Result<(Transaction, SaplingMetadata), Error<FR::Error>> {
         let fee = fee_rule
             .fee_required(
@@ -320,14 +306,15 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
                 self.sapling_builder.outputs().len(),
             )
             .map_err(Error::Fee)?;
-        self.build_internal(prover, fee, mrng)
+        self.build_internal(prover, fee, rng, mrng)
     }
 
     fn build_internal<FE>(
         self,
         prover: &impl TxProver,
         fee: U64Sum,
-        mrng: &mut impl Randomness,
+        rng: &mut (impl CryptoRng + RngCore),
+        mrng: &mut impl BuildParams,
     ) -> Result<(Transaction, SaplingMetadata), Error<FE>> {
         let consensus_branch_id = BranchId::for_height(&self.params, self.target_height);
 
@@ -347,14 +334,13 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
 
         let transparent_bundle = self.transparent_builder.build();
 
-        let mut rng = self.rng;
         let mut ctx = prover.new_sapling_proving_context();
         let sapling_bundle = self
             .sapling_builder
             .build(
                 prover,
                 &mut ctx,
-                &mut rng,
+                rng,
                 mrng,
                 self.target_height,
                 self.progress_notifier.as_ref(),
@@ -389,7 +375,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         let (sapling_bundle, tx_metadata) = match unauthed_tx
             .sapling_bundle
             .map(|b| {
-                b.apply_signatures(prover, &mut ctx, &mut rng, mrng, shielded_sig_commitment.as_ref())
+                b.apply_signatures(prover, &mut ctx, rng, mrng, shielded_sig_commitment.as_ref())
             })
             .transpose()
             .map_err(Error::SaplingBuild)?
@@ -413,21 +399,19 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     }
 }
 
-pub trait MapBuilder<P1, R1, K1, N1, P2, R2, K2, N2>:
+pub trait MapBuilder<P1, K1, N1, P2, K2, N2>:
     sapling::builder::MapBuilder<P1, K1, P2, K2>
 {
-    fn map_rng(&self, s: R1) -> R2;
     fn map_notifier(&self, s: N1) -> N2;
 }
 
-impl<P1, R1, K1, N1> Builder<P1, R1, K1, N1> {
-    pub fn map_builder<P2, R2, K2, N2, F: MapBuilder<P1, R1, K1, N1, P2, R2, K2, N2>>(
+impl<P1, K1, N1> Builder<P1, K1, N1> {
+    pub fn map_builder<P2, K2, N2, F: MapBuilder<P1, K1, N1, P2, K2, N2>>(
         self,
         f: F,
-    ) -> Builder<P2, R2, K2, N2> {
-        Builder::<P2, R2, K2, N2> {
+    ) -> Builder<P2, K2, N2> {
+        Builder::<P2, K2, N2> {
             params: f.map_params(self.params),
-            rng: f.map_rng(self.rng),
             target_height: self.target_height,
             expiry_height: self.expiry_height,
             transparent_builder: self.transparent_builder,
@@ -439,17 +423,17 @@ impl<P1, R1, K1, N1> Builder<P1, R1, K1, N1> {
 
 #[cfg(any(test, feature = "test-dependencies"))]
 mod testing {
-    use rand::RngCore;
+    use rand::{CryptoRng, RngCore};
     use std::convert::Infallible;
 
     use super::{Builder, Error, SaplingMetadata};
     use crate::{
         consensus::{self, BlockHeight},
         sapling::prover::mock::MockTxProver,
-        transaction::{builder::Randomness, fees::fixed, Transaction},
+        transaction::{builder::BuildParams, fees::fixed, Transaction},
     };
 
-    impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
+    impl<P: consensus::Parameters> Builder<P> {
         /// Creates a new `Builder` targeted for inclusion in the block with the given height
         /// and randomness source, using default values for general transaction fields.
         ///
@@ -459,12 +443,16 @@ mod testing {
         /// expiry delta (20 blocks).
         ///
         /// WARNING: DO NOT USE IN PRODUCTION
-        pub fn test_only_new_with_rng(params: P, height: BlockHeight, rng: R) -> Builder<P, R> {
-            Self::new_internal(params, rng, height)
+        pub fn test_only_new_with_rng(params: P, height: BlockHeight) -> Builder<P> {
+            Self::new_internal(params, height)
         }
 
-        pub fn mock_build(self, mrng: &mut impl Randomness) -> Result<(Transaction, SaplingMetadata), Error<Infallible>> {
-            self.build(&MockTxProver, &fixed::FeeRule::standard(), mrng)
+        pub fn mock_build(
+            self,
+            rng: &mut (impl CryptoRng + RngCore),
+            mrng: &mut impl BuildParams,
+        ) -> Result<(Transaction, SaplingMetadata), Error<Infallible>> {
+            self.build(&MockTxProver, &fixed::FeeRule::standard(), rng, mrng)
         }
     }
 }
@@ -561,7 +549,7 @@ mod tests {
         // Expect a binding signature error, because our inputs aren't valid, but this shows
         // that a binding signature was attempted
         assert_eq!(
-            builder.mock_build(&mut build_s::RngRandomness::new(OsRng)),
+            builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
             Err(Error::SaplingBuild(build_s::Error::BindingSig))
         );
     }
@@ -582,7 +570,7 @@ mod tests {
         {
             let builder = Builder::new(TEST_NETWORK, tx_height);
             assert_eq!(
-                builder.mock_build(&mut build_s::RngRandomness::new(OsRng)),
+                builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
                 Err(Error::InsufficientFunds(I128Sum::from_sum(
                     DEFAULT_FEE.clone()
                 )))
@@ -601,7 +589,7 @@ mod tests {
                 .add_sapling_output(ovk, to, zec(), 50000, MemoBytes::empty())
                 .unwrap();
             assert_eq!(
-                builder.mock_build(&mut build_s::RngRandomness::new(OsRng)),
+                builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
                 Err(Error::InsufficientFunds(
                     I128Sum::from_pair(zec(), 50000).unwrap()
                         + &I128Sum::from_sum(DEFAULT_FEE.clone())
@@ -617,7 +605,7 @@ mod tests {
                 .add_transparent_output(&transparent_address, zec(), 50000)
                 .unwrap();
             assert_eq!(
-                builder.mock_build(&mut build_s::RngRandomness::new(OsRng)),
+                builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
                 Err(Error::InsufficientFunds(
                     I128Sum::from_pair(zec(), 50000).unwrap()
                         + &I128Sum::from_sum(DEFAULT_FEE.clone())
@@ -651,7 +639,7 @@ mod tests {
                 .add_transparent_output(&transparent_address, zec(), 20000)
                 .unwrap();
             assert_eq!(
-                builder.mock_build(&mut build_s::RngRandomness::new(OsRng)),
+                builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
                 Err(Error::InsufficientFunds(
                     ValueSum::from_pair(zec(), 1).unwrap()
                 ))
@@ -686,7 +674,7 @@ mod tests {
                 .add_transparent_output(&transparent_address, zec(), 20000)
                 .unwrap();
             assert_eq!(
-                builder.mock_build(&mut build_s::RngRandomness::new(OsRng)),
+                builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
                 Err(Error::SaplingBuild(build_s::Error::BindingSig))
             )
         }
