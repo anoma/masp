@@ -295,7 +295,7 @@ impl<P: consensus::Parameters> Builder<P> {
         prover: &impl TxProver,
         fee_rule: &FR,
         rng: &mut (impl CryptoRng + RngCore),
-        mrng: &mut impl BuildParams,
+        bparams: &mut impl BuildParams,
     ) -> Result<(Transaction, SaplingMetadata), Error<FR::Error>> {
         let fee = fee_rule
             .fee_required(
@@ -306,7 +306,7 @@ impl<P: consensus::Parameters> Builder<P> {
                 self.sapling_builder.outputs().len(),
             )
             .map_err(Error::Fee)?;
-        self.build_internal(prover, fee, rng, mrng)
+        self.build_internal(prover, fee, rng, bparams)
     }
 
     fn build_internal<FE>(
@@ -314,7 +314,7 @@ impl<P: consensus::Parameters> Builder<P> {
         prover: &impl TxProver,
         fee: U64Sum,
         rng: &mut (impl CryptoRng + RngCore),
-        mrng: &mut impl BuildParams,
+        bparams: &mut impl BuildParams,
     ) -> Result<(Transaction, SaplingMetadata), Error<FE>> {
         let consensus_branch_id = BranchId::for_height(&self.params, self.target_height);
 
@@ -341,7 +341,7 @@ impl<P: consensus::Parameters> Builder<P> {
                 prover,
                 &mut ctx,
                 rng,
-                mrng,
+                bparams,
                 self.target_height,
                 self.progress_notifier.as_ref(),
             )
@@ -375,7 +375,13 @@ impl<P: consensus::Parameters> Builder<P> {
         let (sapling_bundle, tx_metadata) = match unauthed_tx
             .sapling_bundle
             .map(|b| {
-                b.apply_signatures(prover, &mut ctx, rng, mrng, shielded_sig_commitment.as_ref())
+                b.apply_signatures(
+                    prover,
+                    &mut ctx,
+                    rng,
+                    bparams,
+                    shielded_sig_commitment.as_ref(),
+                )
             })
             .transpose()
             .map_err(Error::SaplingBuild)?
@@ -399,9 +405,7 @@ impl<P: consensus::Parameters> Builder<P> {
     }
 }
 
-pub trait MapBuilder<P1, K1, N1, P2, K2, N2>:
-    sapling::builder::MapBuilder<P1, K1, P2, K2>
-{
+pub trait MapBuilder<P1, K1, N1, P2, K2, N2>: sapling::builder::MapBuilder<P1, K1, P2, K2> {
     fn map_notifier(&self, s: N1) -> N2;
 }
 
@@ -450,9 +454,9 @@ mod testing {
         pub fn mock_build(
             self,
             rng: &mut (impl CryptoRng + RngCore),
-            mrng: &mut impl BuildParams,
+            bparams: &mut impl BuildParams,
         ) -> Result<(Transaction, SaplingMetadata), Error<Infallible>> {
-            self.build(&MockTxProver, &fixed::FeeRule::standard(), rng, mrng)
+            self.build(&MockTxProver, &fixed::FeeRule::standard(), rng, bparams)
         }
     }
 }
@@ -549,7 +553,7 @@ mod tests {
         // Expect a binding signature error, because our inputs aren't valid, but this shows
         // that a binding signature was attempted
         assert_eq!(
-            builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
+            builder.mock_build(&mut OsRng, &mut build_s::RngBuildParams::new(OsRng)),
             Err(Error::SaplingBuild(build_s::Error::BindingSig))
         );
     }
@@ -570,7 +574,7 @@ mod tests {
         {
             let builder = Builder::new(TEST_NETWORK, tx_height);
             assert_eq!(
-                builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
+                builder.mock_build(&mut OsRng, &mut build_s::RngBuildParams::new(OsRng)),
                 Err(Error::InsufficientFunds(I128Sum::from_sum(
                     DEFAULT_FEE.clone()
                 )))
@@ -589,7 +593,7 @@ mod tests {
                 .add_sapling_output(ovk, to, zec(), 50000, MemoBytes::empty())
                 .unwrap();
             assert_eq!(
-                builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
+                builder.mock_build(&mut OsRng, &mut build_s::RngBuildParams::new(OsRng)),
                 Err(Error::InsufficientFunds(
                     I128Sum::from_pair(zec(), 50000).unwrap()
                         + &I128Sum::from_sum(DEFAULT_FEE.clone())
@@ -605,7 +609,7 @@ mod tests {
                 .add_transparent_output(&transparent_address, zec(), 50000)
                 .unwrap();
             assert_eq!(
-                builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
+                builder.mock_build(&mut OsRng, &mut build_s::RngBuildParams::new(OsRng)),
                 Err(Error::InsufficientFunds(
                     I128Sum::from_pair(zec(), 50000).unwrap()
                         + &I128Sum::from_sum(DEFAULT_FEE.clone())
@@ -639,7 +643,7 @@ mod tests {
                 .add_transparent_output(&transparent_address, zec(), 20000)
                 .unwrap();
             assert_eq!(
-                builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
+                builder.mock_build(&mut OsRng, &mut build_s::RngBuildParams::new(OsRng)),
                 Err(Error::InsufficientFunds(
                     ValueSum::from_pair(zec(), 1).unwrap()
                 ))
@@ -674,7 +678,7 @@ mod tests {
                 .add_transparent_output(&transparent_address, zec(), 20000)
                 .unwrap();
             assert_eq!(
-                builder.mock_build(&mut OsRng, &mut build_s::RngRandomness::new(OsRng)),
+                builder.mock_build(&mut OsRng, &mut build_s::RngBuildParams::new(OsRng)),
                 Err(Error::SaplingBuild(build_s::Error::BindingSig))
             )
         }

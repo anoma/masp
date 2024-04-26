@@ -42,6 +42,7 @@ use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use std::collections::BTreeMap;
 use std::io::Write;
 
+/// A subset of the parameters necessary to build a transaction
 pub trait BuildParams {
     /// Get the commitment value randomness for the ith spend description
     fn spend_rcv(&mut self, i: usize) -> jubjub::Fr;
@@ -55,13 +56,14 @@ pub trait BuildParams {
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr;
     /// Get the commitment value randomness for the ith output description
     fn output_rcv(&mut self, i: usize) -> jubjub::Fr;
-    /// Get the Rseed::BeforeZip212 for the ith spend description
+    /// Get the note RCM for the ith output description
     fn output_rcm(&mut self, i: usize) -> jubjub::Fr;
-    /// Get the Rseed::AfterZip212 for the ith spend description
+    /// Get the random seed for the ith output description
     fn output_rseed(&mut self, i: usize) -> [u8; 32];
 }
 
 /// Parameters that go into constructing a spend description
+#[derive(Clone)]
 pub struct SpendBuildParams {
     /// The commitment value randomness
     rcv: jubjub::Fr,
@@ -74,29 +76,32 @@ pub struct SpendBuildParams {
 }
 
 /// Parameters that go into constructing an output description
+#[derive(Clone, Copy)]
 pub struct ConvertBuildParams {
     /// The commitment value randomness
     rcv: jubjub::Fr,
 }
 
 /// Parameters that go into constructing an output description
+#[derive(Clone, Copy)]
 pub struct OutputBuildParams {
     /// The commitment value randomness
     rcv: jubjub::Fr,
     /// The note rcm value
     rcm: jubjub::Fr,
-    /// The note rseed value
+    /// The note's random seed
     rseed: [u8; 32],
 }
 
 /// Pre-generated random parameters for MASPtTransactions
+#[derive(Default, Clone)]
 pub struct StoredBuildParams {
     /// The parameters required to construct spend descriptions
-    spend_params: Vec<SpendBuildParams>,
+    pub spend_params: Vec<SpendBuildParams>,
     /// The parameters required to construct convert descriptions
-    convert_params: Vec<ConvertBuildParams>,
+    pub convert_params: Vec<ConvertBuildParams>,
     /// The parameters required to construct output descriptions
-    output_params: Vec<OutputBuildParams>,
+    pub output_params: Vec<OutputBuildParams>,
 }
 
 impl BuildParams for StoredBuildParams {
@@ -115,11 +120,11 @@ impl BuildParams for StoredBuildParams {
     fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey> {
         self.spend_params[i].proof_generation_key.clone()
     }
-    
+
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
         self.convert_params[i].rcv
     }
-    
+
     fn output_rcv(&mut self, i: usize) -> jubjub::Fr {
         self.output_params[i].rcv
     }
@@ -135,68 +140,93 @@ impl BuildParams for StoredBuildParams {
 
 /// Lazily generated random parameters for MASP transactions
 pub struct RngBuildParams<R: CryptoRng + RngCore> {
+    /// The RNG used to generate the build parameters
     rng: R,
-    spend_rcvs: BTreeMap<usize, jubjub::Fr>,
-    spend_alphas: BTreeMap<usize, jubjub::Fr>,
-    auth_sigs: BTreeMap<usize, Signature>,
-    proof_generation_key: BTreeMap<usize, ProofGenerationKey>,
-    convert_rcvs: BTreeMap<usize, jubjub::Fr>,
-    output_rcvs: BTreeMap<usize, jubjub::Fr>,
-    output_rcms: BTreeMap<usize, jubjub::Fr>,
-    output_rseeds: BTreeMap<usize, [u8; 32]>,
+    /// The parameters required to construct spend descriptions
+    spends: BTreeMap<usize, SpendBuildParams>,
+    /// The parameters required to construct convert descriptions
+    converts: BTreeMap<usize, ConvertBuildParams>,
+    /// The parameters required to construct output descriptions
+    outputs: BTreeMap<usize, OutputBuildParams>,
 }
 
 impl<R: CryptoRng + RngCore> RngBuildParams<R> {
+    /// Construct a build parameter generator using the given RNG
     pub fn new(rng: R) -> Self {
         Self {
             rng,
-            spend_rcvs: BTreeMap::new(),
-            spend_alphas: BTreeMap::new(),
-            auth_sigs: BTreeMap::new(),
-            proof_generation_key: BTreeMap::new(),
-            convert_rcvs: BTreeMap::new(),
-            output_rcvs: BTreeMap::new(),
-            output_rcms: BTreeMap::new(),
-            output_rseeds: BTreeMap::new(),
+            spends: BTreeMap::new(),
+            converts: BTreeMap::new(),
+            outputs: BTreeMap::new(),
         }
+    }
+}
+
+impl<R: CryptoRng + RngCore> RngBuildParams<R> {
+    /// Get the parameters necessary to build the ith spend description
+    pub fn spend_params(&mut self, i: usize) -> &SpendBuildParams {
+        self.spends.entry(i).or_insert_with(|| SpendBuildParams {
+            rcv: jubjub::Fr::random(&mut self.rng),
+            alpha: jubjub::Fr::random(&mut self.rng),
+            auth_sig: None,
+            proof_generation_key: None,
+        })
+    }
+
+    /// Get the parameters necessary to build the ith convert description
+    pub fn convert_params(&mut self, i: usize) -> &ConvertBuildParams {
+        self.converts
+            .entry(i)
+            .or_insert_with(|| ConvertBuildParams {
+                rcv: jubjub::Fr::random(&mut self.rng),
+            })
+    }
+
+    /// Get the parameters necessary to build the ith output description
+    pub fn output_params(&mut self, i: usize) -> &OutputBuildParams {
+        self.outputs.entry(i).or_insert_with(|| OutputBuildParams {
+            rcv: jubjub::Fr::random(&mut self.rng),
+            rcm: jubjub::Fr::random(&mut self.rng),
+            rseed: {
+                let mut buffer = [0u8; 32];
+                self.rng.fill_bytes(&mut buffer);
+                buffer
+            },
+        })
     }
 }
 
 impl<R: CryptoRng + RngCore> BuildParams for RngBuildParams<R> {
     fn spend_rcv(&mut self, i: usize) -> jubjub::Fr {
-        *self.spend_rcvs.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+        self.spend_params(i).rcv
     }
 
     fn spend_alpha(&mut self, i: usize) -> jubjub::Fr {
-        *self.spend_alphas.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+        self.spend_params(i).alpha
     }
 
     fn auth_sig(&mut self, i: usize) -> Option<Signature> {
-        self.auth_sigs.get(&i).cloned()
+        self.spend_params(i).auth_sig
     }
 
     fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey> {
-        self.proof_generation_key.get(&i).cloned()
+        self.spend_params(i).proof_generation_key.clone()
     }
-    
+
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
-        *self.convert_rcvs.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+        self.convert_params(i).rcv
     }
-    
+
     fn output_rcv(&mut self, i: usize) -> jubjub::Fr {
-        *self.output_rcvs.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+        self.output_params(i).rcv
     }
 
     fn output_rcm(&mut self, i: usize) -> jubjub::Fr {
-        *self.output_rcms.entry(i).or_insert_with(|| jubjub::Fr::random(&mut self.rng))
+        self.output_params(i).rcm
     }
 
     fn output_rseed(&mut self, i: usize) -> [u8; 32] {
-        *self.output_rseeds.entry(i).or_insert_with(|| {
-            let mut buffer = [0u8; 32];
-            self.rng.fill_bytes(&mut buffer);
-            buffer
-        })
+        self.output_params(i).rseed
     }
 }
 
@@ -679,13 +709,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         value: u64,
         memo: MemoBytes,
     ) -> Result<(), Error> {
-        let output = SaplingOutputInfo::new_internal(
-            ovk,
-            to,
-            asset_type,
-            value,
-            memo,
-        )?;
+        let output = SaplingOutputInfo::new_internal(ovk, to, asset_type, value, memo)?;
 
         self.value_balance -=
             ValueSum::from_pair(asset_type, value.into()).map_err(|_| Error::InvalidAmount)?;
@@ -700,7 +724,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         prover: &Pr,
         ctx: &mut Pr::SaplingProvingContext,
         rng: &mut (impl CryptoRng + RngCore),
-        mrng: &mut impl BuildParams,
+        bparams: &mut impl BuildParams,
         target_height: BlockHeight,
         progress_notifier: Option<&Sender<Progress>>,
     ) -> Result<Option<Bundle<Unauthorized>>, Error> {
@@ -764,12 +788,12 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                             proof_generation_key,
                             spend.diversifier,
                             spend.note.rseed,
-                            mrng.spend_alpha(i),
+                            bparams.spend_alpha(i),
                             spend.note.asset_type,
                             spend.note.value,
                             anchor,
                             spend.merkle_path.clone(),
-                            mrng.spend_rcv(i),
+                            bparams.spend_rcv(i),
                         )
                         .map_err(|_| Error::SpendProof)?;
 
@@ -817,7 +841,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                                 convert.value,
                                 anchor,
                                 convert.merkle_path,
-                                mrng.convert_rcv(i),
+                                bparams.convert_rcv(i),
                             )
                             .map_err(|_| Error::ConvertProof)?;
 
@@ -852,15 +876,17 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                 let rseed = generate_random_rseed_internal(
                     &params,
                     target_height,
-                    mrng.output_rcm(i),
-                    mrng.output_rseed(i),
+                    bparams.output_rcm(i),
+                    bparams.output_rseed(i),
                 );
-                
+
                 let result = if let Some((pos, output)) = output {
                     // Record the post-randomized output location
                     tx_metadata.output_indices[pos] = i;
 
-                    output.clone().build::<P, _, _>(prover, ctx, rng, mrng.output_rcv(i), rseed)
+                    output
+                        .clone()
+                        .build::<P, _, _>(prover, ctx, rng, bparams.output_rcv(i), rseed)
                 } else {
                     // This is a dummy output
                     let (dummy_to, dummy_note) = {
@@ -910,7 +936,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                         dummy_note.rcm(),
                         dummy_note.asset_type,
                         dummy_note.value,
-                        mrng.output_rcv(i),
+                        bparams.output_rcv(i),
                     );
 
                     let cmu = dummy_note.cmu();
@@ -978,7 +1004,7 @@ impl Bundle<Unauthorized> {
         prover: &Pr,
         ctx: &mut Pr::SaplingProvingContext,
         rng: &mut R,
-        mrng: &mut S,
+        bparams: &mut S,
         sighash_bytes: &[u8; 32],
     ) -> Result<(Bundle<Authorized>, SaplingMetadata), Error> {
         let binding_sig = prover
@@ -994,7 +1020,7 @@ impl Bundle<Unauthorized> {
                     .map(|(i, spend)| {
                         spend.apply_signature(spend_sig_internal(
                             PrivateKey(spend.spend_auth_sig.extsk.expsk.ask),
-                            mrng.spend_alpha(i),
+                            bparams.spend_alpha(i),
                             sighash_bytes,
                             rng,
                         ))
@@ -1105,7 +1131,7 @@ pub mod testing {
         zip32::sapling::testing::arb_extended_spending_key,
     };
 
-    use super::{SaplingBuilder, RngBuildParams};
+    use super::{RngBuildParams, SaplingBuilder};
 
     prop_compose! {
         fn arb_bundle()(n_notes in 1..30usize)(
@@ -1123,7 +1149,7 @@ pub mod testing {
             diversifiers in vec(prop::array::uniform11(any::<u8>()).prop_map(Diversifier), n_notes),
             target_height in arb_branch_id().prop_flat_map(|b| arb_height(b, &TEST_NETWORK)),
             rng_seed in prop::array::uniform32(any::<u8>()),
-            mrng_seed in prop::array::uniform32(any::<u8>()),
+            bparams_seed in prop::array::uniform32(any::<u8>()),
             fake_sighash_bytes in prop::array::uniform32(any::<u8>()),
         ) -> Bundle<Authorized> {
             let mut builder = SaplingBuilder::new(TEST_NETWORK, target_height.unwrap());
@@ -1139,13 +1165,13 @@ pub mod testing {
             }
 
             let prover = MockTxProver;
-            let mut mrng = RngBuildParams::new(StdRng::from_seed(mrng_seed));
+            let mut bparams = RngBuildParams::new(StdRng::from_seed(bparams_seed));
 
             let bundle = builder.build(
                 &prover,
                 &mut (),
                 &mut rng,
-                &mut mrng,
+                &mut bparams,
                 target_height.unwrap(),
                 None,
             ).unwrap().unwrap();
@@ -1154,7 +1180,7 @@ pub mod testing {
                 &prover,
                 &mut (),
                 &mut rng,
-                &mut mrng,
+                &mut bparams,
                 &fake_sighash_bytes,
             ).unwrap();
 
