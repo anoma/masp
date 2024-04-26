@@ -845,7 +845,7 @@ impl<T: BorshSchema> BorshSchema for Note<T> {
     }
 
     fn declaration() -> Declaration {
-        "Note".into()
+        format!("Note<{}>", T::declaration())
     }
 }
 

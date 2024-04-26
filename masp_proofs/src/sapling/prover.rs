@@ -159,6 +159,7 @@ impl SaplingProvingContext {
     /// Create the value commitment and proof for a Sapling OutputDescription,
     /// while accumulating its value commitment randomness inside the context
     /// for later use.
+    #[allow(clippy::too_many_arguments)]
     pub fn output_proof(
         &mut self,
         esk: jubjub::Fr,
@@ -209,6 +210,7 @@ impl SaplingProvingContext {
     /// Create the value commitment and proof for a ConvertDescription,
     /// while accumulating its value commitment randomness inside the context
     /// for later use.
+    #[allow(clippy::too_many_arguments)]
     pub fn convert_proof(
         &mut self,
         allowed_conversion: AllowedConversion,

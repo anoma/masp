@@ -45,6 +45,7 @@ pub trait TxProver {
     /// while accumulating its value commitment randomness inside the context for later
     /// use.
     ///
+    #[allow(clippy::too_many_arguments)]
     fn output_proof(
         &self,
         ctx: &mut Self::SaplingProvingContext,
@@ -117,10 +118,7 @@ pub mod mock {
             _merkle_path: MerklePath<Node>,
             rcv: jubjub::Fr,
         ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()> {
-            let cv = asset_type
-                .value_commitment(value, rcv)
-                .commitment()
-                .into();
+            let cv = asset_type.value_commitment(value, rcv).commitment().into();
 
             let rk =
                 PublicKey(proof_generation_key.ak.into()).randomize(ar, SPENDING_KEY_GENERATOR);
@@ -138,10 +136,7 @@ pub mod mock {
             value: u64,
             rcv: jubjub::Fr,
         ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint) {
-            let cv = asset_type
-                .value_commitment(value, rcv)
-                .commitment()
-                .into();
+            let cv = asset_type.value_commitment(value, rcv).commitment().into();
 
             ([0u8; GROTH_PROOF_SIZE], cv)
         }
