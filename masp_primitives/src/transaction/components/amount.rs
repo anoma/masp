@@ -17,7 +17,7 @@ use zcash_encoding::Vector;
 
 pub const MAX_MONEY: u64 = u64::MAX;
 lazy_static::lazy_static! {
-pub static ref DEFAULT_FEE: U64Sum = ValueSum::from_pair(zec(), 1000).unwrap();
+pub static ref DEFAULT_FEE: U64Sum = ValueSum::from_pair(zec(), 1000);
 }
 /// A type-safe representation of some quantity of Zcash.
 ///
@@ -99,20 +99,20 @@ where
     Value: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default,
 {
     /// Creates an ValueSum from a Value.
-    pub fn from_pair(atype: Unit, amount: Value) -> Result<Self, ()> {
+    pub fn from_pair(atype: Unit, amount: Value) -> Self {
         if amount == Value::default() {
-            Ok(Self::zero())
+            Self::zero()
         } else {
             let mut ret = BTreeMap::new();
             ret.insert(atype, amount);
-            Ok(ValueSum(ret))
+            ValueSum(ret)
         }
     }
 
     /// Filters out everything but the given AssetType from this ValueSum
     pub fn project(&self, index: Unit) -> Self {
         let val = self.0.get(&index).copied().unwrap_or_default();
-        Self::from_pair(index, val).unwrap()
+        Self::from_pair(index, val)
     }
 
     /// Get the given AssetType within this ValueSum
@@ -252,9 +252,7 @@ impl ValueSum<AssetType, i32> {
         })?;
         let mut ret = Self::zero();
         for (atype, amt) in vec {
-            ret += Self::from_pair(atype, amt).map_err(|_| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "amount out of range")
-            })?;
+            ret += Self::from_pair(atype, amt);
         }
         Ok(ret)
     }
@@ -283,9 +281,7 @@ impl ValueSum<AssetType, i64> {
         })?;
         let mut ret = Self::zero();
         for (atype, amt) in vec {
-            ret += Self::from_pair(atype, amt).map_err(|_| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "amount out of range")
-            })?;
+            ret += Self::from_pair(atype, amt);
         }
         Ok(ret)
     }
@@ -314,9 +310,7 @@ impl ValueSum<AssetType, i128> {
         })?;
         let mut ret = Self::zero();
         for (atype, amt) in vec {
-            ret += Self::from_pair(atype, amt).map_err(|_| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "amount out of range")
-            })?;
+            ret += Self::from_pair(atype, amt);
         }
         Ok(ret)
     }
@@ -729,7 +723,7 @@ pub fn zec() -> AssetType {
 }
 
 pub fn default_fee() -> ValueSum<AssetType, i64> {
-    ValueSum::from_pair(zec(), 10000).unwrap()
+    ValueSum::from_pair(zec(), 10000)
 }
 
 #[cfg(any(test, feature = "test-dependencies"))]
@@ -741,25 +735,25 @@ pub mod testing {
 
     prop_compose! {
         pub fn arb_i64_sum()(asset_type in arb_asset_type(), amt in i64::MIN..i64::MAX) -> I64Sum {
-            ValueSum::from_pair(asset_type, amt).unwrap()
+            ValueSum::from_pair(asset_type, amt)
         }
     }
 
     prop_compose! {
         pub fn arb_i128_sum()(asset_type in arb_asset_type(), amt in i128::MIN..i128::MAX) -> I128Sum {
-            ValueSum::from_pair(asset_type, amt).unwrap()
+            ValueSum::from_pair(asset_type, amt)
         }
     }
 
     prop_compose! {
         pub fn arb_nonnegative_amount()(asset_type in arb_asset_type(), amt in 0u64..MAX_MONEY) -> U64Sum {
-            ValueSum::from_pair(asset_type, amt).unwrap()
+            ValueSum::from_pair(asset_type, amt)
         }
     }
 
     prop_compose! {
         pub fn arb_positive_amount()(asset_type in arb_asset_type(), amt in 1u64..MAX_MONEY) -> U64Sum {
-            ValueSum::from_pair(asset_type, amt).unwrap()
+            ValueSum::from_pair(asset_type, amt)
         }
     }
 }
@@ -790,7 +784,7 @@ mod tests {
         }
         macro_rules! value_amount {
             ($t:ty, $val:expr) => {{
-                let mut amount = <$t>::from_pair(zec(), 1).unwrap();
+                let mut amount = <$t>::from_pair(zec(), 1);
                 *amount.0.get_mut(&zec()).unwrap() = $val;
                 amount
             }};
@@ -798,23 +792,23 @@ mod tests {
 
         let test_amounts_i32 = [
             value_amount!(I32Sum, 0), // zec() asset with value 0
-            I32Sum::from_pair(zec(), -1).unwrap(),
-            I32Sum::from_pair(zec(), i32::MAX).unwrap(),
-            I32Sum::from_pair(zec(), -i32::MAX).unwrap(),
+            I32Sum::from_pair(zec(), -1),
+            I32Sum::from_pair(zec(), i32::MAX),
+            I32Sum::from_pair(zec(), -i32::MAX),
         ];
 
         let test_amounts_i64 = [
             value_amount!(I64Sum, 0), // zec() asset with value 0
-            I64Sum::from_pair(zec(), -1).unwrap(),
-            I64Sum::from_pair(zec(), i64::MAX).unwrap(),
-            I64Sum::from_pair(zec(), -i64::MAX).unwrap(),
+            I64Sum::from_pair(zec(), -1),
+            I64Sum::from_pair(zec(), i64::MAX),
+            I64Sum::from_pair(zec(), -i64::MAX),
         ];
 
         let test_amounts_i128 = [
             value_amount!(I128Sum, 0), // zec() asset with value 0
-            I128Sum::from_pair(zec(), MAX_MONEY as i128).unwrap(),
+            I128Sum::from_pair(zec(), MAX_MONEY as i128),
             value_amount!(I128Sum, MAX_MONEY as i128 + 1),
-            I128Sum::from_pair(zec(), -(MAX_MONEY as i128)).unwrap(),
+            I128Sum::from_pair(zec(), -(MAX_MONEY as i128)),
             value_amount!(I128Sum, -(MAX_MONEY as i128 - 1)),
         ];
 
@@ -896,28 +890,28 @@ mod tests {
     #[test]
     #[should_panic]
     fn add_panics_on_overflow() {
-        let v = ValueSum::from_pair(zec(), MAX_MONEY).unwrap();
-        let _sum = v + ValueSum::from_pair(zec(), 1).unwrap();
+        let v = ValueSum::from_pair(zec(), MAX_MONEY);
+        let _sum = v + ValueSum::from_pair(zec(), 1);
     }
 
     #[test]
     #[should_panic]
     fn add_assign_panics_on_overflow() {
-        let mut a = ValueSum::from_pair(zec(), MAX_MONEY).unwrap();
-        a += ValueSum::from_pair(zec(), 1).unwrap();
+        let mut a = ValueSum::from_pair(zec(), MAX_MONEY);
+        a += ValueSum::from_pair(zec(), 1);
     }
 
     #[test]
     #[should_panic]
     fn sub_panics_on_underflow() {
-        let v = ValueSum::from_pair(zec(), 0u64).unwrap();
-        let _diff = v - ValueSum::from_pair(zec(), 1).unwrap();
+        let v = ValueSum::from_pair(zec(), 0u64);
+        let _diff = v - ValueSum::from_pair(zec(), 1);
     }
 
     #[test]
     #[should_panic]
     fn sub_assign_panics_on_underflow() {
-        let mut a = ValueSum::from_pair(zec(), 0u64).unwrap();
-        a -= ValueSum::from_pair(zec(), 1).unwrap();
+        let mut a = ValueSum::from_pair(zec(), 0u64);
+        a -= ValueSum::from_pair(zec(), 1);
     }
 }

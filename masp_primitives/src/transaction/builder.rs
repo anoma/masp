@@ -292,13 +292,13 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
     }
 
     /// Returns the sum of the transparent, Sapling, and TZE value balances.
-    pub fn value_balance(&self) -> Result<I128Sum, BalanceError> {
+    pub fn value_balance(&self) -> I128Sum {
         let value_balances = [
-            self.transparent_builder.value_balance()?,
+            self.transparent_builder.value_balance(),
             self.sapling_builder.value_balance(),
         ];
 
-        Ok(value_balances.into_iter().sum::<I128Sum>())
+        value_balances.into_iter().sum::<I128Sum>()
     }
 
     /// Builds a transaction from the configured spends and outputs.
@@ -337,7 +337,7 @@ impl<P: consensus::Parameters, R: RngCore> Builder<P, R> {
         //
 
         // After fees are accounted for, the value balance of the transaction must be zero.
-        let balance_after_fees = self.value_balance()? - I128Sum::from_sum(fee);
+        let balance_after_fees = self.value_balance() - I128Sum::from_sum(fee);
 
         if balance_after_fees != ValueSum::zero() {
             return Err(Error::InsufficientFunds(-balance_after_fees));
@@ -600,8 +600,7 @@ mod tests {
             assert_eq!(
                 builder.mock_build(),
                 Err(Error::InsufficientFunds(
-                    I128Sum::from_pair(zec(), 50000).unwrap()
-                        + &I128Sum::from_sum(DEFAULT_FEE.clone())
+                    I128Sum::from_pair(zec(), 50000) + &I128Sum::from_sum(DEFAULT_FEE.clone())
                 ))
             );
         }
@@ -616,8 +615,7 @@ mod tests {
             assert_eq!(
                 builder.mock_build(),
                 Err(Error::InsufficientFunds(
-                    I128Sum::from_pair(zec(), 50000).unwrap()
-                        + &I128Sum::from_sum(DEFAULT_FEE.clone())
+                    I128Sum::from_pair(zec(), 50000) + &I128Sum::from_sum(DEFAULT_FEE.clone())
                 ))
             );
         }
@@ -649,9 +647,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 builder.mock_build(),
-                Err(Error::InsufficientFunds(
-                    ValueSum::from_pair(zec(), 1).unwrap()
-                ))
+                Err(Error::InsufficientFunds(ValueSum::from_pair(zec(), 1)))
             );
         }
 
