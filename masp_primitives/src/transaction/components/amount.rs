@@ -54,7 +54,7 @@ pub type U128Sum = ValueSum<AssetType, u128>;
 pub struct ValueSum<
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize,
     Value: BorshSerialize + BorshDeserialize + PartialEq + Eq,
->(pub BTreeMap<Unit, Value>);
+>(BTreeMap<Unit, Value>);
 
 impl<Unit, Value> memuse::DynamicUsage for ValueSum<Unit, Value>
 where
@@ -670,7 +670,7 @@ where
 impl<Unit, Output> ValueSum<Unit, Output>
 where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Output: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy,
+    Output: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default,
 {
     pub fn try_from_sum<Value>(
         x: ValueSum<Unit, Value>,
@@ -683,6 +683,7 @@ where
         for (atype, amount) in x.0 {
             comps.insert(atype, amount.try_into()?);
         }
+        comps.retain(|_, v| *v != Output::default());
         Ok(Self(comps))
     }
 
@@ -695,6 +696,7 @@ where
         for (atype, amount) in x.0 {
             comps.insert(atype, amount.into());
         }
+        comps.retain(|_, v| *v != Output::default());
         Self(comps)
     }
 }
