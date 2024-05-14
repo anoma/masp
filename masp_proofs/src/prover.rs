@@ -171,6 +171,7 @@ impl TxProver for LocalTxProver {
         value: u64,
         anchor: bls12_381::Scalar,
         merkle_path: MerklePath<Node>,
+        rcv: jubjub::Fr,
     ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()> {
         let (proof, cv, rk) = ctx.spend_proof(
             proof_generation_key,
@@ -183,6 +184,7 @@ impl TxProver for LocalTxProver {
             merkle_path,
             &self.spend_params,
             &self.spend_vk,
+            rcv,
         )?;
 
         let mut zkproof = [0u8; GROTH_PROOF_SIZE];
@@ -201,6 +203,7 @@ impl TxProver for LocalTxProver {
         rcm: jubjub::Fr,
         asset_type: AssetType,
         value: u64,
+        rcv: jubjub::Fr,
     ) -> ([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint) {
         let (proof, cv) = ctx.output_proof(
             esk,
@@ -209,6 +212,7 @@ impl TxProver for LocalTxProver {
             asset_type,
             value,
             &self.output_params,
+            rcv,
         );
 
         let mut zkproof = [0u8; GROTH_PROOF_SIZE];
@@ -226,6 +230,7 @@ impl TxProver for LocalTxProver {
         value: u64,
         anchor: bls12_381::Scalar,
         merkle_path: MerklePath<Node>,
+        rcv: jubjub::Fr,
     ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), ()> {
         let (proof, cv) = ctx.convert_proof(
             allowed_conversion,
@@ -234,6 +239,7 @@ impl TxProver for LocalTxProver {
             merkle_path,
             &self.convert_params,
             &self.convert_vk,
+            rcv,
         )?;
 
         let mut zkproof = [0u8; GROTH_PROOF_SIZE];
