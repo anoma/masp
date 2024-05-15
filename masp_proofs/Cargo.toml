@@ -80,5 +80,3 @@ required-features = ["download-params"]
 [badges]
 maintenance = { status = "actively-developed" }
 
-[patch.crates-io]
-reddsa = { git = "https://github.com/heliaxdev/reddsa", revision = "46d363b929e1b940688fa0c53d637e304a755185" }
