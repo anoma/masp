@@ -10,7 +10,3 @@ members = [
 lto = true
 panic = 'abort'
 codegen-units = 1
-
-[patch.crates-io]
-# Patch to the fork containing the correct personalization and basepoints
-reddsa = { git = "https://github.com/heliaxdev/reddsa", rev = "46d363b929e1b940688fa0c53d637e304a755185" }
