@@ -63,7 +63,7 @@ impl<A: Authorization> Bundle<A> {
     /// transferred out of the transparent pool into shielded pools or to fees; a negative value
     /// means that the containing transaction has funds being transferred into the transparent pool
     /// from the shielded pools.
-    pub fn value_balance<E, F>(&self) -> Result<I128Sum, E>
+    pub fn value_balance<E, F>(&self) -> I128Sum
     where
         E: From<BalanceError>,
     {
@@ -71,18 +71,16 @@ impl<A: Authorization> Bundle<A> {
             .vin
             .iter()
             .map(|p| ValueSum::from_pair(p.asset_type, p.value as i128))
-            .sum::<Result<I128Sum, ()>>()
-            .map_err(|_| BalanceError::Overflow)?;
+            .sum::<I128Sum>();
 
         let output_sum = self
             .vout
             .iter()
             .map(|p| ValueSum::from_pair(p.asset_type, p.value as i128))
-            .sum::<Result<I128Sum, ()>>()
-            .map_err(|_| BalanceError::Overflow)?;
+            .sum::<I128Sum>();
 
         // Cannot panic when subtracting two positive i64
-        Ok(input_sum - output_sum)
+        input_sum - output_sum
     }
 }
 

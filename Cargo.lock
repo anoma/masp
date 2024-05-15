@@ -439,7 +439,7 @@ dependencies = [
  "criterion-plot",
  "itertools 0.10.5",
  "lazy_static",
- "num-traits",
+ "num-traits 0.2.17",
  "oorandom",
  "plotters",
  "rayon",
@@ -620,7 +620,7 @@ dependencies = [
  "libm",
  "num-bigint",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.17",
 ]
 
 [[package]]
@@ -924,7 +924,8 @@ dependencies = [
  "masp_note_encryption",
  "memuse",
  "nonempty",
- "num-traits",
+ "num-traits 0.2.17",
+ "num-traits 0.2.19",
  "proptest",
  "rand",
  "rand_core",
@@ -1026,7 +1027,7 @@ checksum = "608e7659b5c3d7cba262d894801b9ec9d00de989e8a82bd4bef91d08da45cdc0"
 dependencies = [
  "autocfg",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.17",
 ]
 
 [[package]]
@@ -1046,7 +1047,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9"
 dependencies = [
  "autocfg",
- "num-traits",
+ "num-traits 0.2.17",
 ]
 
 [[package]]
@@ -1057,6 +1058,14 @@ checksum = "39e3200413f237f41ab11ad6d161bc7239c84dcb631773ccd7de3dfe4b5c267c"
 dependencies = [
  "autocfg",
  "libm",
+]
+
+[[package]]
+name = "num-traits"
+version = "0.2.19"
+source = "git+https://github.com/heliaxdev/num-traits?rev=e3e712fc4ecbf9d95399b0b98ee9f3d6b9973e38#e3e712fc4ecbf9d95399b0b98ee9f3d6b9973e38"
+dependencies = [
+ "autocfg",
 ]
 
 [[package]]
@@ -1180,7 +1189,7 @@ version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2c224ba00d7cadd4d5c660deaf2098e5e80e07846537c51f9cfa4be50c1fd45"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.17",
  "plotters-backend",
  "plotters-svg",
  "wasm-bindgen",
@@ -1292,7 +1301,7 @@ dependencies = [
  "bit-vec",
  "bitflags 2.4.2",
  "lazy_static",
- "num-traits",
+ "num-traits 0.2.17",
  "rand",
  "rand_chacha",
  "rand_xorshift",

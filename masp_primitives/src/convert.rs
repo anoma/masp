@@ -223,12 +223,11 @@ mod tests {
     #[test]
     fn test_homomorphism() {
         // Left operand
-        let a = ValueSum::from_pair(zec(), 5i128).unwrap()
-            + ValueSum::from_pair(btc(), 6i128).unwrap()
-            + ValueSum::from_pair(xan(), 7i128).unwrap();
+        let a = ValueSum::from_pair(zec(), 5i128)
+            + ValueSum::from_pair(btc(), 6i128)
+            + ValueSum::from_pair(xan(), 7i128);
         // Right operand
-        let b = ValueSum::from_pair(zec(), 2i128).unwrap()
-            + ValueSum::from_pair(xan(), 10i128).unwrap();
+        let b = ValueSum::from_pair(zec(), 2i128) + ValueSum::from_pair(xan(), 10i128);
         // Test homomorphism
         assert_eq!(
             AllowedConversion::from(a.clone() + b.clone()),
@@ -238,9 +237,9 @@ mod tests {
     #[test]
     fn test_serialization() {
         // Make conversion
-        let a: AllowedConversion = (ValueSum::from_pair(zec(), 5i128).unwrap()
-            + ValueSum::from_pair(btc(), 6i128).unwrap()
-            + ValueSum::from_pair(xan(), 7i128).unwrap())
+        let a: AllowedConversion = (ValueSum::from_pair(zec(), 5i128)
+            + ValueSum::from_pair(btc(), 6i128)
+            + ValueSum::from_pair(xan(), 7i128))
         .into();
         // Serialize conversion
         let mut data = Vec::new();
