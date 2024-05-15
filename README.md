@@ -56,7 +56,12 @@ The Convert value commitment is constructed from AllowedConversion which was pub
 
 ## Trusted Setup
 
-The Zcash Sapling trusted setup parameters cannot be completely reused for the MASP. Parameter location and hashes must be added to `masp_proofs` following a suitable MPC ceremony. 
+The Zcash Sapling trusted setup parameters cannot be completely reused for the MASP. Parameter location and hashes must be added to `masp_proofs` following a suitable MPC ceremony.
+
+## New projects
+
+For new projects relying on this library, the `redjubjub` dependency pulls `reddsa` which contains some hardcoded values (personalizations and basepoints). If you need different values consider forking `reddsa`, modifying it to your needs and patching it in the root manifest.
+
 ## Security Warnings
 
 These libraries are currently under development and have not been fully-reviewed.

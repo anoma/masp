@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = [
     "masp_note_encryption",
     "masp_proofs",

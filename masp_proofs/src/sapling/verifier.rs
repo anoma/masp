@@ -175,7 +175,7 @@ impl SaplingVerificationContextInner {
         value_balance: I128Sum,
         sighash_value: &[u8; 32],
         binding_sig: Signature,
-        binding_sig_verifier: impl FnOnce(PublicKey, [u8; 64], Signature) -> bool,
+        binding_sig_verifier: impl FnOnce(PublicKey, &[u8; 32], Signature) -> bool,
     ) -> bool {
         // Obtain current cv_sum from the context
         let mut bvk = PublicKey(self.cv_sum);
@@ -198,12 +198,7 @@ impl SaplingVerificationContextInner {
             Err(_) => return false,
         };
 
-        // Compute the signature's message for bvk/binding_sig
-        let mut data_to_be_signed = [0u8; 64];
-        data_to_be_signed[0..32].copy_from_slice(&bvk.0.to_bytes());
-        data_to_be_signed[32..64].copy_from_slice(&sighash_value[..]);
-
         // Verify the binding_sig
-        binding_sig_verifier(bvk, data_to_be_signed, binding_sig)
+        binding_sig_verifier(bvk, sighash_value, binding_sig)
     }
 }

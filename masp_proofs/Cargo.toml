@@ -32,6 +32,7 @@ tracing = "0.1"
 # (Breaking upgrades to these are usually backwards-compatible, but check MSRVs.)
 blake2b_simd = "1"
 directories = { version = "4", optional = true }
+# This pulls the reddsa library that contains hardcoded personalizations and basepoints. If you need to work on a new project consider forking `reddsa`, modifying it to your needs and patching it in the root manifest
 redjubjub = "0.7"
 getrandom = { version = "0.2", features = ["js"] }
 itertools = "0.11"
@@ -79,3 +80,4 @@ required-features = ["download-params"]
 
 [badges]
 maintenance = { status = "actively-developed" }
+
