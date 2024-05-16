@@ -4,7 +4,7 @@ use borsh::schema::Fields;
 use borsh::schema::{Declaration, Definition};
 use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
-use num_traits::{CheckedAdd, CheckedMul, CheckedNeg, CheckedSub, One};
+use num_traits_decoupled::{CheckedAdd, CheckedMul, CheckedNeg, CheckedSub, One};
 use std::cmp::Ordering;
 use std::collections::btree_map::Keys;
 use std::collections::btree_map::{IntoIter, Iter};
@@ -422,7 +422,7 @@ where
         + Copy
         + Default
         + PartialOrd
-        + CheckedMul,
+        + CheckedMul<Output = Value>,
 {
     fn mul_assign(&mut self, rhs: Value) {
         *self = self.clone() * rhs;
@@ -440,18 +440,19 @@ where
         + Default
         + PartialOrd
         + CheckedMul,
+    <Value as CheckedMul>::Output : Default + BorshSerialize + BorshDeserialize + Eq,
 {
-    type Output = ValueSum<Unit, Value>;
+    type Output = ValueSum<Unit, <Value as CheckedMul>::Output>;
 
     fn mul(self, rhs: Value) -> Self::Output {
         let mut comps = BTreeMap::new();
         for (atype, amount) in self.0.iter() {
             comps.insert(
                 atype.clone(),
-                amount.checked_mul(&rhs).expect("overflow detected"),
+                amount.checked_mul(rhs).expect("overflow detected"),
             );
         }
-        comps.retain(|_, v| *v != Value::default());
+        comps.retain(|_, v| *v != <Value as CheckedMul>::Output::default());
         ValueSum(comps)
     }
 }
@@ -466,7 +467,7 @@ where
         + Copy
         + Default
         + PartialOrd
-        + CheckedAdd,
+        + CheckedAdd<Output = Value>,
 {
     fn add_assign(&mut self, rhs: &ValueSum<Unit, Value>) {
         *self = self.clone() + rhs;
@@ -483,7 +484,7 @@ where
         + Copy
         + Default
         + PartialOrd
-        + CheckedAdd,
+        + CheckedAdd<Output = Value>,
 {
     fn add_assign(&mut self, rhs: ValueSum<Unit, Value>) {
         *self += &rhs
@@ -500,7 +501,7 @@ where
         + Copy
         + Default
         + PartialOrd
-        + CheckedAdd,
+        + CheckedAdd<Output = Value>,
 {
     type Output = ValueSum<Unit, Value>;
 
@@ -519,7 +520,7 @@ where
         + Copy
         + Default
         + PartialOrd
-        + CheckedAdd,
+        + CheckedAdd<Output = Value>,
 {
     type Output = ValueSum<Unit, Value>;
 
@@ -528,7 +529,7 @@ where
     }
 }
 
-impl<Unit, Value> CheckedAdd for ValueSum<Unit, Value>
+impl<Unit, Value> CheckedAdd for &ValueSum<Unit, Value>
 where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
     Value: BorshSerialize
@@ -538,12 +539,14 @@ where
         + Copy
         + Default
         + PartialOrd
-        + CheckedAdd,
+        + CheckedAdd<Output = Value>,
 {
-    fn checked_add(&self, v: &Self) -> Option<Self> {
+    type Output = ValueSum<Unit, Value>;
+    
+    fn checked_add(self, v: Self) -> Option<Self::Output> {
         let mut comps = self.0.clone();
         for (atype, amount) in v.components() {
-            comps.insert(atype.clone(), self.get(atype).checked_add(amount)?);
+            comps.insert(atype.clone(), self.get(atype).checked_add(*amount)?);
         }
         comps.retain(|_, v| *v != Value::default());
         Some(ValueSum(comps))
@@ -560,7 +563,7 @@ where
         + Copy
         + Default
         + PartialOrd
-        + CheckedSub,
+        + CheckedSub<Output = Value>,
 {
     fn sub_assign(&mut self, rhs: &ValueSum<Unit, Value>) {
         *self = self.clone() - rhs
@@ -577,7 +580,7 @@ where
         + Copy
         + Default
         + PartialOrd
-        + CheckedSub,
+        + CheckedSub<Output = Value>,
 {
     fn sub_assign(&mut self, rhs: ValueSum<Unit, Value>) {
         *self -= &rhs
@@ -595,8 +598,9 @@ where
         + Default
         + PartialOrd
         + CheckedNeg,
+    <Value as CheckedNeg>::Output: BorshSerialize + BorshDeserialize + Eq + Default,
 {
-    type Output = ValueSum<Unit, Value>;
+    type Output = ValueSum<Unit, <Value as CheckedNeg>::Output>;
 
     fn neg(mut self) -> Self::Output {
         let mut comps = BTreeMap::new();
@@ -606,7 +610,7 @@ where
                 amount.checked_neg().expect("overflow detected"),
             );
         }
-        comps.retain(|_, v| *v != Value::default());
+        comps.retain(|_, v| *v != <Value as CheckedNeg>::Output::default());
         ValueSum(comps)
     }
 }
@@ -614,7 +618,7 @@ where
 impl<Unit, Value> Sub<&ValueSum<Unit, Value>> for ValueSum<Unit, Value>
 where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Value: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + CheckedSub,
+    Value: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + CheckedSub<Output = Value>,
 {
     type Output = ValueSum<Unit, Value>;
 
@@ -626,7 +630,7 @@ where
 impl<Unit, Value> Sub<ValueSum<Unit, Value>> for ValueSum<Unit, Value>
 where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Value: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + CheckedSub,
+    Value: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + CheckedSub<Output = Value>,
 {
     type Output = ValueSum<Unit, Value>;
 
@@ -635,15 +639,17 @@ where
     }
 }
 
-impl<Unit, Value> CheckedSub for ValueSum<Unit, Value>
+impl<Unit, Value> CheckedSub for &ValueSum<Unit, Value>
 where
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize + Clone,
-    Value: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + CheckedSub,
+    Value: BorshSerialize + BorshDeserialize + PartialEq + Eq + Copy + Default + CheckedSub<Output = Value>,
 {
-    fn checked_sub(&self, v: &Self) -> Option<Self> {
+    type Output = ValueSum<Unit, Value>;
+    
+    fn checked_sub(self, v: Self) -> Option<Self::Output> {
         let mut comps = self.0.clone();
         for (atype, amount) in v.components() {
-            comps.insert(atype.clone(), self.get(atype).checked_sub(amount)?);
+            comps.insert(atype.clone(), self.get(atype).checked_sub(*amount)?);
         }
         comps.retain(|_, v| *v != Value::default());
         Some(ValueSum(comps))
