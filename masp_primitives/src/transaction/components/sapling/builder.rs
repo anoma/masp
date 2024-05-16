@@ -652,7 +652,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
             self.spend_anchor = Some(merkle_path.root(node).into())
         }
 
-        self.value_balance += ValueSum::from_pair(note.asset_type, note.value.into());
+        self.value_balance += ValueSum::from_pair(note.asset_type, i128::from(note.value));
 
         self.spends.push(SpendDescriptionInfo {
             extsk,
@@ -710,7 +710,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
     ) -> Result<(), Error> {
         let output = SaplingOutputInfo::new_internal(ovk, to, asset_type, value, memo)?;
 
-        self.value_balance -= ValueSum::from_pair(asset_type, value.into());
+        self.value_balance -= ValueSum::from_pair(asset_type, i128::from(value));
 
         self.outputs.push(output);
 

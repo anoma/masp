@@ -920,8 +920,7 @@ dependencies = [
  "masp_note_encryption",
  "memuse",
  "nonempty",
- "num-traits 0.2.19 (registry+https://github.com/rust-lang/crates.io-index)",
- "num-traits 0.2.19 (git+https://github.com/heliaxdev/num-traits?rev=e3e712fc4ecbf9d95399b0b98ee9f3d6b9973e38)",
+ "num-traits 0.2.19 (git+https://github.com/heliaxdev/num-traits?rev=3f3657caa34b8e116fdf3f8a3519c4ac29f012fe)",
  "proptest",
  "rand",
  "rand_core",
@@ -1057,7 +1056,7 @@ dependencies = [
 [[package]]
 name = "num-traits"
 version = "0.2.19"
-source = "git+https://github.com/heliaxdev/num-traits?rev=e3e712fc4ecbf9d95399b0b98ee9f3d6b9973e38#e3e712fc4ecbf9d95399b0b98ee9f3d6b9973e38"
+source = "git+https://github.com/heliaxdev/num-traits?rev=3f3657caa34b8e116fdf3f8a3519c4ac29f012fe#3f3657caa34b8e116fdf3f8a3519c4ac29f012fe"
 dependencies = [
  "autocfg",
 ]
