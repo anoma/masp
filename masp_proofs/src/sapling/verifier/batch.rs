@@ -209,3 +209,72 @@ impl BatchValidator {
         true
     }
 }
+
+#[cfg(feature = "benchmarks")]
+impl BatchValidator {
+    /// Verify the signatures
+    pub fn verify_signatures<R: RngCore + CryptoRng>(
+        self,
+        mut rng: R,
+    ) -> Result<(), redjubjub::Error> {
+        self.signatures.verify(&mut rng)
+    }
+
+    /// Get the proof verifier
+    #[cfg(feature = "multicore")]
+    pub fn get_proof_verifier() -> Box<
+        dyn Fn(
+            groth16::batch::Verifier<Bls12>,
+            &bellman::groth16::VerifyingKey<Bls12>,
+        ) -> Result<(), bellman::VerificationError>,
+    > {
+        Box::new(|batch: groth16::batch::Verifier<Bls12>, vk| batch.verify_multicore(vk))
+    }
+
+    /// Get the proof verifier
+    #[cfg(not(feature = "multicore"))]
+    pub fn get_proof_verifier() -> Box<
+        dyn Fn(
+            groth16::batch::Verifier<Bls12>,
+            &bellman::groth16::VerifyingKey<Bls12>,
+        ) -> Result<(), bellman::VerificationError>,
+    > {
+        Box::new(|batch: groth16::batch::Verifier<Bls12>, vk| batch.verify(&mut rng, vk))
+    }
+
+    /// Verify the spend proofs
+    pub fn verify_spend_proofs(
+        self,
+        verify_proofs: &dyn Fn(
+            groth16::batch::Verifier<Bls12>,
+            &bellman::groth16::VerifyingKey<Bls12>,
+        ) -> Result<(), bellman::VerificationError>,
+        spend_vk: &groth16::VerifyingKey<Bls12>,
+    ) -> Result<(), bellman::VerificationError> {
+        verify_proofs(self.spend_proofs, spend_vk)
+    }
+
+    /// Verify the convert proofs
+    pub fn verify_convert_proofs(
+        self,
+        verify_proofs: &dyn Fn(
+            groth16::batch::Verifier<Bls12>,
+            &bellman::groth16::VerifyingKey<Bls12>,
+        ) -> Result<(), bellman::VerificationError>,
+        convert_vk: &groth16::VerifyingKey<Bls12>,
+    ) -> Result<(), bellman::VerificationError> {
+        verify_proofs(self.convert_proofs, convert_vk)
+    }
+
+    /// Verify the output proofs
+    pub fn verify_output_proofs(
+        self,
+        verify_proofs: &dyn Fn(
+            groth16::batch::Verifier<Bls12>,
+            &bellman::groth16::VerifyingKey<Bls12>,
+        ) -> Result<(), bellman::VerificationError>,
+        output_vk: &groth16::VerifyingKey<Bls12>,
+    ) -> Result<(), bellman::VerificationError> {
+        verify_proofs(self.output_proofs, output_vk)
+    }
+}
