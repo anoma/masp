@@ -30,6 +30,7 @@ pub use bls12_381;
 pub use ff;
 pub use group;
 pub use jubjub;
+pub use num_traits;
 
 #[cfg(test)]
 mod test_vectors;

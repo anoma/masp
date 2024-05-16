@@ -37,8 +37,7 @@ sha2 = "0.10"
 memuse = "0.2.1"
 
 # - Checked arithmetic
-num-traits = "0.2.14"
-num-traits-decoupled = { package = "num-traits", version = "0.2.19", git = "https://github.com/heliaxdev/num-traits", rev = "e3e712fc4ecbf9d95399b0b98ee9f3d6b9973e38" }
+num-traits = { version = "0.2.19", git = "https://github.com/heliaxdev/num-traits", rev = "db259754d33f193f02cbb65520d9ac00614be2c4" }
 
 # - Secret management
 subtle = "2.2.3"
