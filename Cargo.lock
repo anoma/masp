@@ -924,8 +924,7 @@ dependencies = [
  "masp_note_encryption",
  "memuse",
  "nonempty",
- "num-traits 0.2.17",
- "num-traits 0.2.19",
+ "num-traits 0.2.19 (git+https://github.com/heliaxdev/num-traits?rev=db259754d33f193f02cbb65520d9ac00614be2c4)",
  "proptest",
  "rand",
  "rand_core",
@@ -1063,7 +1062,7 @@ dependencies = [
 [[package]]
 name = "num-traits"
 version = "0.2.19"
-source = "git+https://github.com/heliaxdev/num-traits?rev=e3e712fc4ecbf9d95399b0b98ee9f3d6b9973e38#e3e712fc4ecbf9d95399b0b98ee9f3d6b9973e38"
+source = "git+https://github.com/heliaxdev/num-traits?rev=db259754d33f193f02cbb65520d9ac00614be2c4#db259754d33f193f02cbb65520d9ac00614be2c4"
 dependencies = [
  "autocfg",
 ]
