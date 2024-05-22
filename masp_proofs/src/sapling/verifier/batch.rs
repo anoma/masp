@@ -209,3 +209,47 @@ impl BatchValidator {
         true
     }
 }
+
+#[cfg(feature = "benchmarks")]
+impl BatchValidator {
+    /// Verify the signatures. Intended for testing purposes only.
+    pub fn verify_signatures<R: RngCore + CryptoRng>(
+        self,
+        mut rng: R,
+    ) -> Result<(), redjubjub::Error> {
+        self.signatures.verify(&mut rng)
+    }
+
+    /// Verify the spend proofs Intended for testing purposes only.
+    pub fn verify_spend_proofs(
+        self,
+        spend_vk: &groth16::VerifyingKey<Bls12>,
+    ) -> Result<(), bellman::VerificationError> {
+        #[cfg(feature = "multicore")]
+        return self.spend_proofs.verify_multicore(spend_vk);
+        #[cfg(not(feature = "multicore"))]
+        return self.spend_proofs.verify(spend_vk);
+    }
+
+    /// Verify the convert proofs. Intended for testing purposes only.
+    pub fn verify_convert_proofs(
+        self,
+        convert_vk: &groth16::VerifyingKey<Bls12>,
+    ) -> Result<(), bellman::VerificationError> {
+        #[cfg(feature = "multicore")]
+        return self.convert_proofs.verify_multicore(convert_vk);
+        #[cfg(not(feature = "multicore"))]
+        return self.convert_proofs.verify(convert_vk);
+    }
+
+    /// Verify the output proofs. Intended for testing purposes only.
+    pub fn verify_output_proofs(
+        self,
+        output_vk: &groth16::VerifyingKey<Bls12>,
+    ) -> Result<(), bellman::VerificationError> {
+        #[cfg(feature = "multicore")]
+        return self.output_proofs.verify_multicore(output_vk);
+        #[cfg(not(feature = "multicore"))]
+        return self.output_proofs.verify(output_vk);
+    }
+}

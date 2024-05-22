@@ -52,6 +52,7 @@ download-params = ["minreq", "directories"]
 local-prover = ["directories"]
 multicore = ["bellman/multicore"]
 embed-verifying-key = []
+benchmarks = []
 
 [lib]
 bench = false
