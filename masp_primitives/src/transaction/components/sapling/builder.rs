@@ -4,6 +4,7 @@ use core::fmt;
 use std::sync::mpsc::Sender;
 
 use ff::Field;
+use ff::PrimeField;
 use group::GroupEncoding;
 use rand::{seq::SliceRandom, CryptoRng, RngCore};
 
@@ -63,7 +64,7 @@ pub trait BuildParams {
 }
 
 /// Parameters that go into constructing a spend description
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SpendBuildParams {
     /// The commitment value randomness
     rcv: jubjub::Fr,
@@ -75,15 +76,113 @@ pub struct SpendBuildParams {
     proof_generation_key: Option<ProofGenerationKey>,
 }
 
+impl BorshSerialize for SpendBuildParams {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        // Write the commitment value randomness
+        writer.write_all(&self.rcv.to_repr())?;
+        // Write spend authorization randomizer
+        writer.write_all(&self.alpha.to_repr())?;
+        // Write the authorization signature
+        self.auth_sig.serialize(writer)?;
+        // Write the proof generation key
+        self.proof_generation_key.serialize(writer)?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for SpendBuildParams {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        // Read the commitment value randomness
+        let rcv_bytes = <[u8; 32]>::deserialize_reader(reader)?;
+        let rcv = Option::from(jubjub::Fr::from_bytes(&rcv_bytes)).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "rcv not in field")
+        })?;
+        // Read the spend authorization randomizer
+        let alpha_bytes = <[u8; 32]>::deserialize_reader(reader)?;
+        let alpha = Option::from(jubjub::Fr::from_bytes(&alpha_bytes)).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "alpha not in field")
+        })?;
+        // Read the authorization signature
+        let auth_sig = Option::<Signature>::deserialize_reader(reader)?;
+        // Read the proof generation key
+        let proof_generation_key = Option::<ProofGenerationKey>::deserialize_reader(reader)?;
+        // Finally, aggregate the spend parameters
+        Ok(SpendBuildParams {
+            rcv,
+            alpha,
+            auth_sig,
+            proof_generation_key,
+        })
+    }
+}
+
+impl BorshSchema for SpendBuildParams {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("rcv".into(), <[u8; 32]>::declaration()),
+                ("alpha".into(), <[u8; 32]>::declaration()),
+                ("auth_sig".into(), Option::<Signature>::declaration()),
+                (
+                    "proof_generation_key".into(),
+                    Option::<ProofGenerationKey>::declaration(),
+                ),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+        Option::<Signature>::add_definitions_recursively(definitions);
+        Option::<ProofGenerationKey>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "SpendBuildParams".into()
+    }
+}
+
 /// Parameters that go into constructing an output description
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ConvertBuildParams {
     /// The commitment value randomness
     rcv: jubjub::Fr,
 }
 
+impl BorshSerialize for ConvertBuildParams {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        // Write the commitment value randomness
+        writer.write_all(&self.rcv.to_repr())?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for ConvertBuildParams {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        // Read the commitment value randomness
+        let rcv_bytes = <[u8; 32]>::deserialize_reader(reader)?;
+        let rcv = Option::from(jubjub::Fr::from_bytes(&rcv_bytes)).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "rcv not in field")
+        })?;
+        // Finally, aggregate the convert parameters
+        Ok(ConvertBuildParams { rcv })
+    }
+}
+
+impl BorshSchema for ConvertBuildParams {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![("rcv".into(), <[u8; 32]>::declaration())]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "ConvertBuildParams".into()
+    }
+}
+
 /// Parameters that go into constructing an output description
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct OutputBuildParams {
     /// The commitment value randomness
     rcv: jubjub::Fr,
@@ -93,8 +192,57 @@ pub struct OutputBuildParams {
     rseed: [u8; 32],
 }
 
+impl BorshSerialize for OutputBuildParams {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        // Write the commitment value randomness
+        writer.write_all(&self.rcv.to_repr())?;
+        // Write the note rcm value
+        writer.write_all(&self.rcm.to_repr())?;
+        // Write the note's random seed
+        self.rseed.serialize(writer)?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for OutputBuildParams {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        // Read the commitment value randomness
+        let rcv_bytes = <[u8; 32]>::deserialize_reader(reader)?;
+        let rcv = Option::from(jubjub::Fr::from_bytes(&rcv_bytes)).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "rcv not in field")
+        })?;
+        // Read the note rcm value
+        let rcm_bytes = <[u8; 32]>::deserialize_reader(reader)?;
+        let rcm = Option::from(jubjub::Fr::from_bytes(&rcm_bytes)).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "rcm not in field")
+        })?;
+        // Read the note's random seed
+        let rseed = <[u8; 32]>::deserialize_reader(reader)?;
+        // Finally, aggregate the output parameters
+        Ok(OutputBuildParams { rcv, rcm, rseed })
+    }
+}
+
+impl BorshSchema for OutputBuildParams {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("rcv".into(), <[u8; 32]>::declaration()),
+                ("rcm".into(), <[u8; 32]>::declaration()),
+                ("rseed".into(), <[u8; 32]>::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "OutputBuildParams".into()
+    }
+}
+
 /// Pre-generated random parameters for MASPtTransactions
-#[derive(Default, Clone)]
+#[derive(Default, Clone, BorshDeserialize, BorshSchema, BorshSerialize, Debug)]
 pub struct StoredBuildParams {
     /// The parameters required to construct spend descriptions
     pub spend_params: Vec<SpendBuildParams>,
@@ -159,6 +307,24 @@ impl<R: CryptoRng + RngCore> RngBuildParams<R> {
             converts: BTreeMap::new(),
             outputs: BTreeMap::new(),
         }
+    }
+
+    /// Convert these build parameters to their stored equivalent
+    pub fn to_stored(mut self) -> Option<StoredBuildParams> {
+        let mut stored = StoredBuildParams::default();
+        // Store the spends
+        for i in 0..self.spends.len() {
+            stored.spend_params.push(self.spends.remove(&i)?);
+        }
+        // Store the converts
+        for i in 0..self.converts.len() {
+            stored.convert_params.push(self.converts.remove(&i)?);
+        }
+        // Store the outputs
+        for i in 0..self.outputs.len() {
+            stored.output_params.push(self.outputs.remove(&i)?);
+        }
+        Some(stored)
     }
 }
 

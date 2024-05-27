@@ -196,7 +196,7 @@ impl ValueCommitment {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProofGenerationKey {
     pub ak: jubjub::SubgroupPoint,
     pub nsk: jubjub::Fr,
@@ -208,6 +208,54 @@ impl ProofGenerationKey {
             ak: self.ak,
             nk: NullifierDerivingKey(constants::PROOF_GENERATION_KEY_GENERATOR * self.nsk),
         }
+    }
+}
+
+impl BorshSerialize for ProofGenerationKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.ak.to_bytes())?;
+        writer.write_all(&self.nsk.to_repr())?;
+        Ok(())
+    }
+}
+
+impl BorshDeserialize for ProofGenerationKey {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let ak = {
+            let mut buf = [0u8; 32];
+            reader.read_exact(&mut buf)?;
+            jubjub::SubgroupPoint::from_bytes(&buf)
+        };
+        if ak.is_none().into() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "ak not in prime-order subgroup",
+            ));
+        }
+        let nsk_bytes = <[u8; 32]>::deserialize_reader(reader)?;
+        let nsk = Option::from(jubjub::Fr::from_bytes(&nsk_bytes))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "nsk not in field"))?;
+        Ok(Self {
+            ak: ak.unwrap(),
+            nsk,
+        })
+    }
+}
+
+impl BorshSchema for ProofGenerationKey {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("ak".into(), <[u8; 32]>::declaration()),
+                ("nsk".into(), <[u8; 32]>::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "ProofGenerationKey".into()
     }
 }
 
