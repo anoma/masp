@@ -62,7 +62,7 @@ jobs:
       - run: cargo fetch
       - name: Build masp_proofs for target
         working-directory: ./masp_proofs
-        run: cargo build --verbose --no-default-features --target ${{ matrix.target }}
+        run: cargo build --verbose --no-default-features --target ${{ matrix.target }} --features js
 
 
   bitrot:
