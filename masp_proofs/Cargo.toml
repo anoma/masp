@@ -34,7 +34,7 @@ blake2b_simd = "1"
 directories = { version = "4", optional = true }
 # This pulls the reddsa library that contains hardcoded personalizations and basepoints. If you need to work on a new project consider forking `reddsa`, modifying it to your needs and patching it in the root manifest
 redjubjub = "0.7"
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "0.2" }
 itertools = "0.11"
 
 [dev-dependencies]
@@ -53,6 +53,7 @@ local-prover = ["directories"]
 multicore = ["bellman/multicore"]
 embed-verifying-key = []
 benchmarks = []
+js = ["getrandom/js"]
 
 [lib]
 bench = false
