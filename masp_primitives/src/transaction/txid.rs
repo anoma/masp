@@ -306,16 +306,25 @@ pub(crate) fn to_hash(
     (&mut personal[12..])
         .write_u32::<LittleEndian>(consensus_branch_id.into())
         .unwrap();
+    println!("Personalization Prefix: {}", hex::encode(ZCASH_TX_PERSONALIZATION_PREFIX));
+    println!("Consensus Branch ID: {:?}", consensus_branch_id);
+    println!("Consensus Branch ID: {:?}", u32::from(consensus_branch_id));
+    println!("Personal: {}", hex::encode(personal));
 
     let mut h = hasher(&personal);
+    println!("Header Digest: {:?}", header_digest);
     h.write_all(header_digest.as_bytes()).unwrap();
+    println!("Transparent Digest: {:?}", transparent_digest);
     h.write_all(transparent_digest.as_bytes()).unwrap();
+    println!("Sapling Digest: {}", hex::encode(sapling_digest
+            .unwrap_or_else(hash_sapling_txid_empty)
+            .as_bytes()));
     h.write_all(
         sapling_digest
             .unwrap_or_else(hash_sapling_txid_empty)
             .as_bytes(),
     )
-    .unwrap();
+        .unwrap();
 
     h.finalize()
 }
@@ -332,6 +341,7 @@ pub fn to_txid(
         hash_transparent_txid_data(digests.transparent_digests.as_ref()),
         digests.sapling_digest,
     );
+    println!("TxId Digest: {}\n", TxId(<[u8; 32]>::try_from(txid_digest.as_bytes()).unwrap()));
 
     TxId(<[u8; 32]>::try_from(txid_digest.as_bytes()).unwrap())
 }

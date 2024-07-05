@@ -71,7 +71,9 @@ pub fn signature_hash<
     signable_input: &SignableInput,
     txid_parts: &TxDigests<Blake2bHash>,
 ) -> SignatureHash {
-    SignatureHash(match tx.version {
+    let sighash = SignatureHash(match tx.version {
         TxVersion::MASPv5 => v5_signature_hash(tx, signable_input, txid_parts),
-    })
+    });
+    println!("Signature Digest: {}\n", hex::encode(sighash.as_ref()));
+    sighash
 }
