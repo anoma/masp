@@ -24,7 +24,7 @@ bellman = { version = "0.14", default-features = false, features = ["groth16"] }
 bls12_381 = { git = "https://github.com/heliaxdev/bls12_381.git", rev = "d3ebe9dd6488fac1923db120a7498079e55dd838" }
 group = "0.13"
 # branch "tomas/arbitrary"
-jubjub = { git = "https://github.com/heliaxdev/jubjub.git", rev = "e887d6964985f267a1085d480756f20d9eaceb19" }
+jubjub = { git = "https://github.com/heliaxdev/jubjub.git", rev = "a373686962f4e9d0edb3b4716f86ff6bbd9aa86c" }
 lazy_static = "1"
 minreq = { version = "2.11.0", features = ["https"], optional = true }
 rand_core = "0.6"
