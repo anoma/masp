@@ -50,6 +50,7 @@ pub type I128Sum = ValueSum<AssetType, i128>;
 
 pub type U128Sum = ValueSum<AssetType, u128>;
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash)]
 pub struct ValueSum<
     Unit: Hash + Ord + BorshSerialize + BorshDeserialize,

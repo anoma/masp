@@ -143,6 +143,7 @@ impl FvkFingerprint {
 }
 
 /// A Sapling full viewing key tag
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
 )]
@@ -159,6 +160,7 @@ impl FvkTag {
 }
 
 /// A key used to derive diversifiers for a particular child key
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
 )]
@@ -245,6 +247,7 @@ impl DiversifierKey {
 }
 
 /// A Sapling extended spending key
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Eq, Hash, Copy)]
 pub struct ExtendedSpendingKey {
     depth: u8,

@@ -11,7 +11,7 @@
 //! [in-band secret distribution scheme]: https://zips.z.cash/protocol/protocol.pdf#saplingandorchardinband
 //! [`masp_primitives`]: https://github.com/anoma/masp
 
-#![no_std]
+#![cfg_attr(not(feature = "arbitrary"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 // Catch documentation errors caused by code changes.
 #![deny(rustdoc::broken_intra_doc_links)]
@@ -75,10 +75,10 @@ impl AsRef<[u8]> for OutgoingCipherKey {
         &self.0
     }
 }
-
 /// Newtype representing the byte encoding of an [`EphemeralPublicKey`].
 ///
 /// [`EphemeralPublicKey`]: Domain::EphemeralPublicKey
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     BorshSerialize,
     BorshDeserialize,

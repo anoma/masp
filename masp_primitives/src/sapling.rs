@@ -85,6 +85,7 @@ pub fn merkle_hash(depth: usize, lhs: &[u8; 32], rhs: &[u8; 32]) -> [u8; 32] {
 }
 
 /// A node within the Sapling commitment tree.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Default)]
 pub struct Node {
     repr: [u8; 32],
@@ -450,6 +451,7 @@ impl SaplingIvk {
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     Copy, Clone, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
 )]
@@ -624,6 +626,7 @@ impl BorshSchema for PaymentAddress {
 /// Before ZIP 212, the note commitment trapdoor `rcm` must be a scalar value.
 /// After ZIP 212, the note randomness `rseed` is a 32-byte sequence, used to derive
 /// both the note commitment trapdoor `rcm` and the ephemeral private key `esk`.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Copy, Clone, Debug)]
 pub enum Rseed {
     BeforeZip212(jubjub::Fr),
@@ -686,6 +689,7 @@ impl BorshDeserialize for Rseed {
 }
 
 /// Typesafe wrapper for nullifier values.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     Copy,
     Clone,
@@ -743,6 +747,7 @@ impl From<NoteValue> for u64 {
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Debug, Copy)]
 pub struct Note<R = Rseed> {
     /// The asset type that the note represents

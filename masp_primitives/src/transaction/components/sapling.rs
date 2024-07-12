@@ -35,8 +35,15 @@ pub mod builder;
 pub mod fees;
 
 pub trait Authorization: Debug {
+    #[cfg(not(feature = "arbitrary"))]
     type Proof: Clone + Debug + PartialEq + Hash;
+    #[cfg(not(feature = "arbitrary"))]
     type AuthSig: Clone + Debug + PartialEq;
+
+    #[cfg(feature = "arbitrary")]
+    type Proof: Clone + Debug + PartialEq + Hash + for<'a> arbitrary::Arbitrary<'a>;
+    #[cfg(feature = "arbitrary")]
+    type AuthSig: Clone + Debug + PartialEq + for<'a> arbitrary::Arbitrary<'a>;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -47,6 +54,7 @@ impl Authorization for Unproven {
     type AuthSig = ();
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
 pub struct Authorized {
     pub binding_sig: redjubjub::Signature,
@@ -89,6 +97,7 @@ impl MapAuth<Authorized, Authorized> for () {
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Bundle<A: Authorization + PartialEq + BorshSerialize + BorshDeserialize> {
     pub shielded_spends: Vec<SpendDescription<A>>,
@@ -146,6 +155,7 @@ impl<A: Authorization + PartialEq + BorshSerialize + BorshDeserialize> Bundle<A>
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, PartialEq, Eq)]
 pub struct SpendDescription<A: Authorization + PartialEq> {
     pub cv: jubjub::ExtendedPoint,
@@ -299,6 +309,7 @@ impl BorshSchema for SpendDescriptionV5 {
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, PartialEq, Eq)]
 pub struct OutputDescription<Proof: Clone> {
     pub cv: jubjub::ExtendedPoint,
@@ -507,6 +518,8 @@ impl<Proof: Clone + Hash> Hash for OutputDescription<Proof> {
         self.zkproof.hash(state);
     }
 }
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, PartialEq, Eq)]
 pub struct ConvertDescription<Proof: PartialEq> {
     pub cv: jubjub::ExtendedPoint,

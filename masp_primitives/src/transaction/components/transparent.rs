@@ -18,9 +18,14 @@ pub mod builder;
 pub mod fees;
 
 pub trait Authorization: fmt::Debug {
+    #[cfg(not(feature = "arbitrary"))]
     type TransparentSig: fmt::Debug + Clone + PartialEq;
+
+    #[cfg(feature = "arbitrary")]
+    type TransparentSig: fmt::Debug + Clone + PartialEq + for<'a> arbitrary::Arbitrary<'a>;
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Authorized;
 
@@ -33,6 +38,7 @@ pub trait MapAuth<A: Authorization, B: Authorization> {
     fn map_authorization(&self, s: A) -> B;
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bundle<A: Authorization> {
     pub vin: Vec<TxIn<A>>,
@@ -85,6 +91,7 @@ impl<A: Authorization> Bundle<A> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct TxIn<A: Authorization> {
     pub asset_type: AssetType,
     pub value: u64,
@@ -162,6 +169,7 @@ impl BorshSchema for TxIn<Authorized> {
 }
 
 #[derive(Clone, Debug, Hash, PartialOrd, PartialEq, Ord, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct TxOut {
     pub asset_type: AssetType,
     pub value: u64,

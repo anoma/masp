@@ -38,6 +38,7 @@ fn h_star(a: &[u8], b: &[u8]) -> jubjub::Fr {
     hash_to_scalar(b"MASP__RedJubjubH", a, b)
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Copy, Clone, Debug, PartialOrd, PartialEq, Ord, Eq, Hash, BorshSchema)]
 pub struct Signature {
     rbar: [u8; 32],
@@ -46,6 +47,7 @@ pub struct Signature {
 
 pub struct PrivateKey(pub jubjub::Fr);
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct PublicKey(pub ExtendedPoint);
 

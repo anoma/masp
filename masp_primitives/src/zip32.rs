@@ -28,6 +28,7 @@ use std::io::{Read, Write};
 // ZIP 32 structures
 
 /// A child index for a derived key
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChildIndex {
     NonHardened(u32),
@@ -81,6 +82,7 @@ impl BorshSchema for ChildIndex {
 }
 
 /// A BIP-32 chain code
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
 )]

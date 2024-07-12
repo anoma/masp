@@ -716,6 +716,7 @@ impl<Node: Hashable> BorshDeserialize for IncrementalWitness<Node> {
 }
 
 /// A path from a position in a particular commitment tree to the root of that tree.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MerklePath<Node> {
     pub auth_path: Vec<(Node, bool)>,

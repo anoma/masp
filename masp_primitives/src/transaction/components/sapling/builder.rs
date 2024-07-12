@@ -425,6 +425,7 @@ impl fmt::Display for Error {
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpendDescriptionInfo<Key = ExtendedSpendingKey> {
     extsk: Key,
@@ -599,6 +600,7 @@ impl fees::OutputView for SaplingOutputInfo {
 }
 
 /// Metadata about a transaction created by a [`SaplingBuilder`].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
 pub struct SaplingMetadata {
     spend_indices: Vec<usize>,
@@ -745,6 +747,7 @@ impl<P: BorshDeserialize, Key: BorshDeserialize> BorshDeserialize for SaplingBui
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Unauthorized {
     tx_metadata: SaplingMetadata,
