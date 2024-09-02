@@ -867,7 +867,7 @@ dependencies = [
 [[package]]
 name = "jubjub"
 version = "0.10.0"
-source = "git+https://github.com/heliaxdev/jubjub.git?rev=e887d6964985f267a1085d480756f20d9eaceb19#e887d6964985f267a1085d480756f20d9eaceb19"
+source = "git+https://github.com/heliaxdev/jubjub.git?rev=a373686962f4e9d0edb3b4716f86ff6bbd9aa86c#a373686962f4e9d0edb3b4716f86ff6bbd9aa86c"
 dependencies = [
  "arbitrary",
  "bitvec",
@@ -962,7 +962,7 @@ dependencies = [
  "group",
  "hex",
  "incrementalmerkletree",
- "jubjub 0.10.0 (git+https://github.com/heliaxdev/jubjub.git?rev=e887d6964985f267a1085d480756f20d9eaceb19)",
+ "jubjub 0.10.0 (git+https://github.com/heliaxdev/jubjub.git?rev=a373686962f4e9d0edb3b4716f86ff6bbd9aa86c)",
  "lazy_static",
  "masp_note_encryption",
  "memuse",
@@ -990,7 +990,7 @@ dependencies = [
  "getrandom",
  "group",
  "itertools 0.11.0",
- "jubjub 0.10.0 (git+https://github.com/heliaxdev/jubjub.git?rev=e887d6964985f267a1085d480756f20d9eaceb19)",
+ "jubjub 0.10.0 (git+https://github.com/heliaxdev/jubjub.git?rev=a373686962f4e9d0edb3b4716f86ff6bbd9aa86c)",
  "lazy_static",
  "masp_primitives",
  "minreq",

@@ -63,17 +63,45 @@ pub trait BuildParams {
     fn output_rseed(&mut self, i: usize) -> [u8; 32];
 }
 
+// Allow build parameters to be boxed
+impl<B: BuildParams + ?Sized> BuildParams for Box<B> {
+    fn spend_rcv(&mut self, i: usize) -> jubjub::Fr {
+        (**self).spend_rcv(i)
+    }
+    fn spend_alpha(&mut self, i: usize) -> jubjub::Fr {
+        (**self).spend_alpha(i)
+    }
+    fn auth_sig(&mut self, i: usize) -> Option<Signature> {
+        (**self).auth_sig(i)
+    }
+    fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey> {
+        (**self).proof_generation_key(i)
+    }
+    fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
+        (**self).convert_rcv(i)
+    }
+    fn output_rcv(&mut self, i: usize) -> jubjub::Fr {
+        (**self).output_rcv(i)
+    }
+    fn output_rcm(&mut self, i: usize) -> jubjub::Fr {
+        (**self).output_rcm(i)
+    }
+    fn output_rseed(&mut self, i: usize) -> [u8; 32] {
+        (**self).output_rseed(i)
+    }
+}
+
 /// Parameters that go into constructing a spend description
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SpendBuildParams {
     /// The commitment value randomness
-    rcv: jubjub::Fr,
+    pub rcv: jubjub::Fr,
     /// The spend authorization randomizer
-    alpha: jubjub::Fr,
+    pub alpha: jubjub::Fr,
     /// The authorization signature
-    auth_sig: Option<Signature>,
+    pub auth_sig: Option<Signature>,
     /// The proof generation key
-    proof_generation_key: Option<ProofGenerationKey>,
+    pub proof_generation_key: Option<ProofGenerationKey>,
 }
 
 impl BorshSerialize for SpendBuildParams {
@@ -141,10 +169,10 @@ impl BorshSchema for SpendBuildParams {
 }
 
 /// Parameters that go into constructing an output description
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ConvertBuildParams {
     /// The commitment value randomness
-    rcv: jubjub::Fr,
+    pub rcv: jubjub::Fr,
 }
 
 impl BorshSerialize for ConvertBuildParams {
@@ -182,14 +210,14 @@ impl BorshSchema for ConvertBuildParams {
 }
 
 /// Parameters that go into constructing an output description
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct OutputBuildParams {
     /// The commitment value randomness
-    rcv: jubjub::Fr,
+    pub rcv: jubjub::Fr,
     /// The note rcm value
-    rcm: jubjub::Fr,
+    pub rcm: jubjub::Fr,
     /// The note's random seed
-    rseed: [u8; 32],
+    pub rseed: [u8; 32],
 }
 
 impl BorshSerialize for OutputBuildParams {
