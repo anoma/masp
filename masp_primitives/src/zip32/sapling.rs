@@ -12,7 +12,7 @@ use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
     keys::{prf_expand, prf_expand_vec},
     sapling::keys::{DecodingError, ExpandedSpendingKey, FullViewingKey, OutgoingViewingKey},
-    sapling::SaplingIvk,
+    sapling::{ProofGenerationKey, SaplingIvk},
 };
 use aes::Aes256;
 use blake2b_simd::Params as Blake2bParams;
@@ -496,6 +496,7 @@ impl ExtendedSpendingKey {
 
 // A Sapling extended full viewing key
 #[derive(Clone, Eq, Hash, Copy)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ExtendedFullViewingKey {
     depth: u8,
     parent_fvk_tag: FvkTag,
@@ -916,6 +917,72 @@ impl Ord for ExtendedSpendingKey {
         let a = borsh::to_vec(self).expect("unable to canonicalize ExtendedSpendingKey");
         let b = borsh::to_vec(other).expect("unable to canonicalize ExtendedSpendingKey");
         a.cmp(&b)
+    }
+}
+
+/// An extended full viewing key bundled with partial authorizations
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Clone, PartialEq, Eq, Hash, Copy, Debug)]
+pub struct PseudoExtendedSpendingKey {
+    /// Extended key that stores the currently known authorizations
+    xsk: ExtendedSpendingKey,
+    /// Viewing key for which this key provides authorizations
+    xfvk: ExtendedFullViewingKey,
+}
+
+impl PseudoExtendedSpendingKey {
+    /// Construct a pseudo extended spending key from an extended spending key
+    #[allow(deprecated)]
+    pub fn from_spending_key(xsk: ExtendedSpendingKey) -> Self {
+        Self { xfvk: xsk.to_extended_full_viewing_key(), xsk }
+    }
+    /// Construct a pseudo extended spending key from an extended full viewing key
+    pub fn from_viewing_key(xfvk: ExtendedFullViewingKey) -> Self {
+        let xsk = ExtendedSpendingKey {
+            depth: xfvk.depth,
+            parent_fvk_tag: xfvk.parent_fvk_tag,
+            child_index: xfvk.child_index,
+            chain_code: xfvk.chain_code,
+            dk: xfvk.dk,
+            expsk: ExpandedSpendingKey {
+                ask: jubjub::Fr::default(),
+                nsk: jubjub::Fr::default(),
+                ovk: xfvk.fvk.ovk,
+            },
+        };
+        Self { xsk, xfvk }
+    }
+    /// Return the extended spending key that generates the contained view key
+    #[allow(deprecated)]
+    pub fn to_spending_key(&self) -> Option<ExtendedSpendingKey> {
+        if self.xsk.to_extended_full_viewing_key() == self.xfvk {
+            Some(self.xsk)
+        } else {
+            None
+        }
+    }
+    /// Return the viewing key for which this key provides authorizations
+    pub fn to_viewing_key(&self) -> ExtendedFullViewingKey {
+        self.xfvk
+    }
+    /// Augment this spending key with proof generation data
+    pub fn augment(&mut self, pgk: ProofGenerationKey) -> Result<(), ()> {
+        let nk = NullifierDerivingKey(PROOF_GENERATION_KEY_GENERATOR * pgk.nsk);
+        if nk == self.xfvk.fvk.vk.nk {
+            self.xsk.expsk.nsk = pgk.nsk;
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+    /// Return a key whose only guarantee is correct proof generation
+    pub fn partial_spending_key(&self) -> Option<ExtendedSpendingKey> {
+        let nk = NullifierDerivingKey(PROOF_GENERATION_KEY_GENERATOR * self.xsk.expsk.nsk);
+        if nk == self.xfvk.fvk.vk.nk {
+            Some(self.xsk)
+        } else {
+            None
+        }
     }
 }
 

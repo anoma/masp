@@ -130,6 +130,7 @@ impl ExpandedSpendingKey {
 
 /// A Sapling key that provides the capability to view incoming and outgoing transactions.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct FullViewingKey {
     pub vk: ViewingKey,
     pub ovk: OutgoingViewingKey,

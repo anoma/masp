@@ -262,6 +262,7 @@ impl BorshSchema for ProofGenerationKey {
 
 /// A key used to derive the nullifier for a Sapling note.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct NullifierDerivingKey(pub jubjub::SubgroupPoint);
 
 impl BorshSerialize for NullifierDerivingKey {
@@ -302,6 +303,7 @@ impl BorshSchema for NullifierDerivingKey {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ViewingKey {
     pub ak: jubjub::SubgroupPoint,
     pub nk: NullifierDerivingKey,
