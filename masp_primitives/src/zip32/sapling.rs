@@ -934,7 +934,10 @@ impl PseudoExtendedSpendingKey {
     /// Construct a pseudo extended spending key from an extended spending key
     #[allow(deprecated)]
     pub fn from_spending_key(xsk: ExtendedSpendingKey) -> Self {
-        Self { xfvk: xsk.to_extended_full_viewing_key(), xsk }
+        Self {
+            xfvk: xsk.to_extended_full_viewing_key(),
+            xsk,
+        }
     }
     /// Construct a pseudo extended spending key from an extended full viewing key
     pub fn from_viewing_key(xfvk: ExtendedFullViewingKey) -> Self {

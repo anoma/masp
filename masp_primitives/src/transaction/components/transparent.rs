@@ -34,8 +34,28 @@ impl Authorization for Authorized {
 }
 
 pub trait MapAuth<A: Authorization, B: Authorization> {
-    fn map_script_sig(&self, s: A::TransparentSig) -> B::TransparentSig;
+    fn map_script_sig(&self, s: A::TransparentSig, pos: usize) -> B::TransparentSig;
     fn map_authorization(&self, s: A) -> B;
+}
+
+/// The identity map.
+///
+/// This can be used with [`TransactionData::map_authorization`] when you want to map the
+/// authorization of a subset of the transaction's bundles.
+///
+/// [`TransactionData::map_authorization`]: crate::transaction::TransactionData::map_authorization
+impl MapAuth<Authorized, Authorized> for () {
+    fn map_script_sig(
+        &self,
+        s: <Authorized as Authorization>::TransparentSig,
+        _pos: usize,
+    ) -> <Authorized as Authorization>::TransparentSig {
+        s
+    }
+
+    fn map_authorization(&self, a: Authorized) -> Authorized {
+        a
+    }
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -52,10 +72,11 @@ impl<A: Authorization> Bundle<A> {
             vin: self
                 .vin
                 .into_iter()
-                .map(|txin| TxIn {
+                .enumerate()
+                .map(|(pos, txin)| TxIn {
                     asset_type: txin.asset_type,
                     address: txin.address,
-                    transparent_sig: f.map_script_sig(txin.transparent_sig),
+                    transparent_sig: f.map_script_sig(txin.transparent_sig, pos),
                     value: txin.value,
                 })
                 .collect(),

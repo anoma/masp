@@ -66,8 +66,8 @@ impl Authorization for Authorized {
 }
 
 pub trait MapAuth<A: Authorization, B: Authorization> {
-    fn map_proof(&self, p: A::Proof) -> B::Proof;
-    fn map_auth_sig(&self, s: A::AuthSig) -> B::AuthSig;
+    fn map_proof(&self, p: A::Proof, pos: usize) -> B::Proof;
+    fn map_auth_sig(&self, s: A::AuthSig, pos: usize) -> B::AuthSig;
     fn map_authorization(&self, a: A) -> B;
 }
 
@@ -81,6 +81,7 @@ impl MapAuth<Authorized, Authorized> for () {
     fn map_proof(
         &self,
         p: <Authorized as Authorization>::Proof,
+        _pos: usize,
     ) -> <Authorized as Authorization>::Proof {
         p
     }
@@ -88,6 +89,7 @@ impl MapAuth<Authorized, Authorized> for () {
     fn map_auth_sig(
         &self,
         s: <Authorized as Authorization>::AuthSig,
+        _pos: usize,
     ) -> <Authorized as Authorization>::AuthSig {
         s
     }
@@ -119,34 +121,37 @@ impl<A: Authorization + PartialEq + BorshSerialize + BorshDeserialize> Bundle<A>
             shielded_spends: self
                 .shielded_spends
                 .into_iter()
-                .map(|d| SpendDescription {
+                .enumerate()
+                .map(|(pos, d)| SpendDescription {
                     cv: d.cv,
                     anchor: d.anchor,
                     nullifier: d.nullifier,
                     rk: d.rk,
-                    zkproof: f.map_proof(d.zkproof),
-                    spend_auth_sig: f.map_auth_sig(d.spend_auth_sig),
+                    zkproof: f.map_proof(d.zkproof, pos),
+                    spend_auth_sig: f.map_auth_sig(d.spend_auth_sig, pos),
                 })
                 .collect(),
             shielded_converts: self
                 .shielded_converts
                 .into_iter()
-                .map(|c| ConvertDescription {
+                .enumerate()
+                .map(|(pos, c)| ConvertDescription {
                     cv: c.cv,
                     anchor: c.anchor,
-                    zkproof: f.map_proof(c.zkproof),
+                    zkproof: f.map_proof(c.zkproof, pos),
                 })
                 .collect(),
             shielded_outputs: self
                 .shielded_outputs
                 .into_iter()
-                .map(|o| OutputDescription {
+                .enumerate()
+                .map(|(pos, o)| OutputDescription {
                     cv: o.cv,
                     cmu: o.cmu,
                     ephemeral_key: o.ephemeral_key,
                     enc_ciphertext: o.enc_ciphertext,
                     out_ciphertext: o.out_ciphertext,
-                    zkproof: f.map_proof(o.zkproof),
+                    zkproof: f.map_proof(o.zkproof, pos),
                 })
                 .collect(),
             value_balance: self.value_balance,
