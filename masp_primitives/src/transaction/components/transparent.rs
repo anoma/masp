@@ -6,6 +6,7 @@ use std::io::{self, Read, Write};
 
 use crate::asset_type::AssetType;
 use crate::transaction::TransparentAddress;
+use crate::MaybeArbitrary;
 use borsh::schema::add_definition;
 use borsh::schema::Declaration;
 use borsh::schema::Definition;
@@ -18,11 +19,7 @@ pub mod builder;
 pub mod fees;
 
 pub trait Authorization: fmt::Debug {
-    #[cfg(not(feature = "arbitrary"))]
-    type TransparentSig: fmt::Debug + Clone + PartialEq;
-
-    #[cfg(feature = "arbitrary")]
-    type TransparentSig: fmt::Debug + Clone + PartialEq + for<'a> arbitrary::Arbitrary<'a>;
+    type TransparentSig: fmt::Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>;
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

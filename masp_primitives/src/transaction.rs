@@ -34,9 +34,11 @@ use self::{
     },
     txid::{to_txid, BlockTxCommitmentDigester, TxIdDigester},
 };
+use crate::MaybeArbitrary;
 use borsh::schema::add_definition;
 use borsh::schema::Fields;
 use borsh::schema::{Declaration, Definition};
+use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -195,23 +197,17 @@ impl BorshSchema for TxVersion {
 
 /// Authorization state for a bundle of transaction data.
 pub trait Authorization {
-    #[cfg(not(feature = "arbitrary"))]
-    type TransparentAuth: transparent::Authorization + PartialEq + BorshDeserialize + BorshSerialize;
-    #[cfg(not(feature = "arbitrary"))]
-    type SaplingAuth: sapling::Authorization + PartialEq + BorshDeserialize + BorshSerialize;
-
-    #[cfg(feature = "arbitrary")]
     type TransparentAuth: transparent::Authorization
         + PartialEq
         + BorshDeserialize
         + BorshSerialize
-        + for<'a> arbitrary::Arbitrary<'a>;
-    #[cfg(feature = "arbitrary")]
+        + for<'a> MaybeArbitrary<'a>;
+
     type SaplingAuth: sapling::Authorization
         + PartialEq
         + BorshDeserialize
         + BorshSerialize
-        + for<'a> arbitrary::Arbitrary<'a>;
+        + for<'a> MaybeArbitrary<'a>;
 }
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Unproven;
@@ -224,11 +220,13 @@ impl Authorization for Authorized {
     type SaplingAuth = sapling::Authorized;
 }
 
-pub struct Unauthorized;
+pub struct Unauthorized<K: crate::zip32::ExtendedKey>(PhantomData<K>);
 
-impl Authorization for Unauthorized {
+impl<K: crate::zip32::ExtendedKey + PartialEq + Clone + Debug + for<'a> MaybeArbitrary<'a>>
+    Authorization for Unauthorized<K>
+{
     type TransparentAuth = transparent::builder::Unauthorized;
-    type SaplingAuth = sapling::builder::Unauthorized;
+    type SaplingAuth = sapling::builder::Unauthorized<K>;
 }
 
 /// A MASP transaction.

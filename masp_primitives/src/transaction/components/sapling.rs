@@ -25,6 +25,7 @@ use crate::{
         redjubjub::{self, PublicKey, Signature},
         Nullifier,
     },
+    MaybeArbitrary,
 };
 
 use super::{amount::I128Sum, GROTH_PROOF_SIZE};
@@ -35,15 +36,8 @@ pub mod builder;
 pub mod fees;
 
 pub trait Authorization: Debug {
-    #[cfg(not(feature = "arbitrary"))]
-    type Proof: Clone + Debug + PartialEq + Hash;
-    #[cfg(not(feature = "arbitrary"))]
-    type AuthSig: Clone + Debug + PartialEq;
-
-    #[cfg(feature = "arbitrary")]
-    type Proof: Clone + Debug + PartialEq + Hash + for<'a> arbitrary::Arbitrary<'a>;
-    #[cfg(feature = "arbitrary")]
-    type AuthSig: Clone + Debug + PartialEq + for<'a> arbitrary::Arbitrary<'a>;
+    type Proof: Clone + Debug + PartialEq + Hash + for<'a> MaybeArbitrary<'a>;
+    type AuthSig: Clone + Debug + PartialEq + for<'a> MaybeArbitrary<'a>;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

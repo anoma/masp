@@ -30,7 +30,8 @@ use crate::{
         txid::TxIdDigester,
         Transaction, TransactionData, TransparentAddress, TxVersion, Unauthorized,
     },
-    zip32::ExtendedSpendingKey,
+    zip32::{ExtendedKey, ExtendedSpendingKey},
+    MaybeArbitrary,
 };
 
 #[cfg(feature = "transparent-inputs")]
@@ -168,7 +169,11 @@ impl<P, K, N> Builder<P, K, N> {
     }
 }
 
-impl<P: consensus::Parameters> Builder<P> {
+impl<
+        P: consensus::Parameters,
+        K: ExtendedKey + std::fmt::Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>,
+    > Builder<P, K>
+{
     /// Creates a new `Builder` targeted for inclusion in the block with the given height,
     /// using default values for general transaction fields and the default OS random.
     ///
@@ -181,12 +186,16 @@ impl<P: consensus::Parameters> Builder<P> {
     }
 }
 
-impl<P: consensus::Parameters> Builder<P> {
+impl<
+        P: consensus::Parameters,
+        K: ExtendedKey + std::fmt::Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>,
+    > Builder<P, K>
+{
     /// Common utility function for builder construction.
     ///
     /// WARNING: THIS MUST REMAIN PRIVATE AS IT ALLOWS CONSTRUCTION
     /// OF BUILDERS WITH NON-CryptoRng RNGs
-    fn new_internal(params: P, target_height: BlockHeight) -> Builder<P> {
+    fn new_internal(params: P, target_height: BlockHeight) -> Builder<P, K> {
         Builder {
             params: params.clone(),
             target_height,
@@ -203,7 +212,7 @@ impl<P: consensus::Parameters> Builder<P> {
     /// paths for previous Sapling notes.
     pub fn add_sapling_spend(
         &mut self,
-        extsk: ExtendedSpendingKey,
+        extsk: K,
         diversifier: Diversifier,
         note: Note,
         merkle_path: MerklePath<Node>,
@@ -347,7 +356,7 @@ impl<P: consensus::Parameters> Builder<P> {
             )
             .map_err(Error::SaplingBuild)?;
 
-        let unauthed_tx: TransactionData<Unauthorized> = TransactionData {
+        let unauthed_tx: TransactionData<Unauthorized<K>> = TransactionData {
             version,
             consensus_branch_id: BranchId::for_height(&self.params, self.target_height),
             lock_time: 0,

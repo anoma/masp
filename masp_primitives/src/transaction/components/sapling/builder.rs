@@ -8,6 +8,7 @@ use ff::PrimeField;
 use group::GroupEncoding;
 use rand::{seq::SliceRandom, CryptoRng, RngCore};
 
+use crate::MaybeArbitrary;
 use crate::{
     asset_type::AssetType,
     consensus::{self, BlockHeight},
@@ -33,7 +34,7 @@ use crate::{
             },
         },
     },
-    zip32::ExtendedSpendingKey,
+    zip32::{ExtendedKey, ExtendedSpendingKey},
 };
 use borsh::schema::add_definition;
 use borsh::schema::Declaration;
@@ -41,7 +42,9 @@ use borsh::schema::Definition;
 use borsh::schema::Fields;
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use std::collections::BTreeMap;
+use std::fmt::Debug;
 use std::io::Write;
+use std::marker::PhantomData;
 
 /// A subset of the parameters necessary to build a transaction
 pub trait BuildParams {
@@ -777,19 +780,22 @@ impl<P: BorshDeserialize, Key: BorshDeserialize> BorshDeserialize for SaplingBui
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-pub struct Unauthorized {
+pub struct Unauthorized<K: ExtendedKey> {
     tx_metadata: SaplingMetadata,
+    phantom: PhantomData<K>,
 }
 
-impl std::fmt::Debug for Unauthorized {
+impl<K: ExtendedKey> std::fmt::Debug for Unauthorized<K> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "Unauthorized")
     }
 }
 
-impl Authorization for Unauthorized {
+impl<K: ExtendedKey + Clone + Debug + PartialEq + for<'a> MaybeArbitrary<'a>> Authorization
+    for Unauthorized<K>
+{
     type Proof = GrothProofBytes;
-    type AuthSig = SpendDescriptionInfo;
+    type AuthSig = SpendDescriptionInfo<K>;
 }
 
 impl<P, K> SaplingBuilder<P, K> {
@@ -826,14 +832,18 @@ impl<P, K> SaplingBuilder<P, K> {
     }
 }
 
-impl<P: consensus::Parameters> SaplingBuilder<P> {
+impl<
+        P: consensus::Parameters,
+        K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>,
+    > SaplingBuilder<P, K>
+{
     /// Adds a Sapling note to be spent in this transaction.
     ///
     /// Returns an error if the given Merkle path does not have the same anchor as the
     /// paths for previous Sapling notes.
     pub fn add_spend(
         &mut self,
-        extsk: ExtendedSpendingKey,
+        extsk: K,
         diversifier: Diversifier,
         note: Note,
         merkle_path: MerklePath<Node>,
@@ -922,7 +932,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         bparams: &mut impl BuildParams,
         target_height: BlockHeight,
         progress_notifier: Option<&Sender<Progress>>,
-    ) -> Result<Option<Bundle<Unauthorized>>, Error> {
+    ) -> Result<Option<Bundle<Unauthorized<K>>>, Error> {
         // Record initial positions of spends and outputs
         let value_balance = self.value_balance();
         let params = self.params;
@@ -961,7 +971,8 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         let mut progress = 0u32;
 
         // Create Sapling SpendDescriptions
-        let shielded_spends: Vec<SpendDescription<Unauthorized>> = if !indexed_spends.is_empty() {
+        let shielded_spends: Vec<SpendDescription<Unauthorized<K>>> = if !indexed_spends.is_empty()
+        {
             let anchor = self
                 .spend_anchor
                 .expect("MASP Spend anchor must be set if MASP spends are present.");
@@ -970,7 +981,10 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                 .into_iter()
                 .enumerate()
                 .map(|(i, (pos, spend))| {
-                    let proof_generation_key = spend.extsk.expsk.proof_generation_key();
+                    let proof_generation_key = spend
+                        .extsk
+                        .to_proof_generation_key()
+                        .expect("Proof generation key must be known for each MASP spend.");
 
                     let nullifier = spend.note.nf(
                         &proof_generation_key.to_viewing_key().nk,
@@ -1172,7 +1186,10 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                 shielded_converts,
                 shielded_outputs,
                 value_balance,
-                authorization: Unauthorized { tx_metadata },
+                authorization: Unauthorized {
+                    tx_metadata,
+                    phantom: PhantomData,
+                },
             })
         };
 
@@ -1180,7 +1197,9 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
     }
 }
 
-impl SpendDescription<Unauthorized> {
+impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
+    SpendDescription<Unauthorized<K>>
+{
     pub fn apply_signature(&self, spend_auth_sig: Signature) -> SpendDescription<Authorized> {
         SpendDescription {
             cv: self.cv,
@@ -1193,7 +1212,9 @@ impl SpendDescription<Unauthorized> {
     }
 }
 
-impl Bundle<Unauthorized> {
+impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
+    Bundle<Unauthorized<K>>
+{
     pub fn apply_signatures<Pr: TxProver, R: RngCore, S: BuildParams>(
         self,
         prover: &Pr,
@@ -1214,7 +1235,7 @@ impl Bundle<Unauthorized> {
                     .enumerate()
                     .map(|(i, spend)| {
                         spend.apply_signature(spend_sig_internal(
-                            PrivateKey(spend.spend_auth_sig.extsk.expsk.ask),
+                            PrivateKey(spend.spend_auth_sig.extsk.to_spending_key().expect("Spend authorization key must be known for each MASP spend.").expsk.ask),
                             bparams.spend_alpha(i),
                             sighash_bytes,
                             rng,
