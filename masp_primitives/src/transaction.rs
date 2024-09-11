@@ -913,3 +913,19 @@ pub mod testing {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::transaction::testing::arb_tx;
+    use crate::transaction::BranchId;
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(10))]
+        #[test]
+        fn tx_hashing(tx in arb_tx(BranchId::MASP)) {
+            println!("Tx Debug: {:?}", tx);
+            println!("Tx Bytes: {}\n", hex::encode(borsh::to_vec(&tx).unwrap()));
+        }
+    }
+}
