@@ -140,21 +140,28 @@ impl PrivateKey {
         // For H*, l_H = 512 bits
         let mut t = [0u8; 80];
         rng.fill_bytes(&mut t[..]);
+        println!("sign: t: {}", hex::encode(t));
 
         // r = H*(T || M)
         let r = h_star(&t[..], msg);
+        println!("sign: r: {}", hex::encode(r.to_bytes()));
 
         // R = r . P_G
         let r_g = p_g * r;
+        println!("sign: r_g: {}", hex::encode(r_g.to_bytes()));
         let rbar = r_g.to_bytes();
+        println!("sign: rbar: {}", hex::encode(rbar));
 
         // S = r + H*(Rbar || M) . sk
         let mut s = h_star(&rbar[..], msg);
+        println!("sign: H*(Rbar || M): {}", hex::encode(s.to_bytes()));
         s.mul_assign(&self.0);
         s.add_assign(&r);
+        println!("sign: s: {}", hex::encode(s.to_bytes()));
         let mut sbar = [0u8; 32];
         write_scalar::<&mut [u8]>(&s, &mut sbar[..])
             .expect("Jubjub scalars should serialize to 32 bytes");
+        println!("sign: sbar: {}", hex::encode(&sbar));
 
         Signature { rbar, sbar }
     }

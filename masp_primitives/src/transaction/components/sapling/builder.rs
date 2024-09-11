@@ -1223,6 +1223,7 @@ impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
         bparams: &mut S,
         sighash_bytes: &[u8; 32],
     ) -> Result<(Bundle<Authorized>, SaplingMetadata), Error> {
+        println!("apply_signatures: sighash_bytes: {}", hex::encode(sighash_bytes));
         let binding_sig = prover
             .binding_sig(ctx, &self.value_balance, sighash_bytes)
             .map_err(|_| Error::BindingSig)?;

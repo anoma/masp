@@ -168,16 +168,22 @@ pub(crate) fn spend_sig_internal<R: RngCore>(
     sighash: &[u8; 32],
     rng: &mut R,
 ) -> Signature {
+    println!("spend_sig_internal: ask: {}", hex::encode(ask.0.to_bytes()));
+    println!("spend_sig_internal: ar: {}", hex::encode(ar.to_bytes()));
+    println!("spend_sig_internal: sighash: {}", hex::encode(sighash));
     // We compute `rsk`...
     let rsk = ask.randomize(ar);
+    println!("spend_sig_internal: rsk: {}", hex::encode(rsk.0.to_bytes()));
 
     // We compute `rk` from there (needed for key prefixing)
     let rk = PublicKey::from_private(&rsk, SPENDING_KEY_GENERATOR);
+    println!("spend_sig_internal: rk: {}", hex::encode(rk.0.to_bytes()));
 
     // Compute the signature's message for rk/spend_auth_sig
     let mut data_to_be_signed = [0u8; 64];
     data_to_be_signed[0..32].copy_from_slice(&rk.0.to_bytes());
     data_to_be_signed[32..64].copy_from_slice(&sighash[..]);
+    println!("spend_sig_internal: data_to_be_signed: {}", hex::encode(data_to_be_signed));
 
     // Do the signing
     rsk.sign(&data_to_be_signed, rng, SPENDING_KEY_GENERATOR)
