@@ -52,10 +52,6 @@ pub trait BuildParams {
     fn spend_rcv(&mut self, i: usize) -> jubjub::Fr;
     /// Get the spend authorization randomizer for the ith spend description
     fn spend_alpha(&mut self, i: usize) -> jubjub::Fr;
-    /// Get the authorization signature for the ith spend description
-    fn auth_sig(&mut self, i: usize) -> Option<Signature>;
-    /// The proof generation key for the ith spend description
-    fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey>;
     /// Get the commitment value randomness for the ith convert description
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr;
     /// Get the commitment value randomness for the ith output description
@@ -73,12 +69,6 @@ impl<B: BuildParams + ?Sized> BuildParams for Box<B> {
     }
     fn spend_alpha(&mut self, i: usize) -> jubjub::Fr {
         (**self).spend_alpha(i)
-    }
-    fn auth_sig(&mut self, i: usize) -> Option<Signature> {
-        (**self).auth_sig(i)
-    }
-    fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey> {
-        (**self).proof_generation_key(i)
     }
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
         (**self).convert_rcv(i)
@@ -101,10 +91,6 @@ pub struct SpendBuildParams {
     pub rcv: jubjub::Fr,
     /// The spend authorization randomizer
     pub alpha: jubjub::Fr,
-    /// The authorization signature
-    pub auth_sig: Option<Signature>,
-    /// The proof generation key
-    pub proof_generation_key: Option<ProofGenerationKey>,
 }
 
 impl BorshSerialize for SpendBuildParams {
@@ -113,10 +99,6 @@ impl BorshSerialize for SpendBuildParams {
         writer.write_all(&self.rcv.to_repr())?;
         // Write spend authorization randomizer
         writer.write_all(&self.alpha.to_repr())?;
-        // Write the authorization signature
-        self.auth_sig.serialize(writer)?;
-        // Write the proof generation key
-        self.proof_generation_key.serialize(writer)?;
         Ok(())
     }
 }
@@ -133,16 +115,10 @@ impl BorshDeserialize for SpendBuildParams {
         let alpha = Option::from(jubjub::Fr::from_bytes(&alpha_bytes)).ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::InvalidData, "alpha not in field")
         })?;
-        // Read the authorization signature
-        let auth_sig = Option::<Signature>::deserialize_reader(reader)?;
-        // Read the proof generation key
-        let proof_generation_key = Option::<ProofGenerationKey>::deserialize_reader(reader)?;
         // Finally, aggregate the spend parameters
         Ok(SpendBuildParams {
             rcv,
             alpha,
-            auth_sig,
-            proof_generation_key,
         })
     }
 }
@@ -292,14 +268,6 @@ impl BuildParams for StoredBuildParams {
         self.spend_params[i].alpha
     }
 
-    fn auth_sig(&mut self, i: usize) -> Option<Signature> {
-        self.spend_params[i].auth_sig
-    }
-
-    fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey> {
-        self.spend_params[i].proof_generation_key.clone()
-    }
-
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
         self.convert_params[i].rcv
     }
@@ -365,8 +333,6 @@ impl<R: CryptoRng + RngCore> RngBuildParams<R> {
         self.spends.entry(i).or_insert_with(|| SpendBuildParams {
             rcv: jubjub::Fr::random(&mut self.rng),
             alpha: jubjub::Fr::random(&mut self.rng),
-            auth_sig: None,
-            proof_generation_key: None,
         })
     }
 
@@ -400,14 +366,6 @@ impl<R: CryptoRng + RngCore> BuildParams for RngBuildParams<R> {
 
     fn spend_alpha(&mut self, i: usize) -> jubjub::Fr {
         self.spend_params(i).alpha
-    }
-
-    fn auth_sig(&mut self, i: usize) -> Option<Signature> {
-        self.spend_params(i).auth_sig
-    }
-
-    fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey> {
-        self.spend_params(i).proof_generation_key.clone()
     }
 
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
