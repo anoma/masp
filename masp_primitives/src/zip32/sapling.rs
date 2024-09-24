@@ -23,6 +23,7 @@ use borsh::schema::Fields;
 use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
+use ff::PrimeField;
 use fpe::ff1::{BinaryNumeralString, FF1};
 use std::collections::BTreeMap;
 use std::{
@@ -1092,6 +1093,66 @@ impl From<ExtendedFullViewingKey> for PseudoExtendedKey {
             nsk: None,
             xfvk,
         }
+    }
+}
+
+impl BorshDeserialize for PseudoExtendedKey {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let xfvk = ExtendedFullViewingKey::deserialize_reader(reader)?;
+        let ask = Option::<[u8; 32]>::deserialize_reader(reader)?
+            .map(|x| {
+                Option::from(jubjub::Fr::from_repr(x))
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ask not in field"))
+            })
+            .transpose()?;
+        let nsk = Option::<[u8; 32]>::deserialize_reader(reader)?
+            .map(|x| {
+                Option::from(jubjub::Fr::from_repr(x))
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "nsk not in field"))
+            })
+            .transpose()?;
+        Ok(Self { xfvk, ask, nsk })
+    }
+}
+
+impl BorshSerialize for PseudoExtendedKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.xfvk.serialize(writer)?;
+        self.ask.map(|x| x.to_bytes()).serialize(writer)?;
+        self.nsk.map(|x| x.to_bytes()).serialize(writer)
+    }
+}
+
+impl BorshSchema for PseudoExtendedKey {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("xfvk".into(), ExtendedFullViewingKey::declaration()),
+                ("ask".into(), Option::<[u8; 32]>::declaration()),
+                ("nsk".into(), Option::<[u8; 32]>::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        ExtendedFullViewingKey::add_definitions_recursively(definitions);
+        Option::<[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "PseudoExtendedKey".into()
+    }
+}
+
+impl PartialOrd for PseudoExtendedKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for PseudoExtendedKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let a = borsh::to_vec(self).expect("unable to canonicalize PseudoExtendedKey");
+        let b = borsh::to_vec(other).expect("unable to canonicalize PseudoExtendedKey");
+        a.cmp(&b)
     }
 }
 

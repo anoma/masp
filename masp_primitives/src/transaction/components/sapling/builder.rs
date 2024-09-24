@@ -116,10 +116,7 @@ impl BorshDeserialize for SpendBuildParams {
             std::io::Error::new(std::io::ErrorKind::InvalidData, "alpha not in field")
         })?;
         // Finally, aggregate the spend parameters
-        Ok(SpendBuildParams {
-            rcv,
-            alpha,
-        })
+        Ok(SpendBuildParams { rcv, alpha })
     }
 }
 
