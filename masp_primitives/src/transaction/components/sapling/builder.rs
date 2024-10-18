@@ -655,7 +655,7 @@ pub struct SaplingBuilder<P, Key = ExtendedSpendingKey> {
     target_height: BlockHeight,
     value_balance: I128Sum,
     convert_anchor: Option<bls12_381::Scalar>,
-    spends: Vec<SpendDescriptionInfo<Key>>,
+    pub spends: Vec<SpendDescriptionInfo<Key>>,
     converts: Vec<ConvertDescriptionInfo>,
     outputs: Vec<SaplingOutputInfo>,
 }
