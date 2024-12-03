@@ -13,6 +13,7 @@ use std::ops::{Add, Bound, RangeBounds, Sub};
 
 /// A wrapper type representing blockchain heights. Safe conversion from
 /// various integer types, as well as addition and subtraction, are provided.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[repr(transparent)]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
@@ -244,6 +245,7 @@ pub const ZIP212_GRACE_PERIOD: u32 = 0;
 /// See [ZIP 200](https://zips.z.cash/zip-0200) for more details.
 ///
 /// [`signature_hash`]: crate::transaction::sighash::signature_hash
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BranchId {
     /// The consensus rules deployed by [`NetworkUpgrade::MASP`].

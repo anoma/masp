@@ -43,11 +43,13 @@ num-traits = { version = "0.2.19", git = "https://github.com/heliaxdev/num-trait
 subtle = "2.2.3"
 
 # - Shielded protocols
-bls12_381 = "0.8"
+# branch "tomas/arbitrary"
+bls12_381 = { git = "https://github.com/heliaxdev/bls12_381.git", rev = "d3ebe9dd6488fac1923db120a7498079e55dd838" }
 ff = "0.13"
 group = { version = "0.13", features = ["wnaf-memuse"] }
 incrementalmerkletree = "0.3"
-jubjub = "0.10"
+# branch "tomas/arbitrary"
+jubjub = { git = "https://github.com/heliaxdev/jubjub.git", rev = "a373686962f4e9d0edb3b4716f86ff6bbd9aa86c" }
 nonempty = "0.7"
 
 # - Static constants
@@ -74,6 +76,8 @@ aes = "0.8"
 fpe = "0.6"
 
 borsh = {version = "1.2.0", features = ["unstable__schema", "derive"]}
+arbitrary = {version = "1.3", features = ["derive"], optional = true }
+
 [dependencies.masp_note_encryption]
 version = "1.0.0"
 path = "../masp_note_encryption"
@@ -90,6 +94,7 @@ rand_xorshift = "0.3"
 transparent-inputs = []
 test-dependencies = ["proptest"]
 default = ["transparent-inputs"]
+arbitrary = ["dep:arbitrary", "masp_note_encryption/arbitrary", "bls12_381/arbitrary", "jubjub/arbitrary"]
 
 [badges]
 maintenance = { status = "actively-developed" }

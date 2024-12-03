@@ -12,7 +12,7 @@ use crate::{
     constants::{PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR},
     keys::{prf_expand, prf_expand_vec},
     sapling::keys::{DecodingError, ExpandedSpendingKey, FullViewingKey, OutgoingViewingKey},
-    sapling::SaplingIvk,
+    sapling::{redjubjub::PrivateKey, ProofGenerationKey, SaplingIvk},
 };
 use aes::Aes256;
 use blake2b_simd::Params as Blake2bParams;
@@ -23,11 +23,13 @@ use borsh::schema::Fields;
 use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
+use ff::PrimeField;
 use fpe::ff1::{BinaryNumeralString, FF1};
 use std::collections::BTreeMap;
 use std::{
     cmp::Ordering,
     convert::TryInto,
+    hash::{Hash, Hasher},
     io::{self, Error, ErrorKind, Read, Write},
     ops::AddAssign,
     str::FromStr,
@@ -143,6 +145,7 @@ impl FvkFingerprint {
 }
 
 /// A Sapling full viewing key tag
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
 )]
@@ -159,6 +162,7 @@ impl FvkTag {
 }
 
 /// A key used to derive diversifiers for a particular child key
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
 )]
@@ -245,6 +249,7 @@ impl DiversifierKey {
 }
 
 /// A Sapling extended spending key
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Eq, Hash, Copy)]
 pub struct ExtendedSpendingKey {
     depth: u8,
@@ -493,6 +498,7 @@ impl ExtendedSpendingKey {
 
 // A Sapling extended full viewing key
 #[derive(Clone, Eq, Hash, Copy)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ExtendedFullViewingKey {
     depth: u8,
     parent_fvk_tag: FvkTag,
@@ -912,6 +918,240 @@ impl Ord for ExtendedSpendingKey {
     fn cmp(&self, other: &Self) -> Ordering {
         let a = borsh::to_vec(self).expect("unable to canonicalize ExtendedSpendingKey");
         let b = borsh::to_vec(other).expect("unable to canonicalize ExtendedSpendingKey");
+        a.cmp(&b)
+    }
+}
+
+/// Represents the collection of keys that comprise extended spending keys,
+/// extended full viewing keys, and proof generation keys. I.e. ask, ak, nsk,
+/// nk, ovk, dk, and chain_code. Mathematical relations between these keys are
+/// not assumed; i.e. it's not necessarily the case that
+/// nk = PROOF_GENERATION_KEY_GENERATOR * nsk or
+/// ak = PROOF_GENERATION_KEY_GENERATOR * ask.
+pub trait ExtendedKey {
+    /// Group this collection of keys into an extended full viewing key
+    fn to_viewing_key(&self) -> ExtendedFullViewingKey;
+
+    /// Group this collection of keys into a proof generation key. Use
+    /// to_viewing_key when the key nk is required since there's no mathematical
+    /// relation between nk and nsk in this collection.
+    fn to_proof_generation_key(&self) -> Option<ProofGenerationKey>;
+
+    /// Group this collection of keys into an extended spending key. Use
+    /// to_viewing_key when the keys nk and ak are required since there's no
+    /// mathematical relation between nk and nsk nor ak and ask in this
+    /// collection.
+    fn to_spending_key(&self) -> Option<ExtendedSpendingKey>;
+}
+
+/// Represent an extended full viewing key as a collection of keys.
+impl ExtendedKey for ExtendedFullViewingKey {
+    /// Return this key
+    fn to_viewing_key(&self) -> ExtendedFullViewingKey {
+        *self
+    }
+
+    /// Return None since there is insufficient data to construct proof
+    /// generation key
+    fn to_proof_generation_key(&self) -> Option<ProofGenerationKey> {
+        None
+    }
+
+    /// Return None since there is insufficient data to construct spending key
+    #[allow(deprecated)]
+    fn to_spending_key(&self) -> Option<ExtendedSpendingKey> {
+        None
+    }
+}
+
+/// Represents an extended spending key as a collection of keys.
+impl ExtendedKey for ExtendedSpendingKey {
+    /// Returns the Sapling derivation of an extended full viewing key from this
+    /// key
+    fn to_viewing_key(&self) -> ExtendedFullViewingKey {
+        self.into()
+    }
+
+    /// Returns the Sapling derivation of a proof generation key from this key
+    fn to_proof_generation_key(&self) -> Option<ProofGenerationKey> {
+        Some(self.expsk.proof_generation_key())
+    }
+
+    /// Returns this key
+    #[allow(deprecated)]
+    fn to_spending_key(&self) -> Option<ExtendedSpendingKey> {
+        Some(*self)
+    }
+}
+
+/// An extended full viewing key bundled with partial authorizations
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Clone, PartialEq, Eq, Copy, Debug)]
+pub struct PseudoExtendedKey {
+    /// Viewing key for which this key provides authorizations
+    xfvk: ExtendedFullViewingKey,
+    /// Spend authorizing key
+    ask: Option<jubjub::Fr>,
+    /// Proof authorizing key
+    nsk: Option<jubjub::Fr>,
+}
+
+impl Hash for PseudoExtendedKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ask.map(|ask| ask.to_bytes()).hash(state);
+        self.nsk.map(|nsk| nsk.to_bytes()).hash(state);
+        self.xfvk.hash(state);
+    }
+}
+
+impl PseudoExtendedKey {
+    /// Augment this spending key with proof generation data. Fails if the proof
+    /// generation key is inconsistent with this key.
+    pub fn augment_proof_generation_key(&mut self, pgk: ProofGenerationKey) -> Result<(), ()> {
+        let nk = NullifierDerivingKey(PROOF_GENERATION_KEY_GENERATOR * pgk.nsk);
+        if nk == self.xfvk.fvk.vk.nk && pgk.ak == self.xfvk.fvk.vk.ak {
+            self.nsk = Some(pgk.nsk);
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    /// Augment this this extended key with spend authorization data. Fails if
+    /// spend authorizing key is inconsistent with this key.
+    pub fn augment_spend_authorizing_key(&mut self, ask: PrivateKey) -> Result<(), ()> {
+        let ak = SPENDING_KEY_GENERATOR * ask.0;
+        if ak == self.xfvk.fvk.vk.ak {
+            self.ask = Some(ask.0);
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    /// Augment this this extended key with spend authorization data without
+    /// applying consistency checks
+    pub fn augment_spend_authorizing_key_unchecked(&mut self, ask: PrivateKey) {
+        self.ask = Some(ask.0);
+    }
+}
+
+impl ExtendedKey for PseudoExtendedKey {
+    /// Returns the extended full viewing key contained in this object
+    fn to_viewing_key(&self) -> ExtendedFullViewingKey {
+        self.xfvk
+    }
+
+    /// Bundle this object into a proof generation key if a proof authorization
+    /// key has been augmented to this object.
+    fn to_proof_generation_key(&self) -> Option<ProofGenerationKey> {
+        self.nsk.map(|nsk| ProofGenerationKey {
+            nsk,
+            ak: self.xfvk.fvk.vk.ak,
+        })
+    }
+
+    /// Bundle this object into an extended spending key if a spend
+    /// authorization key has been augmented to this object.
+    #[allow(deprecated)]
+    fn to_spending_key(&self) -> Option<ExtendedSpendingKey> {
+        self.ask
+            .zip(self.nsk)
+            .map(|(ask, nsk)| ExtendedSpendingKey {
+                depth: self.xfvk.depth,
+                parent_fvk_tag: self.xfvk.parent_fvk_tag,
+                child_index: self.xfvk.child_index,
+                chain_code: self.xfvk.chain_code,
+                dk: self.xfvk.dk,
+                expsk: ExpandedSpendingKey {
+                    ask,
+                    nsk,
+                    ovk: self.xfvk.fvk.ovk,
+                },
+            })
+    }
+}
+
+impl From<ExtendedSpendingKey> for PseudoExtendedKey {
+    /// Construct a pseudo extended spending key from an extended spending key
+    #[allow(deprecated)]
+    fn from(xsk: ExtendedSpendingKey) -> Self {
+        Self {
+            xfvk: xsk.to_extended_full_viewing_key(),
+            ask: Some(xsk.expsk.ask),
+            nsk: Some(xsk.expsk.nsk),
+        }
+    }
+}
+
+impl From<ExtendedFullViewingKey> for PseudoExtendedKey {
+    /// Construct a pseudo extended spending key from an extended full viewing key
+    #[allow(deprecated)]
+    fn from(xfvk: ExtendedFullViewingKey) -> Self {
+        Self {
+            ask: None,
+            nsk: None,
+            xfvk,
+        }
+    }
+}
+
+impl BorshDeserialize for PseudoExtendedKey {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let xfvk = ExtendedFullViewingKey::deserialize_reader(reader)?;
+        let ask = Option::<[u8; 32]>::deserialize_reader(reader)?
+            .map(|x| {
+                Option::from(jubjub::Fr::from_repr(x))
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ask not in field"))
+            })
+            .transpose()?;
+        let nsk = Option::<[u8; 32]>::deserialize_reader(reader)?
+            .map(|x| {
+                Option::from(jubjub::Fr::from_repr(x))
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "nsk not in field"))
+            })
+            .transpose()?;
+        Ok(Self { xfvk, ask, nsk })
+    }
+}
+
+impl BorshSerialize for PseudoExtendedKey {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.xfvk.serialize(writer)?;
+        self.ask.map(|x| x.to_bytes()).serialize(writer)?;
+        self.nsk.map(|x| x.to_bytes()).serialize(writer)
+    }
+}
+
+impl BorshSchema for PseudoExtendedKey {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("xfvk".into(), ExtendedFullViewingKey::declaration()),
+                ("ask".into(), Option::<[u8; 32]>::declaration()),
+                ("nsk".into(), Option::<[u8; 32]>::declaration()),
+            ]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        ExtendedFullViewingKey::add_definitions_recursively(definitions);
+        Option::<[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "PseudoExtendedKey".into()
+    }
+}
+
+impl PartialOrd for PseudoExtendedKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for PseudoExtendedKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let a = borsh::to_vec(self).expect("unable to canonicalize PseudoExtendedKey");
+        let b = borsh::to_vec(other).expect("unable to canonicalize PseudoExtendedKey");
         a.cmp(&b)
     }
 }

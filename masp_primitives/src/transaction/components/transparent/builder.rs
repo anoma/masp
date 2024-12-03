@@ -45,6 +45,7 @@ impl fees::InputView for InvalidTransparentInput {
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg(feature = "transparent-inputs")]
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
 struct TransparentInputInfo {
@@ -65,6 +66,7 @@ pub struct TransparentBuilder {
     vout: Vec<TxOut>,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Unauthorized {
     #[cfg(feature = "transparent-inputs")]

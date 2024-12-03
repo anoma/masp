@@ -38,12 +38,14 @@ pub enum DecodingError {
 }
 
 /// An outgoing viewing key
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
 )]
 pub struct OutgoingViewingKey(pub [u8; 32]);
 
 /// A Sapling expanded spending key
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, PartialEq, Eq, Copy)]
 pub struct ExpandedSpendingKey {
     pub ask: jubjub::Fr,
@@ -128,6 +130,7 @@ impl ExpandedSpendingKey {
 
 /// A Sapling key that provides the capability to view incoming and outgoing transactions.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct FullViewingKey {
     pub vk: ViewingKey,
     pub ovk: OutgoingViewingKey,

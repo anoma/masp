@@ -34,11 +34,14 @@ use self::{
     },
     txid::{to_txid, BlockTxCommitmentDigester, TxIdDigester},
 };
+use crate::MaybeArbitrary;
 use borsh::schema::add_definition;
 use borsh::schema::Fields;
 use borsh::schema::{Declaration, Definition};
+use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     Clone,
     Copy,
@@ -60,6 +63,7 @@ pub type GrothProofBytes = [u8; GROTH_PROOF_SIZE];
 const MASPV5_TX_VERSION: u32 = 2;
 const MASPV5_VERSION_GROUP_ID: u32 = 0x26A7270A;
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
 )]
@@ -114,6 +118,7 @@ impl TxId {
 /// transaction fields. Note that this is not dependent on epoch, only on transaction encoding.
 /// For example, if a particular epoch defines a new transaction version but also allows the
 /// previous version, then only the new version would be added to this enum.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TxVersion {
     MASPv5,
@@ -192,11 +197,21 @@ impl BorshSchema for TxVersion {
 
 /// Authorization state for a bundle of transaction data.
 pub trait Authorization {
-    type TransparentAuth: transparent::Authorization + PartialEq + BorshDeserialize + BorshSerialize;
-    type SaplingAuth: sapling::Authorization + PartialEq + BorshDeserialize + BorshSerialize;
+    type TransparentAuth: transparent::Authorization
+        + PartialEq
+        + BorshDeserialize
+        + BorshSerialize
+        + for<'a> MaybeArbitrary<'a>;
+
+    type SaplingAuth: sapling::Authorization
+        + PartialEq
+        + BorshDeserialize
+        + BorshSerialize
+        + for<'a> MaybeArbitrary<'a>;
 }
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Unproven;
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Authorized;
 
@@ -205,14 +220,17 @@ impl Authorization for Authorized {
     type SaplingAuth = sapling::Authorized;
 }
 
-pub struct Unauthorized;
+pub struct Unauthorized<K: crate::zip32::ExtendedKey>(PhantomData<K>);
 
-impl Authorization for Unauthorized {
+impl<K: crate::zip32::ExtendedKey + PartialEq + Clone + Debug + for<'a> MaybeArbitrary<'a>>
+    Authorization for Unauthorized<K>
+{
     type TransparentAuth = transparent::builder::Unauthorized;
-    type SaplingAuth = sapling::builder::Unauthorized;
+    type SaplingAuth = sapling::builder::Unauthorized<K>;
 }
 
 /// A MASP transaction.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone)]
 pub struct Transaction {
     txid: TxId,
@@ -233,6 +251,7 @@ impl PartialEq for Transaction {
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct TransactionData<A: Authorization> {
     version: TxVersion,

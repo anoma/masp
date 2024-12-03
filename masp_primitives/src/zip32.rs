@@ -19,8 +19,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[deprecated(note = "Please use the types exported from the `zip32::sapling` module instead.")]
 pub use sapling::{
     sapling_address, sapling_default_address, sapling_derive_internal_fvk, sapling_find_address,
-    DiversifiableFullViewingKey, ExtendedFullViewingKey, ExtendedSpendingKey,
-    ZIP32_SAPLING_FVFP_PERSONALIZATION, ZIP32_SAPLING_INT_PERSONALIZATION,
+    DiversifiableFullViewingKey, ExtendedFullViewingKey, ExtendedKey, ExtendedSpendingKey,
+    PseudoExtendedKey, ZIP32_SAPLING_FVFP_PERSONALIZATION, ZIP32_SAPLING_INT_PERSONALIZATION,
     ZIP32_SAPLING_MASTER_PERSONALIZATION,
 };
 use std::io::{Read, Write};
@@ -28,6 +28,7 @@ use std::io::{Read, Write};
 // ZIP 32 structures
 
 /// A child index for a derived key
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChildIndex {
     NonHardened(u32),
@@ -81,6 +82,7 @@ impl BorshSchema for ChildIndex {
 }
 
 /// A BIP-32 chain code
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, BorshSchema,
 )]

@@ -34,3 +34,15 @@ pub use num_traits;
 
 #[cfg(test)]
 mod test_vectors;
+
+#[cfg(not(feature = "arbitrary"))]
+pub trait MaybeArbitrary<'a> {}
+
+#[cfg(not(feature = "arbitrary"))]
+impl<'a, T> MaybeArbitrary<'a> for T {}
+
+#[cfg(feature = "arbitrary")]
+pub trait MaybeArbitrary<'a>: arbitrary::Arbitrary<'a> {}
+
+#[cfg(feature = "arbitrary")]
+impl<'a, T: for<'b> arbitrary::Arbitrary<'b>> MaybeArbitrary<'a> for T {}

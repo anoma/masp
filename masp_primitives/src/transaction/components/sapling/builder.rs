@@ -8,6 +8,7 @@ use ff::PrimeField;
 use group::GroupEncoding;
 use rand::{seq::SliceRandom, CryptoRng, RngCore};
 
+use crate::MaybeArbitrary;
 use crate::{
     asset_type::AssetType,
     consensus::{self, BlockHeight},
@@ -33,7 +34,7 @@ use crate::{
             },
         },
     },
-    zip32::ExtendedSpendingKey,
+    zip32::{ExtendedKey, ExtendedSpendingKey},
 };
 use borsh::schema::add_definition;
 use borsh::schema::Declaration;
@@ -41,7 +42,9 @@ use borsh::schema::Definition;
 use borsh::schema::Fields;
 use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
 use std::collections::BTreeMap;
+use std::fmt::Debug;
 use std::io::Write;
+use std::marker::PhantomData;
 
 /// A subset of the parameters necessary to build a transaction
 pub trait BuildParams {
@@ -49,10 +52,6 @@ pub trait BuildParams {
     fn spend_rcv(&mut self, i: usize) -> jubjub::Fr;
     /// Get the spend authorization randomizer for the ith spend description
     fn spend_alpha(&mut self, i: usize) -> jubjub::Fr;
-    /// Get the authorization signature for the ith spend description
-    fn auth_sig(&mut self, i: usize) -> Option<Signature>;
-    /// The proof generation key for the ith spend description
-    fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey>;
     /// Get the commitment value randomness for the ith convert description
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr;
     /// Get the commitment value randomness for the ith output description
@@ -63,17 +62,35 @@ pub trait BuildParams {
     fn output_rseed(&mut self, i: usize) -> [u8; 32];
 }
 
+// Allow build parameters to be boxed
+impl<B: BuildParams + ?Sized> BuildParams for Box<B> {
+    fn spend_rcv(&mut self, i: usize) -> jubjub::Fr {
+        (**self).spend_rcv(i)
+    }
+    fn spend_alpha(&mut self, i: usize) -> jubjub::Fr {
+        (**self).spend_alpha(i)
+    }
+    fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
+        (**self).convert_rcv(i)
+    }
+    fn output_rcv(&mut self, i: usize) -> jubjub::Fr {
+        (**self).output_rcv(i)
+    }
+    fn output_rcm(&mut self, i: usize) -> jubjub::Fr {
+        (**self).output_rcm(i)
+    }
+    fn output_rseed(&mut self, i: usize) -> [u8; 32] {
+        (**self).output_rseed(i)
+    }
+}
+
 /// Parameters that go into constructing a spend description
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SpendBuildParams {
     /// The commitment value randomness
-    rcv: jubjub::Fr,
+    pub rcv: jubjub::Fr,
     /// The spend authorization randomizer
-    alpha: jubjub::Fr,
-    /// The authorization signature
-    auth_sig: Option<Signature>,
-    /// The proof generation key
-    proof_generation_key: Option<ProofGenerationKey>,
+    pub alpha: jubjub::Fr,
 }
 
 impl BorshSerialize for SpendBuildParams {
@@ -82,10 +99,6 @@ impl BorshSerialize for SpendBuildParams {
         writer.write_all(&self.rcv.to_repr())?;
         // Write spend authorization randomizer
         writer.write_all(&self.alpha.to_repr())?;
-        // Write the authorization signature
-        self.auth_sig.serialize(writer)?;
-        // Write the proof generation key
-        self.proof_generation_key.serialize(writer)?;
         Ok(())
     }
 }
@@ -102,17 +115,8 @@ impl BorshDeserialize for SpendBuildParams {
         let alpha = Option::from(jubjub::Fr::from_bytes(&alpha_bytes)).ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::InvalidData, "alpha not in field")
         })?;
-        // Read the authorization signature
-        let auth_sig = Option::<Signature>::deserialize_reader(reader)?;
-        // Read the proof generation key
-        let proof_generation_key = Option::<ProofGenerationKey>::deserialize_reader(reader)?;
         // Finally, aggregate the spend parameters
-        Ok(SpendBuildParams {
-            rcv,
-            alpha,
-            auth_sig,
-            proof_generation_key,
-        })
+        Ok(SpendBuildParams { rcv, alpha })
     }
 }
 
@@ -141,10 +145,10 @@ impl BorshSchema for SpendBuildParams {
 }
 
 /// Parameters that go into constructing an output description
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ConvertBuildParams {
     /// The commitment value randomness
-    rcv: jubjub::Fr,
+    pub rcv: jubjub::Fr,
 }
 
 impl BorshSerialize for ConvertBuildParams {
@@ -182,14 +186,14 @@ impl BorshSchema for ConvertBuildParams {
 }
 
 /// Parameters that go into constructing an output description
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct OutputBuildParams {
     /// The commitment value randomness
-    rcv: jubjub::Fr,
+    pub rcv: jubjub::Fr,
     /// The note rcm value
-    rcm: jubjub::Fr,
+    pub rcm: jubjub::Fr,
     /// The note's random seed
-    rseed: [u8; 32],
+    pub rseed: [u8; 32],
 }
 
 impl BorshSerialize for OutputBuildParams {
@@ -261,14 +265,6 @@ impl BuildParams for StoredBuildParams {
         self.spend_params[i].alpha
     }
 
-    fn auth_sig(&mut self, i: usize) -> Option<Signature> {
-        self.spend_params[i].auth_sig
-    }
-
-    fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey> {
-        self.spend_params[i].proof_generation_key.clone()
-    }
-
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
         self.convert_params[i].rcv
     }
@@ -334,8 +330,6 @@ impl<R: CryptoRng + RngCore> RngBuildParams<R> {
         self.spends.entry(i).or_insert_with(|| SpendBuildParams {
             rcv: jubjub::Fr::random(&mut self.rng),
             alpha: jubjub::Fr::random(&mut self.rng),
-            auth_sig: None,
-            proof_generation_key: None,
         })
     }
 
@@ -369,14 +363,6 @@ impl<R: CryptoRng + RngCore> BuildParams for RngBuildParams<R> {
 
     fn spend_alpha(&mut self, i: usize) -> jubjub::Fr {
         self.spend_params(i).alpha
-    }
-
-    fn auth_sig(&mut self, i: usize) -> Option<Signature> {
-        self.spend_params(i).auth_sig
-    }
-
-    fn proof_generation_key(&mut self, i: usize) -> Option<ProofGenerationKey> {
-        self.spend_params(i).proof_generation_key.clone()
     }
 
     fn convert_rcv(&mut self, i: usize) -> jubjub::Fr {
@@ -425,6 +411,7 @@ impl fmt::Display for Error {
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpendDescriptionInfo<Key = ExtendedSpendingKey> {
     extsk: Key,
@@ -599,6 +586,7 @@ impl fees::OutputView for SaplingOutputInfo {
 }
 
 /// Metadata about a transaction created by a [`SaplingBuilder`].
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
 pub struct SaplingMetadata {
     spend_indices: Vec<usize>,
@@ -745,20 +733,24 @@ impl<P: BorshDeserialize, Key: BorshDeserialize> BorshDeserialize for SaplingBui
     }
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-pub struct Unauthorized {
+pub struct Unauthorized<K: ExtendedKey> {
     tx_metadata: SaplingMetadata,
+    phantom: PhantomData<K>,
 }
 
-impl std::fmt::Debug for Unauthorized {
+impl<K: ExtendedKey> std::fmt::Debug for Unauthorized<K> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "Unauthorized")
     }
 }
 
-impl Authorization for Unauthorized {
+impl<K: ExtendedKey + Clone + Debug + PartialEq + for<'a> MaybeArbitrary<'a>> Authorization
+    for Unauthorized<K>
+{
     type Proof = GrothProofBytes;
-    type AuthSig = SpendDescriptionInfo;
+    type AuthSig = SpendDescriptionInfo<K>;
 }
 
 impl<P, K> SaplingBuilder<P, K> {
@@ -795,14 +787,18 @@ impl<P, K> SaplingBuilder<P, K> {
     }
 }
 
-impl<P: consensus::Parameters> SaplingBuilder<P> {
+impl<
+        P: consensus::Parameters,
+        K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>,
+    > SaplingBuilder<P, K>
+{
     /// Adds a Sapling note to be spent in this transaction.
     ///
     /// Returns an error if the given Merkle path does not have the same anchor as the
     /// paths for previous Sapling notes.
     pub fn add_spend(
         &mut self,
-        extsk: ExtendedSpendingKey,
+        extsk: K,
         diversifier: Diversifier,
         note: Note,
         merkle_path: MerklePath<Node>,
@@ -891,7 +887,7 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         bparams: &mut impl BuildParams,
         target_height: BlockHeight,
         progress_notifier: Option<&Sender<Progress>>,
-    ) -> Result<Option<Bundle<Unauthorized>>, Error> {
+    ) -> Result<Option<Bundle<Unauthorized<K>>>, Error> {
         // Record initial positions of spends and outputs
         let value_balance = self.value_balance();
         let params = self.params;
@@ -930,7 +926,8 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
         let mut progress = 0u32;
 
         // Create Sapling SpendDescriptions
-        let shielded_spends: Vec<SpendDescription<Unauthorized>> = if !indexed_spends.is_empty() {
+        let shielded_spends: Vec<SpendDescription<Unauthorized<K>>> = if !indexed_spends.is_empty()
+        {
             let anchor = self
                 .spend_anchor
                 .expect("MASP Spend anchor must be set if MASP spends are present.");
@@ -939,7 +936,10 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                 .into_iter()
                 .enumerate()
                 .map(|(i, (pos, spend))| {
-                    let proof_generation_key = spend.extsk.expsk.proof_generation_key();
+                    let proof_generation_key = spend
+                        .extsk
+                        .to_proof_generation_key()
+                        .expect("Proof generation key must be known for each MASP spend.");
 
                     let nullifier = spend.note.nf(
                         &proof_generation_key.to_viewing_key().nk,
@@ -1141,7 +1141,10 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
                 shielded_converts,
                 shielded_outputs,
                 value_balance,
-                authorization: Unauthorized { tx_metadata },
+                authorization: Unauthorized {
+                    tx_metadata,
+                    phantom: PhantomData,
+                },
             })
         };
 
@@ -1149,7 +1152,9 @@ impl<P: consensus::Parameters> SaplingBuilder<P> {
     }
 }
 
-impl SpendDescription<Unauthorized> {
+impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
+    SpendDescription<Unauthorized<K>>
+{
     pub fn apply_signature(&self, spend_auth_sig: Signature) -> SpendDescription<Authorized> {
         SpendDescription {
             cv: self.cv,
@@ -1162,7 +1167,9 @@ impl SpendDescription<Unauthorized> {
     }
 }
 
-impl Bundle<Unauthorized> {
+impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
+    Bundle<Unauthorized<K>>
+{
     pub fn apply_signatures<Pr: TxProver, R: RngCore, S: BuildParams>(
         self,
         prover: &Pr,
@@ -1183,7 +1190,7 @@ impl Bundle<Unauthorized> {
                     .enumerate()
                     .map(|(i, spend)| {
                         spend.apply_signature(spend_sig_internal(
-                            PrivateKey(spend.spend_auth_sig.extsk.expsk.ask),
+                            PrivateKey(spend.spend_auth_sig.extsk.to_spending_key().expect("Spend authorization key must be known for each MASP spend.").expsk.ask),
                             bparams.spend_alpha(i),
                             sighash_bytes,
                             rng,

@@ -15,6 +15,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq, BorshSchema)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
