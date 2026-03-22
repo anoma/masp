@@ -94,6 +94,9 @@ required-features = ["download-params"]
 [[example]]
 name = "export-verifier"
 
+[[example]]
+name = "generate-calldata"
+
 [badges]
 maintenance = { status = "actively-developed" }
 
