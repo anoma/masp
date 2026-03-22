@@ -91,6 +91,9 @@ required-features = ["download-params"]
 name = "serialize-params"
 required-features = ["download-params"]
 
+[[example]]
+name = "export-verifier"
+
 [badges]
 maintenance = { status = "actively-developed" }
 
