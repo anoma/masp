@@ -95,7 +95,10 @@ required-features = ["download-params"]
 name = "export-verifier"
 
 [[example]]
-name = "generate-calldata"
+name = "generate-spend-calldata"
+
+[[example]]
+name = "generate-output-calldata"
 
 [badges]
 maintenance = { status = "actively-developed" }
