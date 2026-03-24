@@ -17,6 +17,10 @@ use group::{Curve, Group, GroupEncoding, cofactor::CofactorGroup};
 use incrementalmerkletree::{self, Level};
 use lazy_static::lazy_static;
 use rand_core::{CryptoRng, RngCore};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde_hex::{SerHex, Strict};
 use std::{
     array::TryFromSliceError,
     cmp::Ordering,
@@ -85,9 +89,12 @@ pub fn merkle_hash(depth: usize, lhs: &[u8; 32], rhs: &[u8; 32]) -> [u8; 32] {
 }
 
 /// A node within the Sapling commitment tree.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[repr(transparent)]
 pub struct Node {
+    #[cfg_attr(feature = "serde", serde(with = "SerHex::<Strict>"))]
     repr: [u8; 32],
 }
 
