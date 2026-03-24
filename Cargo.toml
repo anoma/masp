@@ -8,7 +8,7 @@ members = [
 
 
 [workspace.package]
-version = "3.0.9"
+version = "3.0.10"
 
 [profile.release]
 lto = true
