@@ -92,6 +92,7 @@ pub fn merkle_hash(depth: usize, lhs: &[u8; 32], rhs: &[u8; 32]) -> [u8; 32] {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 #[repr(transparent)]
 pub struct Node {
     #[cfg_attr(feature = "serde", serde(with = "SerHex::<Strict>"))]
@@ -1033,13 +1034,30 @@ pub mod testing {
 
 #[cfg(test)]
 mod tests {
+    use super::Node;
     use crate::{
         sapling::Note,
         sapling::testing::{arb_note, arb_positive_note_value},
         transaction::components::amount::MAX_MONEY,
     };
     use borsh::BorshDeserialize;
+    use incrementalmerkletree::Hashable;
     use proptest::prelude::*;
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_serde_node_roundtrip() {
+        let empty = Node::empty_leaf();
+
+        let ser = serde_json::to_string(&empty).unwrap();
+        assert_eq!(
+            ser,
+            r#""0100000000000000000000000000000000000000000000000000000000000000""#
+        );
+
+        let de: Node = serde_json::from_str(&ser).unwrap();
+        assert_eq!(empty, de);
+    }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(10))]
