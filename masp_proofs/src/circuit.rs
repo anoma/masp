@@ -5,3 +5,4 @@ pub mod ecc;
 pub mod gadgets;
 pub mod pedersen_hash;
 pub mod sapling;
+pub mod append;
