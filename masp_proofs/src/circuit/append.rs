@@ -25,6 +25,8 @@ pub struct Append {
     pub new_cmus: Vec<Option<bls12_381::Scalar>>,
 }
 
+// Constrain the given value to have the given bit width. Return
+// booleans in little endian order equal to the bits of the input.
 pub fn constrain_to_boolean_vec_le<CS: ConstraintSystem<bls12_381::Scalar>>(
     cs: &mut CS,
     val: num::AllocatedNum<bls12_381::Scalar>,
@@ -79,6 +81,26 @@ pub fn constrain_to_boolean_vec_le<CS: ConstraintSystem<bls12_381::Scalar>>(
     Ok(bits.into_iter().map(Boolean::from).collect())
 }
 
+// If condition is true, select consequent otherwise alternate
+pub fn ternary_constraint<CS: ConstraintSystem<bls12_381::Scalar>>(
+    mut cs: CS,
+    condition: &Boolean,
+    consequent: &num::AllocatedNum<bls12_381::Scalar>,
+    alternate: &num::AllocatedNum<bls12_381::Scalar>,
+) -> Result<num::AllocatedNum<bls12_381::Scalar>, SynthesisError> {
+    // The variable that will hold result of evaluating ternary expression
+    let ternary = num::AllocatedNum::alloc(
+        cs.namespace(|| "ternary"),
+        || Ok(*if *condition.get_value().get()? { &consequent } else { &alternate }.get_value().get()?),
+    )?;
+    let lca = condition.lc(CS::one(), bls12_381::Scalar::ONE);
+    let lcb = LinearCombination::from_variable(consequent.get_variable()) - alternate.get_variable();
+    let lcc = LinearCombination::from_variable(ternary.get_variable()) - alternate.get_variable();
+    // ternary = condition*consequent + (1-condition)*input
+    cs.enforce(|| "ternary constraint", |_| lca, |_| lcb, |_| lcc);
+    Ok(ternary)
+}
+
 // Takes the given level and shifts it to the right by cur_is_right,
 // where cur_is_right is interpreted as an integer. If we are shifting
 // by 1, then fill the new leaf on the left with prev. If we are not
@@ -95,21 +117,37 @@ pub fn conditionally_shift_leaves<CS: ConstraintSystem<bls12_381::Scalar>>(
     let mut shifted_level = vec![];
     // Make a shifted level
     for (i, input) in level.into_iter().chain(std::iter::once(empty_root)).enumerate() {
-        let shifted_input = num::AllocatedNum::alloc_input(
-            cs.namespace(|| format!("shifted input {}", i)),
-            || Ok(*if *cur_is_right.get_value().get()? { &prev } else { &input }.get_value().get()?),
+        let shifted_input = ternary_constraint(
+            cs.namespace(|| format!("shift constraint {}", i)),
+            cur_is_right,
+            &prev,
+            &input,
         )?;
-        let lca = cur_is_right.lc(CS::one(), bls12_381::Scalar::ONE);
-        let lcb = LinearCombination::from_variable(prev.get_variable()) - input.get_variable();
-        let lcc = LinearCombination::from_variable(shifted_input.get_variable()) - input.get_variable();
-        // shifted_input = curr_is_right*prev + (1-curr_is_right)*input
-        cs.enforce(|| "shift constraint", |_| lca, |_| lcb, |_| lcc);
         // Expand the shifted level
         shifted_level.push(shifted_input);
         // If the row is shifted, then current element will need to feed into next iteration
         prev = input;
     }
     Ok((shifted_level, prev))
+}
+
+// Allocate a variable that is hardwired to equal the empty root at the
+// given altitude
+pub fn alloc_empty_root<CS: ConstraintSystem<bls12_381::Scalar>>(
+    mut cs: CS,
+    alt: usize,
+) -> Result<num::AllocatedNum<bls12_381::Scalar>, SynthesisError> {
+    // Get a scalar equal to the empty root at the given altitude
+    let empty_root = Scalar::from(Node::empty_root(alt));
+    // Allocate a variable to hold the empty root
+    let mut alloc = num::AllocatedNum::alloc(
+        cs.namespace(|| format!("empty root altitude {}", alt)),
+        || Ok(empty_root),
+    )?;
+    // Force our new variable to equal to the empty root scalar
+    let lc = LinearCombination::from_variable(alloc.get_variable()) - (empty_root, CS::one());
+    cs.enforce(|| "ensure empty leaf 0", |lc| lc, |lc| lc, |_| lc);
+    Ok(alloc)
 }
 
 impl Circuit<bls12_381::Scalar> for Append {
@@ -129,14 +167,11 @@ impl Circuit<bls12_381::Scalar> for Append {
 
         // This is an injective encoding, as cur is a
         // point in the prime order subgroup.
-        let empty_root = Scalar::from(Node::empty_root(0));
-        let mut cur = num::AllocatedNum::alloc(cs.namespace(|| "empty leaf"), || Ok(empty_root))?;
-        let lc = LinearCombination::from_variable(cur.get_variable()) - (empty_root, CS::one());
-        cs.enforce(|| "empty leaf", |lc| lc, |lc| lc, |_| lc);
+        let mut cur = alloc_empty_root(cs.namespace(|| "empty root to compute old root"), 0)?;
         let mut path_elements = vec![];
         // Ascend the merkle tree authentication path
         for (i, e) in self.auth_path.into_iter().enumerate() {
-            let cs = &mut cs.namespace(|| format!("merkle tree hash {}", i));
+            let cs = &mut cs.namespace(|| format!("old merkle tree hash {}", i));
             // Determines if the current subtree is the "right" leaf at this
             // depth of the tree.
             let cur_is_right = &old_size_bits[i];
@@ -175,14 +210,10 @@ impl Circuit<bls12_381::Scalar> for Append {
 
         // Expose the old root
         cur.inputize(cs.namespace(|| "old root"))?;
-
-        // Make a variable hard wired to the empty root
-        let empty_root_alloc = num::AllocatedNum::alloc(cs.namespace(|| "empty root"), || Ok(empty_root))?;
-        let lc = LinearCombination::from_variable(empty_root_alloc.get_variable()) - (empty_root, CS::one());
-        cs.enforce(|| "empty leaf", |lc| lc, |lc| lc, |_| lc);
         
         // Build the first level of the tree from the public inputs
         let (mut level, mut empty_root_alloc) = {
+            let cs = &mut cs.namespace(|| "initialize level 0");
             // Determines if the current subtree is the "right" leaf at this
             // depth of the tree.
             let cur_is_right = &old_size_bits[0];
@@ -194,32 +225,35 @@ impl Circuit<bls12_381::Scalar> for Append {
                 let input = num::AllocatedNum::alloc_input(cs.namespace(|| format!("input {}", i)), || Ok(*e.get()?))?;
                 level.push(input);
             }
+            // Make a variable hard wired to the empty root
+            let new_empty_root_alloc = alloc_empty_root(cs.namespace(|| "empty root to compute level 0"), 0)?;
             // Conditionally shift the level
             conditionally_shift_leaves(
                 cs.namespace(|| "conditionally shifting of nodes"),
                 cur_is_right,
                 prev,
                 level,
-                empty_root_alloc,
+                new_empty_root_alloc,
             )?
         };
         let mut height = 0;
         // Build more tree levels until we hit a subtree containing all the public inputs
-        loop {
+        while level.len() > 1 {
+            let cs = &mut cs.namespace(|| format!("build level {}", height));
             let mut next_level = vec![];
-            for pair in level.chunks(2) {
+            for (j, pair) in level.chunks(2).enumerate() {
                 let ur = pair.get(1).unwrap_or(&empty_root_alloc);
                 // We don't need to be strict, because the function is
                 // collision-resistant. If the prover witnesses a congruency,
                 // they will be unable to find an authentication path in the
                 // tree with high probability.
                 let mut preimage = vec![];
-                preimage.extend(pair[0].to_bits_le(cs.namespace(|| "ul into bits"))?);
-                preimage.extend(ur.to_bits_le(cs.namespace(|| "ur into bits"))?);
+                preimage.extend(pair[0].to_bits_le(cs.namespace(|| format!("ul {} into bits", j)))?);
+                preimage.extend(ur.to_bits_le(cs.namespace(|| format!("ur {} into bits", j)))?);
 
                 // Compute the new subtree value
                 let cur = pedersen_hash::pedersen_hash(
-                    cs.namespace(|| "computation of pedersen hash"),
+                    cs.namespace(|| format!("computation of pedersen hash {}", j)),
                     pedersen_hash::Personalization::MerkleTree(height),
                     &preimage,
                 )?
@@ -228,36 +262,68 @@ impl Circuit<bls12_381::Scalar> for Append {
                 // Build up the next level
                 next_level.push(cur);
             }
+            // Start working on the next level of the Merkle tree
             height += 1;
-            // If we've finally found a single root, then stop this aggregation
-            if level.len() == 1 { break; }
-            // The previous element in the level
-            let prev = path_elements.remove(0);
-            // Determines if the current subtree is the "right" leaf at this
-            // depth of the tree.
-            let cur_is_right = &old_size_bits[height];
-            // Conditionally shift the level
-            (level, empty_root_alloc) = conditionally_shift_leaves(
-                cs.namespace(|| "conditionally shifting of nodes"),
-                cur_is_right,
-                prev,
-                next_level,
-                empty_root_alloc,
-            )?;
+            
+            if next_level.len() == 1 || path_elements.is_empty() {
+                // If we have a root containing all the new cmus, then we can stop
+                // hashing the levels. Also, we've made it to the top of the Merkle
+                // tree, then we can stop hashing levels.
+                level = next_level;
+                break;
+            } else {
+                // The previous element in the level
+                let prev = path_elements.remove(0);
+                // Determines if the current subtree is the "right" leaf at this
+                // depth of the tree.
+                let cur_is_right = &old_size_bits[height];
+                // Determines if the previous subtree is the "right" leaf at this
+                // depth of the tree.
+                let prev_is_right = &old_size_bits[height-1];
+                // If the previous level has 3 elements, and we know that the left
+                // subtree (and therefore also the right subtree) are empty, then we
+                // know that the third element is a blank. Then we know that the
+                // second entry of the current level is the hash of the concatenation
+                // of two empty roots. In this case, replace this second entry with
+                // the corresponding entry from the authentication path.
+                if level.len() == 3 {
+                    let condition = Boolean::and(
+                        cs.namespace(|| format!("overwrite last hash in level {}", height)),
+                        &cur_is_right.not(),
+                        &prev_is_right.not(),
+                    )?;
+                    next_level[1] = ternary_constraint(
+                        cs.namespace(|| format!("computation of last hash in level {}", height)),
+                        &condition,
+                        &prev,
+                        &next_level[1],
+                    )?;
+                }
+                // Make a variable hard wired to the empty root
+                let new_empty_root_alloc = alloc_empty_root(
+                    cs.namespace(|| format!("empty root to compute level {}", height)),
+                    height,
+                )?;
+                // Conditionally shift the level
+                (level, empty_root_alloc) = conditionally_shift_leaves(
+                    cs.namespace(|| "conditionally shifting of nodes"),
+                    cur_is_right,
+                    prev,
+                    next_level,
+                    new_empty_root_alloc,
+                )?;
+            }
         }
         // After computing a Merkle root from the public inputs
-        assert_eq!(level.len(), 1);
         cur = level.remove(0);
+        drop(level);
         // Finally compute the new root by ascending the remaining merkle
         // tree authentication path
-        for e in path_elements {
-            let cs = &mut cs.namespace(|| format!("merkle tree hash {}", height));
+        for path_element in path_elements {
+            let cs = &mut cs.namespace(|| format!("new merkle tree hash {}", height));
             // Determines if the current subtree is the "right" leaf at this
             // depth of the tree.
             let cur_is_right = &old_size_bits[height];
-            // Witness the authentication path element adjacent
-            // at this depth.
-            let path_element = e;
             
             // Swap the two if the current subtree is on the right
             let (ul, ur) = num::AllocatedNum::conditionally_reverse(
@@ -288,5 +354,152 @@ impl Circuit<bls12_381::Scalar> for Append {
         // Expose the new root
         cur.inputize(cs.namespace(|| "new root"))?;
         Ok(())
+    }
+}
+
+#[test]
+fn test_append_circuit_with_bls12_381() {
+    use bellman::gadgets::test::*;
+    use group::{Group, ff::Field, ff::PrimeFieldBits};
+    use masp_primitives::{
+        asset_type::AssetType,
+        sapling::{Diversifier, Note, ProofGenerationKey, Rseed, pedersen_hash},
+    };
+    use rand_core::{RngCore, SeedableRng};
+    use rand_xorshift::XorShiftRng;
+    use masp_primitives::merkle_tree::FrozenCommitmentTree;
+    use masp_primitives::sapling::Node;
+
+    let mut rng = XorShiftRng::from_seed([
+        0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
+        0xe5,
+    ]);
+
+    let tree_depth = 32;
+
+    for i in 0..30u32 {
+        let commitment_randomness = jubjub::Fr::random(&mut rng);
+        let mut leaves = vec![];
+
+        for j in 0..i {
+            leaves.push(Node::from_scalar(bls12_381::Scalar::random(&mut rng)));
+        }
+        let old_tree = FrozenCommitmentTree::new(&leaves);
+        let old_root = old_tree.root();
+        let old_size = leaves.len();
+        let old_size_scalar = bls12_381::Scalar::from(old_size as u64);
+        let auth_path = old_tree.path(leaves.len());
+        for j in 0..BATCH_SIZE {
+            leaves.push(Node::from_scalar(bls12_381::Scalar::random(&mut rng)));
+        }
+        let new_tree = FrozenCommitmentTree::new(&leaves);
+        let new_root = new_tree.root();
+
+        {
+            let mut cs = TestConstraintSystem::new();
+            let auth_path: Vec<_> = auth_path.auth_path.iter().map(|x| Some(bls12_381::Scalar::from(x.0))).collect();
+            let k = i as usize;
+
+            let instance = Append {
+                old_size: Some(old_size_scalar),
+                auth_path: auth_path.clone(),
+                new_cmus: leaves[k..(k+(BATCH_SIZE as usize))].iter().map(|x| Some(bls12_381::Scalar::from(*x))).collect(),
+            };
+
+            instance.synthesize(&mut cs).unwrap();
+
+            assert!(cs.is_satisfied());
+            assert_eq!(cs.num_constraints(), 168574);
+            assert_eq!(
+                cs.hash(),
+                "501b0e42f89fa09c6a9979eaba3d5f923065d55653c176da8497b78de2be6a7c"
+            );
+
+            for m in 0..SAPLING_COMMITMENT_TREE_DEPTH {
+                assert_eq!(cs.get(&format!("old merkle tree hash {}/path element/num", m)), auth_path[m].unwrap());
+            }
+            assert_eq!(cs.num_inputs(), 36);
+            assert_eq!(cs.get_input(0, "ONE"), bls12_381::Scalar::ONE);
+            assert_eq!(cs.get_input(1, "old Merkle tree size/input num"), old_size_scalar);
+            assert_eq!(cs.get_input(2, "old root/input variable"), bls12_381::Scalar::from(old_root));
+            for m in 0..BATCH_SIZE {
+                assert_eq!(cs.get_input(3+(m as usize), &format!("initialize level 0/input {}/input num", m)), bls12_381::Scalar::from(leaves[old_size+(m as usize)]));
+            }
+            assert_eq!(
+                cs.get_input(3+(BATCH_SIZE as usize), "new root/input variable"),
+                bls12_381::Scalar::from(new_root)
+            );
+        }
+    }
+}
+
+#[test]
+fn test_variable_sized_append_circuit_with_bls12_381() {
+    use bellman::gadgets::test::*;
+    use group::{Group, ff::Field, ff::PrimeFieldBits};
+    use masp_primitives::{
+        asset_type::AssetType,
+        sapling::{Diversifier, Note, ProofGenerationKey, Rseed, pedersen_hash},
+    };
+    use rand_core::{RngCore, SeedableRng};
+    use rand_xorshift::XorShiftRng;
+    use masp_primitives::merkle_tree::FrozenCommitmentTree;
+    use masp_primitives::sapling::Node;
+
+    let mut rng = XorShiftRng::from_seed([
+        0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
+        0xe5,
+    ]);
+
+    let tree_depth = 32;
+    let old_size = 11;
+    let old_size_scalar = bls12_381::Scalar::from(old_size as u64);
+
+    for i in 1..32u32 {
+        let commitment_randomness = jubjub::Fr::random(&mut rng);
+        let mut leaves = vec![];
+
+        for j in 0..old_size {
+            leaves.push(Node::from_scalar(bls12_381::Scalar::random(&mut rng)));
+        }
+        let old_tree = FrozenCommitmentTree::new(&leaves);
+        let old_root = old_tree.root();
+        let auth_path = old_tree.path(leaves.len());
+        for j in 0..i {
+            leaves.push(Node::from_scalar(bls12_381::Scalar::random(&mut rng)));
+        }
+        let new_tree = FrozenCommitmentTree::new(&leaves);
+        let new_root = new_tree.root();
+
+        {
+            let mut cs = TestConstraintSystem::new();
+            let auth_path: Vec<_> = auth_path.auth_path.iter().map(|x| Some(bls12_381::Scalar::from(x.0))).collect();
+            let k = i as usize;
+
+            let instance = Append {
+                old_size: Some(old_size_scalar),
+                auth_path: auth_path.clone(),
+                new_cmus: leaves[old_size..(old_size+(i as usize))].iter().map(|x| Some(bls12_381::Scalar::from(*x))).collect(),
+            };
+
+            instance.synthesize(&mut cs).unwrap();
+
+            assert!(cs.is_satisfied());
+
+            for m in 0..SAPLING_COMMITMENT_TREE_DEPTH {
+                assert_eq!(cs.get(&format!("old merkle tree hash {}/path element/num", m)), auth_path[m].unwrap());
+            }
+            assert_eq!(cs.num_inputs(), 4+(i as usize));
+            assert_eq!(cs.get_input(0, "ONE"), bls12_381::Scalar::ONE);
+            assert_eq!(cs.get_input(1, "old Merkle tree size/input num"), old_size_scalar);
+            assert_eq!(cs.get_input(2, "old root/input variable"), bls12_381::Scalar::from(old_root));
+            for m in 0..i {
+                assert_eq!(cs.get_input(3+(m as usize), &format!("initialize level 0/input {}/input num", m)), bls12_381::Scalar::from(leaves[old_size+(m as usize)]));
+            }
+            assert_eq!(
+                cs.get_input(3+(i as usize), "new root/input variable"),
+                bls12_381::Scalar::from(new_root)
+            );
+        }
     }
 }
