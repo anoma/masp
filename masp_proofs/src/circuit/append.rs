@@ -140,7 +140,7 @@ pub fn alloc_empty_root<CS: ConstraintSystem<bls12_381::Scalar>>(
     // Get a scalar equal to the empty root at the given altitude
     let empty_root = Scalar::from(Node::empty_root(alt));
     // Allocate a variable to hold the empty root
-    let mut alloc = num::AllocatedNum::alloc(
+    let alloc = num::AllocatedNum::alloc(
         cs.namespace(|| format!("empty root altitude {}", alt)),
         || Ok(empty_root),
     )?;
@@ -212,36 +212,58 @@ impl Circuit<bls12_381::Scalar> for Append {
         cur.inputize(cs.namespace(|| "old root"))?;
         
         // Build the first level of the tree from the public inputs
-        let (mut level, mut empty_root_alloc) = {
-            let cs = &mut cs.namespace(|| "initialize level 0");
-            // Determines if the current subtree is the "right" leaf at this
-            // depth of the tree.
-            let cur_is_right = &old_size_bits[0];
+        let mut prev_level = vec![];
+        let mut level = vec![];
+        for (i, e) in self.new_cmus.into_iter().enumerate() {
+            let input = num::AllocatedNum::alloc_input(cs.namespace(|| format!("input {}", i)), || Ok(*e.get()?))?;
+            level.push(input);
+        }
+        let mut height = 0;
+        // Build more tree levels until we hit a subtree containing all the new cmus
+        while level.len() > 1 && !path_elements.is_empty() {
+            let cs = &mut cs.namespace(|| format!("build level {}", height));
             // The previous element in the level
             let prev = path_elements.remove(0);
-            // Build up the bottom level of the tree
-            let mut level = vec![];
-            for (i, e) in self.new_cmus.into_iter().enumerate() {
-                let input = num::AllocatedNum::alloc_input(cs.namespace(|| format!("input {}", i)), || Ok(*e.get()?))?;
-                level.push(input);
+            // Determines if the current subtree is the "right" leaf at this
+            // depth of the tree.
+            let cur_is_right = &old_size_bits[height];
+            // If the previous level has 3 elements, and we know that the left
+            // subtree (and therefore also the right subtree) are empty, then we
+            // know that the third element is a blank. Then we know that the
+            // second entry of the current level is the hash of the concatenation
+            // of two empty roots. In this case, replace this second entry with
+            // the corresponding entry from the authentication path.
+            if prev_level.len() == 3 {
+                // Determines if the previous subtree is the "right" leaf at this
+                // depth of the tree.
+                let prev_is_right = &old_size_bits[height-1];
+                let condition = Boolean::and(
+                    cs.namespace(|| format!("overwrite last hash in level {}", height)),
+                    &cur_is_right.not(),
+                    &prev_is_right.not(),
+                )?;
+                level[1] = ternary_constraint(
+                    cs.namespace(|| format!("computation of last hash in level {}", height)),
+                    &condition,
+                    &prev,
+                    &level[1],
+                )?;
             }
             // Make a variable hard wired to the empty root
-            let new_empty_root_alloc = alloc_empty_root(cs.namespace(|| "empty root to compute level 0"), 0)?;
+            let mut empty_root_alloc = alloc_empty_root(
+                cs.namespace(|| format!("empty root to compute level {}", height)),
+                height,
+            )?;
             // Conditionally shift the level
-            conditionally_shift_leaves(
+            (prev_level, empty_root_alloc) = conditionally_shift_leaves(
                 cs.namespace(|| "conditionally shifting of nodes"),
                 cur_is_right,
                 prev,
-                level,
-                new_empty_root_alloc,
-            )?
-        };
-        let mut height = 0;
-        // Build more tree levels until we hit a subtree containing all the public inputs
-        while level.len() > 1 {
-            let cs = &mut cs.namespace(|| format!("build level {}", height));
-            let mut next_level = vec![];
-            for (j, pair) in level.chunks(2).enumerate() {
+                std::mem::take(&mut level),
+                empty_root_alloc,
+            )?;
+            // Finally, hash pairs of elements
+            for (j, pair) in prev_level.chunks(2).enumerate() {
                 let ur = pair.get(1).unwrap_or(&empty_root_alloc);
                 // We don't need to be strict, because the function is
                 // collision-resistant. If the prover witnesses a congruency,
@@ -260,63 +282,15 @@ impl Circuit<bls12_381::Scalar> for Append {
                     .get_u()
                     .clone(); // Injective encoding
                 // Build up the next level
-                next_level.push(cur);
+                level.push(cur);
             }
             // Start working on the next level of the Merkle tree
             height += 1;
-            
-            if next_level.len() == 1 || path_elements.is_empty() {
-                // If we have a root containing all the new cmus, then we can stop
-                // hashing the levels. Also, we've made it to the top of the Merkle
-                // tree, then we can stop hashing levels.
-                level = next_level;
-                break;
-            } else {
-                // The previous element in the level
-                let prev = path_elements.remove(0);
-                // Determines if the current subtree is the "right" leaf at this
-                // depth of the tree.
-                let cur_is_right = &old_size_bits[height];
-                // Determines if the previous subtree is the "right" leaf at this
-                // depth of the tree.
-                let prev_is_right = &old_size_bits[height-1];
-                // If the previous level has 3 elements, and we know that the left
-                // subtree (and therefore also the right subtree) are empty, then we
-                // know that the third element is a blank. Then we know that the
-                // second entry of the current level is the hash of the concatenation
-                // of two empty roots. In this case, replace this second entry with
-                // the corresponding entry from the authentication path.
-                if level.len() == 3 {
-                    let condition = Boolean::and(
-                        cs.namespace(|| format!("overwrite last hash in level {}", height)),
-                        &cur_is_right.not(),
-                        &prev_is_right.not(),
-                    )?;
-                    next_level[1] = ternary_constraint(
-                        cs.namespace(|| format!("computation of last hash in level {}", height)),
-                        &condition,
-                        &prev,
-                        &next_level[1],
-                    )?;
-                }
-                // Make a variable hard wired to the empty root
-                let new_empty_root_alloc = alloc_empty_root(
-                    cs.namespace(|| format!("empty root to compute level {}", height)),
-                    height,
-                )?;
-                // Conditionally shift the level
-                (level, empty_root_alloc) = conditionally_shift_leaves(
-                    cs.namespace(|| "conditionally shifting of nodes"),
-                    cur_is_right,
-                    prev,
-                    next_level,
-                    new_empty_root_alloc,
-                )?;
-            }
         }
-        // After computing a Merkle root from the public inputs
+        // Push to next level in case it's empty before the removal
+        level.push(alloc_empty_root(cs.namespace(|| format!("empty root to compute level {}", height)), height)?);
+        // The first element is the first root containing all the new cmus
         cur = level.remove(0);
-        drop(level);
         // Finally compute the new root by ascending the remaining merkle
         // tree authentication path
         for path_element in path_elements {
@@ -377,7 +351,7 @@ fn test_append_circuit_with_bls12_381() {
 
     let tree_depth = 32;
 
-    for i in 0..30u32 {
+    for i in 0..64u32 {
         let commitment_randomness = jubjub::Fr::random(&mut rng);
         let mut leaves = vec![];
 
@@ -409,10 +383,10 @@ fn test_append_circuit_with_bls12_381() {
             instance.synthesize(&mut cs).unwrap();
 
             assert!(cs.is_satisfied());
-            assert_eq!(cs.num_constraints(), 168574);
+            assert_eq!(cs.num_constraints(), 168575);
             assert_eq!(
                 cs.hash(),
-                "501b0e42f89fa09c6a9979eaba3d5f923065d55653c176da8497b78de2be6a7c"
+                "b4608d6123a727fb31e09ef2567cc592cbbd9aff5c581b4819eb3e0434887ab9"
             );
 
             for m in 0..SAPLING_COMMITMENT_TREE_DEPTH {
@@ -423,7 +397,7 @@ fn test_append_circuit_with_bls12_381() {
             assert_eq!(cs.get_input(1, "old Merkle tree size/input num"), old_size_scalar);
             assert_eq!(cs.get_input(2, "old root/input variable"), bls12_381::Scalar::from(old_root));
             for m in 0..BATCH_SIZE {
-                assert_eq!(cs.get_input(3+(m as usize), &format!("initialize level 0/input {}/input num", m)), bls12_381::Scalar::from(leaves[old_size+(m as usize)]));
+                assert_eq!(cs.get_input(3+(m as usize), &format!("input {}/input num", m)), bls12_381::Scalar::from(leaves[old_size+(m as usize)]));
             }
             assert_eq!(
                 cs.get_input(3+(BATCH_SIZE as usize), "new root/input variable"),
@@ -455,7 +429,7 @@ fn test_variable_sized_append_circuit_with_bls12_381() {
     let old_size = 11;
     let old_size_scalar = bls12_381::Scalar::from(old_size as u64);
 
-    for i in 1..32u32 {
+    for i in 0..32u32 {
         let commitment_randomness = jubjub::Fr::random(&mut rng);
         let mut leaves = vec![];
 
@@ -494,7 +468,7 @@ fn test_variable_sized_append_circuit_with_bls12_381() {
             assert_eq!(cs.get_input(1, "old Merkle tree size/input num"), old_size_scalar);
             assert_eq!(cs.get_input(2, "old root/input variable"), bls12_381::Scalar::from(old_root));
             for m in 0..i {
-                assert_eq!(cs.get_input(3+(m as usize), &format!("initialize level 0/input {}/input num", m)), bls12_381::Scalar::from(leaves[old_size+(m as usize)]));
+                assert_eq!(cs.get_input(3+(m as usize), &format!("input {}/input num", m)), bls12_381::Scalar::from(leaves[old_size+(m as usize)]));
             }
             assert_eq!(
                 cs.get_input(3+(i as usize), "new root/input variable"),
