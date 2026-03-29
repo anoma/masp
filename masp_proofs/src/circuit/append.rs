@@ -213,11 +213,13 @@ impl Circuit<bls12_381::Scalar> for Append {
         
         // Build the first level of the tree from the public inputs
         let mut prev_level = vec![];
-        let mut level = vec![];
+        let mut new_cmus = vec![];
         for (i, e) in self.new_cmus.into_iter().enumerate() {
-            let input = num::AllocatedNum::alloc_input(cs.namespace(|| format!("input {}", i)), || Ok(*e.get()?))?;
-            level.push(input);
+            let input = num::AllocatedNum::alloc(cs.namespace(|| format!("input {}", i)), || Ok(*e.get()?))?;
+            new_cmus.push(input);
         }
+        let mut level = new_cmus.clone();
+        
         let mut height = 0;
         // Build more tree levels until we hit a subtree containing all the new cmus
         while level.len() > 1 && !path_elements.is_empty() {
@@ -327,6 +329,25 @@ impl Circuit<bls12_381::Scalar> for Append {
         }
         // Expose the new root
         cur.inputize(cs.namespace(|| "new root"))?;
+        // Evaluate a polynomial on the root hash
+        // Start evaluating polynomial on challenge point
+        let mut cmu_response = num::AllocatedNum::alloc(cs.namespace(|| "zero"), || Ok(bls12_381::Scalar::from(0)))?;
+        // evaluation = 0
+        cs.enforce(|| "", |lc| lc, |lc| lc, |_| LinearCombination::from_variable(cmu_response.get_variable()));
+        for (i, cmu) in new_cmus.iter().enumerate().rev() {
+            // new_evaluation = evaluation*challenge + cmu
+            let partial_cmu_response = num::AllocatedNum::alloc(
+                cs.namespace(|| format!("partial cmu response {}", i)),
+                || Ok(cmu_response.get_value().get()? * cur.get_value().get()? + cmu.get_value().get()?),
+            )?;
+            let la = LinearCombination::from_variable(cmu_response.get_variable());
+            let lb = LinearCombination::from_variable(cur.get_variable());
+            let lc = LinearCombination::from_variable(partial_cmu_response.get_variable()) - cmu.get_variable();
+            cs.enforce(|| format!("partial cmu response constraint {}", i), |_| la, |_| lb, |_| lc);
+            cmu_response = partial_cmu_response;
+        }
+        // Make the cmu response public
+        cmu_response.inputize(cs.namespace(|| "cmu response"))?;
         Ok(())
     }
 }
@@ -381,26 +402,26 @@ fn test_append_circuit_with_bls12_381() {
             instance.synthesize(&mut cs).unwrap();
 
             assert!(cs.is_satisfied());
-            assert_eq!(cs.num_constraints(), 168575);
+            assert_eq!(cs.num_constraints(), 168609);
             assert_eq!(
                 cs.hash(),
-                "b4608d6123a727fb31e09ef2567cc592cbbd9aff5c581b4819eb3e0434887ab9"
+                "e47757c56fe90372ba85bca37ff23e9c8989c190f19775276d21e53f5c879c0f"
             );
 
             for m in 0..SAPLING_COMMITMENT_TREE_DEPTH {
                 assert_eq!(cs.get(&format!("old merkle tree hash {}/path element/num", m)), auth_path[m].unwrap());
             }
-            assert_eq!(cs.num_inputs(), 36);
+            assert_eq!(cs.num_inputs(), 5);
             assert_eq!(cs.get_input(0, "ONE"), bls12_381::Scalar::ONE);
             assert_eq!(cs.get_input(1, "old Merkle tree size/input num"), old_size_scalar);
             assert_eq!(cs.get_input(2, "old root/input variable"), bls12_381::Scalar::from(old_root));
-            for m in 0..BATCH_SIZE {
-                assert_eq!(cs.get_input(3+m, &format!("input {}/input num", m)), bls12_381::Scalar::from(leaves[old_size+m]));
+            assert_eq!(cs.get_input(3, "new root/input variable"), bls12_381::Scalar::from(new_root));
+            let mut response = bls12_381::Scalar::ZERO;
+            for m in (0..BATCH_SIZE).rev() {
+                response *= bls12_381::Scalar::from(new_root);
+                response += bls12_381::Scalar::from(leaves[old_size+m]);
             }
-            assert_eq!(
-                cs.get_input(3+BATCH_SIZE, "new root/input variable"),
-                bls12_381::Scalar::from(new_root)
-            );
+            assert_eq!(cs.get_input(4, "cmu response/input variable"), response);
         }
     }
 }
@@ -446,6 +467,7 @@ fn test_variable_sized_append_circuit_with_bls12_381() {
             let mut cs = TestConstraintSystem::new();
             let auth_path: Vec<_> = auth_path.auth_path.iter().map(|x| Some(bls12_381::Scalar::from(x.0))).collect();
             let k = i as usize;
+            let challenge = bls12_381::Scalar::random(&mut rng);
 
             let instance = Append {
                 old_size: Some(old_size_scalar),
@@ -460,17 +482,20 @@ fn test_variable_sized_append_circuit_with_bls12_381() {
             for m in 0..SAPLING_COMMITMENT_TREE_DEPTH {
                 assert_eq!(cs.get(&format!("old merkle tree hash {}/path element/num", m)), auth_path[m].unwrap());
             }
-            assert_eq!(cs.num_inputs(), 4+(i as usize));
+            assert_eq!(cs.num_inputs(), 5);
             assert_eq!(cs.get_input(0, "ONE"), bls12_381::Scalar::ONE);
             assert_eq!(cs.get_input(1, "old Merkle tree size/input num"), old_size_scalar);
             assert_eq!(cs.get_input(2, "old root/input variable"), bls12_381::Scalar::from(old_root));
-            for m in 0..i {
-                assert_eq!(cs.get_input(3+(m as usize), &format!("input {}/input num", m)), bls12_381::Scalar::from(leaves[old_size+(m as usize)]));
-            }
             assert_eq!(
-                cs.get_input(3+(i as usize), "new root/input variable"),
+                cs.get_input(3, "new root/input variable"),
                 bls12_381::Scalar::from(new_root)
             );
+            let mut response = bls12_381::Scalar::ZERO;
+            for m in (0..i).rev() {
+                response *= bls12_381::Scalar::from(new_root);
+                response += bls12_381::Scalar::from(leaves[old_size+(m as usize)]);
+            }
+            assert_eq!(cs.get_input(4, "cmu response/input variable"), response);
         }
     }
 }
