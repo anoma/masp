@@ -103,6 +103,12 @@ name = "generate-output-calldata"
 [[example]]
 name = "generate-convert-calldata"
 
+[[example]]
+name = "generate-append-calldata"
+
+[[example]]
+name = "generate-append-parameters"
+
 [badges]
 maintenance = { status = "actively-developed" }
 

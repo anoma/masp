@@ -12,7 +12,7 @@ use crate::circuit::pedersen_hash;
 use masp_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
 
 pub const TREE_DEPTH: usize = SAPLING_COMMITMENT_TREE_DEPTH;
-pub const BATCH_SIZE: u8 = 32;
+pub const BATCH_SIZE: usize = 32;
 
 pub struct Append {
     /// Current size of the Merkle tree
@@ -349,8 +349,6 @@ fn test_append_circuit_with_bls12_381() {
         0xe5,
     ]);
 
-    let tree_depth = 32;
-
     for i in 0..64u32 {
         let commitment_randomness = jubjub::Fr::random(&mut rng);
         let mut leaves = vec![];
@@ -377,7 +375,7 @@ fn test_append_circuit_with_bls12_381() {
             let instance = Append {
                 old_size: Some(old_size_scalar),
                 auth_path: auth_path.clone(),
-                new_cmus: leaves[k..(k+(BATCH_SIZE as usize))].iter().map(|x| Some(bls12_381::Scalar::from(*x))).collect(),
+                new_cmus: leaves[k..(k+BATCH_SIZE)].iter().map(|x| Some(bls12_381::Scalar::from(*x))).collect(),
             };
 
             instance.synthesize(&mut cs).unwrap();
@@ -397,10 +395,10 @@ fn test_append_circuit_with_bls12_381() {
             assert_eq!(cs.get_input(1, "old Merkle tree size/input num"), old_size_scalar);
             assert_eq!(cs.get_input(2, "old root/input variable"), bls12_381::Scalar::from(old_root));
             for m in 0..BATCH_SIZE {
-                assert_eq!(cs.get_input(3+(m as usize), &format!("input {}/input num", m)), bls12_381::Scalar::from(leaves[old_size+(m as usize)]));
+                assert_eq!(cs.get_input(3+m, &format!("input {}/input num", m)), bls12_381::Scalar::from(leaves[old_size+m]));
             }
             assert_eq!(
-                cs.get_input(3+(BATCH_SIZE as usize), "new root/input variable"),
+                cs.get_input(3+BATCH_SIZE, "new root/input variable"),
                 bls12_381::Scalar::from(new_root)
             );
         }
@@ -425,7 +423,6 @@ fn test_variable_sized_append_circuit_with_bls12_381() {
         0xe5,
     ]);
 
-    let tree_depth = 32;
     let old_size = 11;
     let old_size_scalar = bls12_381::Scalar::from(old_size as u64);
 
