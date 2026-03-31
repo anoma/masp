@@ -1,6 +1,7 @@
 use super::masp_compute_value_balance;
 use crate::circuit::convert::Convert;
 use crate::circuit::sapling::{Output, Spend};
+use crate::circuit::append::Append;
 use bellman::{
     gadgets::multipack,
     groth16::{Parameters, PreparedVerifyingKey, Proof, create_random_proof, verify_proof},
@@ -21,6 +22,7 @@ use masp_primitives::{
 };
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
+use masp_primitives::merkle_tree::Hashable;
 
 /// A context object for creating the Sapling components of a Zcash transaction.
 pub struct SaplingProvingContext {
@@ -324,4 +326,49 @@ impl SaplingProvingContext {
             value_commitment_randomness_generator(),
         ))
     }
+}
+
+/// Create a new Merkle tree root by inserting new note commitments at the
+/// given path and also return a proof that the new root was computed
+/// correctly.
+#[allow(clippy::too_many_arguments)]
+pub fn append_proof(
+    merkle_path: MerklePath<Node>,
+    new_cmus: Vec<Node>,
+    proving_key: &Parameters<Bls12>,
+    verifying_key: &PreparedVerifyingKey<Bls12>,
+) -> Result<(Proof<Bls12>, Node), ()> {
+    // Initialize secure RNG
+    let mut rng = OsRng;
+
+    // We already have the full witness for our circuit
+    let instance = Append {
+        old_size: Some(merkle_path.position.into()),
+        auth_path: merkle_path
+            .auth_path
+            .iter()
+            .map(|(node, _b)| Some((*node).into()))
+            .collect(),
+        new_cmus: new_cmus.iter().map(|x| Some(bls12_381::Scalar::from(*x))).collect(),
+    };
+
+    // Create proof
+    let proof =
+        create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
+
+    // Try to verify the proof:
+    // Construct public input for circuit
+    let mut public_input = [bls12_381::Scalar::ZERO; 4];
+    public_input[0] = merkle_path.position.into();
+    public_input[1] = merkle_path.root(Node::blank()).into();
+    public_input[2] = merkle_path.batch_root(new_cmus.clone())?.into();
+    for cmu in new_cmus.iter().rev() {
+        public_input[3] *= public_input[2];
+        public_input[3] += bls12_381::Scalar::from(*cmu);
+    }
+
+    // Verify the proof
+    verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())?;
+
+    Ok((proof, Node::from_scalar(public_input[2])))
 }

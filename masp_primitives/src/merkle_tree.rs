@@ -784,6 +784,35 @@ impl<Node: Hashable> MerklePath<Node> {
                 },
             )
     }
+
+    /// Returns the root of the tree corresponding to this path applied to `level`.
+    /// I.e. `level` is inserted starting from sibling of the leaf node in the
+    /// authentication path. It is assumed that only empty nodes follow `level`.
+    /// Returns an error if `level` being at the position identified by this path
+    /// causes the tree to be too large.
+    pub fn batch_root(&self, mut level: Vec<Node>) -> Result<Node, ()> {
+        let mut next_level = Vec::new();
+        for (i, (p, leaf_is_on_right)) in self.auth_path.iter().enumerate() {
+            if level.len() == 1 && !*leaf_is_on_right {
+                next_level.push(Node::combine(i, &level[0], p));
+            } else {
+                if *leaf_is_on_right {
+                    level.insert(0, *p);
+                }
+                let blank = Node::empty_root(i);
+                for pair in level.chunks(2) {
+                    let ur = pair.get(1).unwrap_or(&blank);
+                    next_level.push(Node::combine(i, &pair[0], ur));
+                }
+            }
+            level = std::mem::take(&mut next_level);
+        }
+        if level.len() == 1 {
+            Ok(level[0])
+        } else {
+            Err(())
+        }
+    }
 }
 
 impl<Node: Hashable> BorshDeserialize for MerklePath<Node> {
