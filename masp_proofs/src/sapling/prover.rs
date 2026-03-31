@@ -331,7 +331,6 @@ impl SaplingProvingContext {
 /// Create a new Merkle tree root by inserting new note commitments at the
 /// given path and also return a proof that the new root was computed
 /// correctly.
-#[allow(clippy::too_many_arguments)]
 pub fn append_proof(
     merkle_path: MerklePath<Node>,
     new_cmus: Vec<Node>,

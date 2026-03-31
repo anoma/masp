@@ -15,11 +15,11 @@ use masp_primitives::{
 };
 use std::path::Path;
 
-use crate::{parse_parameters, sapling::SaplingProvingContext};
+use crate::{parse_parameters, sapling::{append_proof, SaplingProvingContext}};
 
 #[cfg(feature = "local-prover")]
 use crate::{
-    MASP_CONVERT_NAME, MASP_OUTPUT_NAME, MASP_SPEND_NAME, default_params_folder, load_parameters,
+    MASP_CONVERT_NAME, MASP_OUTPUT_NAME, MASP_SPEND_NAME, MASP_APPEND_NAME, default_params_folder, load_parameters,
 };
 
 /// An implementation of [`TxProver`] using Sapling Spend and Output parameters from
@@ -30,6 +30,8 @@ pub struct LocalTxProver {
     output_params: Parameters<Bls12>,
     convert_params: Parameters<Bls12>,
     convert_vk: PreparedVerifyingKey<Bls12>,
+    append_params: Parameters<Bls12>,
+    append_vk: PreparedVerifyingKey<Bls12>,
 }
 
 impl LocalTxProver {
@@ -45,6 +47,7 @@ impl LocalTxProver {
     ///     Path::new("/path/to/masp-spend.params"),
     ///     Path::new("/path/to/masp-output.params"),
     ///     Path::new("/path/to/masp-convert.params"),
+    ///     Path::new("/path/to/masp-append.params"),
     /// );
     /// ```
     ///
@@ -52,14 +55,16 @@ impl LocalTxProver {
     ///
     /// This function will panic if the paths do not point to valid parameter files with
     /// the expected hashes.
-    pub fn new(spend_path: &Path, output_path: &Path, convert_path: &Path) -> Self {
-        let p = load_parameters(spend_path, output_path, convert_path);
+    pub fn new(spend_path: &Path, output_path: &Path, convert_path: &Path, append_path: &Path) -> Self {
+        let p = load_parameters(spend_path, output_path, convert_path, append_path);
         LocalTxProver {
             spend_params: p.spend_params,
             spend_vk: p.spend_vk,
             output_params: p.output_params,
             convert_params: p.convert_params,
             convert_vk: p.convert_vk,
+            append_params: p.append_params,
+            append_vk: p.append_vk,
         }
     }
 
@@ -82,8 +87,9 @@ impl LocalTxProver {
         spend_param_bytes: &[u8],
         output_param_bytes: &[u8],
         convert_param_bytes: &[u8],
+        append_param_bytes: &[u8],
     ) -> Self {
-        let p = parse_parameters(spend_param_bytes, output_param_bytes, convert_param_bytes);
+        let p = parse_parameters(spend_param_bytes, output_param_bytes, convert_param_bytes, append_param_bytes);
 
         LocalTxProver {
             spend_params: p.spend_params,
@@ -91,6 +97,8 @@ impl LocalTxProver {
             output_params: p.output_params,
             convert_params: p.convert_params,
             convert_vk: p.convert_vk,
+            append_params: p.append_params,
+            append_vk: p.append_vk,
         }
     }
 
@@ -119,20 +127,21 @@ impl LocalTxProver {
     #[cfg_attr(docsrs, doc(cfg(feature = "local-prover")))]
     pub fn with_default_location() -> Option<Self> {
         let params_dir = default_params_folder()?;
-        let (spend_path, output_path, convert_path) = if params_dir.exists() {
+        let (spend_path, output_path, convert_path, append_path) = if params_dir.exists() {
             (
                 params_dir.join(MASP_SPEND_NAME),
                 params_dir.join(MASP_OUTPUT_NAME),
                 params_dir.join(MASP_CONVERT_NAME),
+                params_dir.join(MASP_APPEND_NAME),
             )
         } else {
             return None;
         };
-        if !(spend_path.exists() && output_path.exists() && convert_path.exists()) {
+        if !(spend_path.exists() && output_path.exists() && convert_path.exists() && append_path.exists()) {
             return None;
         }
 
-        Some(LocalTxProver::new(&spend_path, &output_path, &convert_path))
+        Some(LocalTxProver::new(&spend_path, &output_path, &convert_path, &append_path))
     }
 
     // /// Creates a `LocalTxProver` using Sapling parameters bundled inside the binary.
@@ -248,6 +257,26 @@ impl TxProver for LocalTxProver {
             .expect("should be able to serialize a proof");
 
         Ok((zkproof, cv))
+    }
+
+    fn append_proof(
+        &self,
+        merkle_path: MerklePath<Node>,
+        new_cmus: Vec<Node>,
+    ) -> Result<([u8; GROTH_PROOF_SIZE], Node), ()> {
+        let (proof, new_root) = append_proof(
+            merkle_path,
+            new_cmus,
+            &self.append_params,
+            &self.append_vk,
+        )?;
+
+        let mut zkproof = [0u8; GROTH_PROOF_SIZE];
+        proof
+            .write(&mut zkproof[..])
+            .expect("should be able to serialize a proof");
+
+        Ok((zkproof, new_root))
     }
 
     fn binding_sig(
