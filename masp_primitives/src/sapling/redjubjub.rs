@@ -116,6 +116,14 @@ impl Signature {
         writer.write_all(&self.rbar)?;
         writer.write_all(&self.sbar)
     }
+
+    pub fn rbar(&self) -> [u8; 32] {
+        self.rbar
+    }
+
+    pub fn sbar(&self) -> [u8; 32] {
+        self.sbar
+    }
 }
 
 impl PrivateKey {
