@@ -1,14 +1,14 @@
-use bellman::SynthesisError;
-use bellman::ConstraintSystem;
-use bellman::gadgets::{Assignment, num};
+use crate::circuit::pedersen_hash;
 use bellman::Circuit;
-use bellman::gadgets::boolean::{AllocatedBit, Boolean};
+use bellman::ConstraintSystem;
 use bellman::LinearCombination;
+use bellman::SynthesisError;
+use bellman::gadgets::boolean::{AllocatedBit, Boolean};
+use bellman::gadgets::{Assignment, num};
 use bls12_381::Scalar;
 use group::ff::Field;
-use masp_primitives::sapling::Node;
 use masp_primitives::merkle_tree::Hashable;
-use crate::circuit::pedersen_hash;
+use masp_primitives::sapling::Node;
 use masp_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
 
 pub const TREE_DEPTH: usize = SAPLING_COMMITMENT_TREE_DEPTH;
@@ -40,27 +40,33 @@ pub fn constrain_to_boolean_vec_le<CS: ConstraintSystem<bls12_381::Scalar>>(
             let bytes = value.to_bytes_le();
             let bit_width: usize = bit_width.into();
             // Bits beyond the given bit width not allowed
-            if bytes[bit_width/8] >> (bit_width % 8) != 0 {
-                return Err(SynthesisError::Unsatisfiable)
+            if bytes[bit_width / 8] >> (bit_width % 8) != 0 {
+                return Err(SynthesisError::Unsatisfiable);
             }
             // Bytes beyond the given bit width not allowed
-            for byte in bytes.iter().skip((bit_width+7)/8) {
+            for byte in bytes.iter().skip((bit_width + 7) / 8) {
                 if *byte != 0 {
-                    return Err(SynthesisError::Unsatisfiable)
+                    return Err(SynthesisError::Unsatisfiable);
                 }
             }
             // Finally allocate bits within the bit width
             for i in 0..bit_width {
-                let mask = 1 << (i%8);
-                let bit = bytes[i/8] & mask != 0;
-                bits.push(AllocatedBit::alloc(cs.namespace(|| format!("bit {}", i)), Some(bit))?);
+                let mask = 1 << (i % 8);
+                let bit = bytes[i / 8] & mask != 0;
+                bits.push(AllocatedBit::alloc(
+                    cs.namespace(|| format!("bit {}", i)),
+                    Some(bit),
+                )?);
             }
-        },
-        
+        }
+
         None => {
             // Allocate bits within the bit width
             for i in 0..bit_width {
-                bits.push(AllocatedBit::alloc(cs.namespace(|| format!("bit {}", i)), None)?);
+                bits.push(AllocatedBit::alloc(
+                    cs.namespace(|| format!("bit {}", i)),
+                    None,
+                )?);
             }
         }
     }
@@ -89,12 +95,18 @@ pub fn ternary_constraint<CS: ConstraintSystem<bls12_381::Scalar>>(
     alternate: &num::AllocatedNum<bls12_381::Scalar>,
 ) -> Result<num::AllocatedNum<bls12_381::Scalar>, SynthesisError> {
     // The variable that will hold result of evaluating ternary expression
-    let ternary = num::AllocatedNum::alloc(
-        cs.namespace(|| "ternary"),
-        || Ok(*if *condition.get_value().get()? { consequent } else { alternate }.get_value().get()?),
-    )?;
+    let ternary = num::AllocatedNum::alloc(cs.namespace(|| "ternary"), || {
+        Ok(*if *condition.get_value().get()? {
+            consequent
+        } else {
+            alternate
+        }
+        .get_value()
+        .get()?)
+    })?;
     let lca = condition.lc(CS::one(), bls12_381::Scalar::ONE);
-    let lcb = LinearCombination::from_variable(consequent.get_variable()) - alternate.get_variable();
+    let lcb =
+        LinearCombination::from_variable(consequent.get_variable()) - alternate.get_variable();
     let lcc = LinearCombination::from_variable(ternary.get_variable()) - alternate.get_variable();
     // ternary = condition*consequent + (1-condition)*input
     cs.enforce(|| "ternary constraint", |_| lca, |_| lcb, |_| lcc);
@@ -113,10 +125,20 @@ pub fn conditionally_shift_leaves<CS: ConstraintSystem<bls12_381::Scalar>>(
     mut prev: num::AllocatedNum<bls12_381::Scalar>,
     level: Vec<num::AllocatedNum<bls12_381::Scalar>>,
     empty_root: num::AllocatedNum<bls12_381::Scalar>,
-) -> Result<(Vec<num::AllocatedNum<bls12_381::Scalar>>, num::AllocatedNum<bls12_381::Scalar>), SynthesisError> {
+) -> Result<
+    (
+        Vec<num::AllocatedNum<bls12_381::Scalar>>,
+        num::AllocatedNum<bls12_381::Scalar>,
+    ),
+    SynthesisError,
+> {
     let mut shifted_level = vec![];
     // Make a shifted level
-    for (i, input) in level.into_iter().chain(std::iter::once(empty_root)).enumerate() {
+    for (i, input) in level
+        .into_iter()
+        .chain(std::iter::once(empty_root))
+        .enumerate()
+    {
         let shifted_input = ternary_constraint(
             cs.namespace(|| format!("shift constraint {}", i)),
             cur_is_right,
@@ -158,11 +180,16 @@ impl Circuit<bls12_381::Scalar> for Append {
         // First verify that the authentication path is valid. I.e. it places
         // an empty node at the position size into the old root
         // Allocate the tree size that will be exposed.
-        let old_size = num::AllocatedNum::alloc_input(cs.namespace(|| "old Merkle tree size"), || {
-            Ok(*self.old_size.get()?)
-        })?;
+        let old_size =
+            num::AllocatedNum::alloc_input(cs.namespace(|| "old Merkle tree size"), || {
+                Ok(*self.old_size.get()?)
+            })?;
         // Convert the tree size to bits
-        let depth = self.auth_path.len().try_into().expect("tree depth should fit in u8");
+        let depth = self
+            .auth_path
+            .len()
+            .try_into()
+            .expect("tree depth should fit in u8");
         let old_size_bits = constrain_to_boolean_vec_le(cs, old_size, depth)?;
 
         // This is an injective encoding, as cur is a
@@ -179,7 +206,7 @@ impl Circuit<bls12_381::Scalar> for Append {
             // at this depth.
             let path_element =
                 num::AllocatedNum::alloc(cs.namespace(|| "path element"), || Ok(*e.get()?))?;
-            
+
             // Swap the two if the current subtree is on the right
             let (ul, ur) = num::AllocatedNum::conditionally_reverse(
                 cs.namespace(|| "conditional reversal of preimage"),
@@ -187,7 +214,7 @@ impl Circuit<bls12_381::Scalar> for Append {
                 &path_element,
                 cur_is_right,
             )?;
-            
+
             // We don't need to be strict, because the function is
             // collision-resistant. If the prover witnesses a congruency,
             // they will be unable to find an authentication path in the
@@ -203,23 +230,27 @@ impl Circuit<bls12_381::Scalar> for Append {
                 &preimage,
             )?
             .get_u()
-                .clone(); // Injective encoding
+            .clone(); // Injective encoding
             // Store path element for the computation of new root
             path_elements.push(path_element);
         }
 
         // Expose the old root
         cur.inputize(cs.namespace(|| "old root"))?;
-        
+
         // Build the first level of the tree from the public inputs
         let mut prev_level = vec![];
         let mut new_cmus = vec![];
         for (i, e) in self.new_cmus.into_iter().enumerate() {
-            let input = num::AllocatedNum::alloc(cs.namespace(|| format!("input {}", i)), || Ok(*e.get()?))?;
+            let input =
+                num::AllocatedNum::alloc(
+                    cs.namespace(|| format!("input {}", i)),
+                    || Ok(*e.get()?),
+                )?;
             new_cmus.push(input);
         }
         let mut level = new_cmus.clone();
-        
+
         let mut height = 0;
         // Build more tree levels until we hit a subtree containing all the new cmus
         while level.len() > 1 && !path_elements.is_empty() {
@@ -238,7 +269,7 @@ impl Circuit<bls12_381::Scalar> for Append {
             if prev_level.len() == 3 {
                 // Determines if the previous subtree is the "right" leaf at this
                 // depth of the tree.
-                let prev_is_right = &old_size_bits[height-1];
+                let prev_is_right = &old_size_bits[height - 1];
                 let condition = Boolean::and(
                     cs.namespace(|| format!("overwrite last hash in level {}", height)),
                     &cur_is_right.not(),
@@ -272,7 +303,8 @@ impl Circuit<bls12_381::Scalar> for Append {
                 // they will be unable to find an authentication path in the
                 // tree with high probability.
                 let mut preimage = vec![];
-                preimage.extend(pair[0].to_bits_le(cs.namespace(|| format!("ul {} into bits", j)))?);
+                preimage
+                    .extend(pair[0].to_bits_le(cs.namespace(|| format!("ul {} into bits", j)))?);
                 preimage.extend(ur.to_bits_le(cs.namespace(|| format!("ur {} into bits", j)))?);
 
                 // Compute the new subtree value
@@ -281,8 +313,8 @@ impl Circuit<bls12_381::Scalar> for Append {
                     pedersen_hash::Personalization::MerkleTree(height),
                     &preimage,
                 )?
-                    .get_u()
-                    .clone(); // Injective encoding
+                .get_u()
+                .clone(); // Injective encoding
                 // Build up the next level
                 level.push(cur);
             }
@@ -290,7 +322,10 @@ impl Circuit<bls12_381::Scalar> for Append {
             height += 1;
         }
         // Push to next level in case it's empty before the removal
-        level.push(alloc_empty_root(cs.namespace(|| format!("empty root to compute level {}", height)), height)?);
+        level.push(alloc_empty_root(
+            cs.namespace(|| format!("empty root to compute level {}", height)),
+            height,
+        )?);
         // The first element is the first root containing all the new cmus
         cur = level.remove(0);
         // Finally compute the new root by ascending the remaining merkle
@@ -300,7 +335,7 @@ impl Circuit<bls12_381::Scalar> for Append {
             // Determines if the current subtree is the "right" leaf at this
             // depth of the tree.
             let cur_is_right = &old_size_bits[height];
-            
+
             // Swap the two if the current subtree is on the right
             let (ul, ur) = num::AllocatedNum::conditionally_reverse(
                 cs.namespace(|| "conditional reversal of preimage"),
@@ -308,7 +343,7 @@ impl Circuit<bls12_381::Scalar> for Append {
                 &path_element,
                 cur_is_right,
             )?;
-            
+
             // We don't need to be strict, because the function is
             // collision-resistant. If the prover witnesses a congruency,
             // they will be unable to find an authentication path in the
@@ -324,26 +359,41 @@ impl Circuit<bls12_381::Scalar> for Append {
                 &preimage,
             )?
             .get_u()
-                .clone(); // Injective encoding
+            .clone(); // Injective encoding
             height += 1;
         }
         // Expose the new root
         cur.inputize(cs.namespace(|| "new root"))?;
         // Evaluate a polynomial on the root hash
         // Start evaluating polynomial on challenge point
-        let mut cmu_response = num::AllocatedNum::alloc(cs.namespace(|| "zero"), || Ok(bls12_381::Scalar::from(0)))?;
+        let mut cmu_response =
+            num::AllocatedNum::alloc(cs.namespace(|| "zero"), || Ok(bls12_381::Scalar::from(0)))?;
         // evaluation = 0
-        cs.enforce(|| "", |lc| lc, |lc| lc, |_| LinearCombination::from_variable(cmu_response.get_variable()));
+        cs.enforce(
+            || "",
+            |lc| lc,
+            |lc| lc,
+            |_| LinearCombination::from_variable(cmu_response.get_variable()),
+        );
         for (i, cmu) in new_cmus.iter().enumerate().rev() {
             // new_evaluation = evaluation*challenge + cmu
             let partial_cmu_response = num::AllocatedNum::alloc(
                 cs.namespace(|| format!("partial cmu response {}", i)),
-                || Ok(cmu_response.get_value().get()? * cur.get_value().get()? + cmu.get_value().get()?),
+                || {
+                    Ok(cmu_response.get_value().get()? * cur.get_value().get()?
+                        + cmu.get_value().get()?)
+                },
             )?;
             let la = LinearCombination::from_variable(cmu_response.get_variable());
             let lb = LinearCombination::from_variable(cur.get_variable());
-            let lc = LinearCombination::from_variable(partial_cmu_response.get_variable()) - cmu.get_variable();
-            cs.enforce(|| format!("partial cmu response constraint {}", i), |_| la, |_| lb, |_| lc);
+            let lc = LinearCombination::from_variable(partial_cmu_response.get_variable())
+                - cmu.get_variable();
+            cs.enforce(
+                || format!("partial cmu response constraint {}", i),
+                |_| la,
+                |_| lb,
+                |_| lc,
+            );
             cmu_response = partial_cmu_response;
         }
         // Make the cmu response public
@@ -355,15 +405,12 @@ impl Circuit<bls12_381::Scalar> for Append {
 #[test]
 fn test_append_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use group::{Group, ff::Field, ff::PrimeFieldBits};
-    use masp_primitives::{
-        asset_type::AssetType,
-        sapling::{Diversifier, Note, ProofGenerationKey, Rseed, pedersen_hash},
-    };
-    use rand_core::{RngCore, SeedableRng};
-    use rand_xorshift::XorShiftRng;
+    use group::ff::Field;
+
     use masp_primitives::merkle_tree::FrozenCommitmentTree;
     use masp_primitives::sapling::Node;
+    use rand_core::SeedableRng;
+    use rand_xorshift::XorShiftRng;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -371,10 +418,9 @@ fn test_append_circuit_with_bls12_381() {
     ]);
 
     for i in 0..64u32 {
-        let commitment_randomness = jubjub::Fr::random(&mut rng);
         let mut leaves = vec![];
 
-        for j in 0..i {
+        for _j in 0..i {
             leaves.push(Node::from_scalar(bls12_381::Scalar::random(&mut rng)));
         }
         let old_tree = FrozenCommitmentTree::new(&leaves);
@@ -382,7 +428,7 @@ fn test_append_circuit_with_bls12_381() {
         let old_size = leaves.len();
         let old_size_scalar = bls12_381::Scalar::from(old_size as u64);
         let auth_path = old_tree.path(leaves.len());
-        for j in 0..BATCH_SIZE {
+        for _j in 0..BATCH_SIZE {
             leaves.push(Node::from_scalar(bls12_381::Scalar::random(&mut rng)));
         }
         let new_tree = FrozenCommitmentTree::new(&leaves);
@@ -390,13 +436,20 @@ fn test_append_circuit_with_bls12_381() {
 
         {
             let mut cs = TestConstraintSystem::new();
-            let auth_path: Vec<_> = auth_path.auth_path.iter().map(|x| Some(bls12_381::Scalar::from(x.0))).collect();
+            let auth_path: Vec<_> = auth_path
+                .auth_path
+                .iter()
+                .map(|x| Some(bls12_381::Scalar::from(x.0)))
+                .collect();
             let k = i as usize;
 
             let instance = Append {
                 old_size: Some(old_size_scalar),
                 auth_path: auth_path.clone(),
-                new_cmus: leaves[k..(k+BATCH_SIZE)].iter().map(|x| Some(bls12_381::Scalar::from(*x))).collect(),
+                new_cmus: leaves[k..(k + BATCH_SIZE)]
+                    .iter()
+                    .map(|x| Some(bls12_381::Scalar::from(*x)))
+                    .collect(),
             };
 
             instance.synthesize(&mut cs).unwrap();
@@ -408,18 +461,30 @@ fn test_append_circuit_with_bls12_381() {
                 "e47757c56fe90372ba85bca37ff23e9c8989c190f19775276d21e53f5c879c0f"
             );
 
-            for m in 0..SAPLING_COMMITMENT_TREE_DEPTH {
-                assert_eq!(cs.get(&format!("old merkle tree hash {}/path element/num", m)), auth_path[m].unwrap());
+            for (m, elt) in auth_path.iter().enumerate() {
+                assert_eq!(
+                    cs.get(&format!("old merkle tree hash {}/path element/num", m)),
+                    elt.unwrap()
+                );
             }
             assert_eq!(cs.num_inputs(), 5);
             assert_eq!(cs.get_input(0, "ONE"), bls12_381::Scalar::ONE);
-            assert_eq!(cs.get_input(1, "old Merkle tree size/input num"), old_size_scalar);
-            assert_eq!(cs.get_input(2, "old root/input variable"), bls12_381::Scalar::from(old_root));
-            assert_eq!(cs.get_input(3, "new root/input variable"), bls12_381::Scalar::from(new_root));
+            assert_eq!(
+                cs.get_input(1, "old Merkle tree size/input num"),
+                old_size_scalar
+            );
+            assert_eq!(
+                cs.get_input(2, "old root/input variable"),
+                bls12_381::Scalar::from(old_root)
+            );
+            assert_eq!(
+                cs.get_input(3, "new root/input variable"),
+                bls12_381::Scalar::from(new_root)
+            );
             let mut response = bls12_381::Scalar::ZERO;
             for m in (0..BATCH_SIZE).rev() {
                 response *= bls12_381::Scalar::from(new_root);
-                response += bls12_381::Scalar::from(leaves[old_size+m]);
+                response += bls12_381::Scalar::from(leaves[old_size + m]);
             }
             assert_eq!(cs.get_input(4, "cmu response/input variable"), response);
         }
@@ -429,15 +494,12 @@ fn test_append_circuit_with_bls12_381() {
 #[test]
 fn test_variable_sized_append_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use group::{Group, ff::Field, ff::PrimeFieldBits};
-    use masp_primitives::{
-        asset_type::AssetType,
-        sapling::{Diversifier, Note, ProofGenerationKey, Rseed, pedersen_hash},
-    };
-    use rand_core::{RngCore, SeedableRng};
-    use rand_xorshift::XorShiftRng;
+    use group::ff::Field;
+
     use masp_primitives::merkle_tree::FrozenCommitmentTree;
     use masp_primitives::sapling::Node;
+    use rand_core::SeedableRng;
+    use rand_xorshift::XorShiftRng;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -448,16 +510,15 @@ fn test_variable_sized_append_circuit_with_bls12_381() {
     let old_size_scalar = bls12_381::Scalar::from(old_size as u64);
 
     for i in 0..32u32 {
-        let commitment_randomness = jubjub::Fr::random(&mut rng);
         let mut leaves = vec![];
 
-        for j in 0..old_size {
+        for _j in 0..old_size {
             leaves.push(Node::from_scalar(bls12_381::Scalar::random(&mut rng)));
         }
         let old_tree = FrozenCommitmentTree::new(&leaves);
         let old_root = old_tree.root();
         let auth_path = old_tree.path(leaves.len());
-        for j in 0..i {
+        for _j in 0..i {
             leaves.push(Node::from_scalar(bls12_381::Scalar::random(&mut rng)));
         }
         let new_tree = FrozenCommitmentTree::new(&leaves);
@@ -465,27 +526,41 @@ fn test_variable_sized_append_circuit_with_bls12_381() {
 
         {
             let mut cs = TestConstraintSystem::new();
-            let auth_path: Vec<_> = auth_path.auth_path.iter().map(|x| Some(bls12_381::Scalar::from(x.0))).collect();
-            let k = i as usize;
-            let challenge = bls12_381::Scalar::random(&mut rng);
+            let auth_path: Vec<_> = auth_path
+                .auth_path
+                .iter()
+                .map(|x| Some(bls12_381::Scalar::from(x.0)))
+                .collect();
 
             let instance = Append {
                 old_size: Some(old_size_scalar),
                 auth_path: auth_path.clone(),
-                new_cmus: leaves[old_size..(old_size+(i as usize))].iter().map(|x| Some(bls12_381::Scalar::from(*x))).collect(),
+                new_cmus: leaves[old_size..(old_size + (i as usize))]
+                    .iter()
+                    .map(|x| Some(bls12_381::Scalar::from(*x)))
+                    .collect(),
             };
 
             instance.synthesize(&mut cs).unwrap();
 
             assert!(cs.is_satisfied());
 
-            for m in 0..SAPLING_COMMITMENT_TREE_DEPTH {
-                assert_eq!(cs.get(&format!("old merkle tree hash {}/path element/num", m)), auth_path[m].unwrap());
+            for (m, elt) in auth_path.iter().enumerate() {
+                assert_eq!(
+                    cs.get(&format!("old merkle tree hash {}/path element/num", m)),
+                    elt.unwrap()
+                );
             }
             assert_eq!(cs.num_inputs(), 5);
             assert_eq!(cs.get_input(0, "ONE"), bls12_381::Scalar::ONE);
-            assert_eq!(cs.get_input(1, "old Merkle tree size/input num"), old_size_scalar);
-            assert_eq!(cs.get_input(2, "old root/input variable"), bls12_381::Scalar::from(old_root));
+            assert_eq!(
+                cs.get_input(1, "old Merkle tree size/input num"),
+                old_size_scalar
+            );
+            assert_eq!(
+                cs.get_input(2, "old root/input variable"),
+                bls12_381::Scalar::from(old_root)
+            );
             assert_eq!(
                 cs.get_input(3, "new root/input variable"),
                 bls12_381::Scalar::from(new_root)
@@ -493,7 +568,7 @@ fn test_variable_sized_append_circuit_with_bls12_381() {
             let mut response = bls12_381::Scalar::ZERO;
             for m in (0..i).rev() {
                 response *= bls12_381::Scalar::from(new_root);
-                response += bls12_381::Scalar::from(leaves[old_size+(m as usize)]);
+                response += bls12_381::Scalar::from(leaves[old_size + (m as usize)]);
             }
             assert_eq!(cs.get_input(4, "cmu response/input variable"), response);
         }

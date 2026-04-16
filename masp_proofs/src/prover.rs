@@ -15,11 +15,15 @@ use masp_primitives::{
 };
 use std::path::Path;
 
-use crate::{parse_parameters, sapling::{append_proof, SaplingProvingContext}};
+use crate::{
+    parse_parameters,
+    sapling::{SaplingProvingContext, append_proof},
+};
 
 #[cfg(feature = "local-prover")]
 use crate::{
-    MASP_CONVERT_NAME, MASP_OUTPUT_NAME, MASP_SPEND_NAME, MASP_APPEND_NAME, default_params_folder, load_parameters,
+    MASP_APPEND_NAME, MASP_CONVERT_NAME, MASP_OUTPUT_NAME, MASP_SPEND_NAME, default_params_folder,
+    load_parameters,
 };
 
 /// An implementation of [`TxProver`] using Sapling Spend and Output parameters from
@@ -55,7 +59,12 @@ impl LocalTxProver {
     ///
     /// This function will panic if the paths do not point to valid parameter files with
     /// the expected hashes.
-    pub fn new(spend_path: &Path, output_path: &Path, convert_path: &Path, append_path: &Path) -> Self {
+    pub fn new(
+        spend_path: &Path,
+        output_path: &Path,
+        convert_path: &Path,
+        append_path: &Path,
+    ) -> Self {
         let p = load_parameters(spend_path, output_path, convert_path, append_path);
         LocalTxProver {
             spend_params: p.spend_params,
@@ -89,7 +98,12 @@ impl LocalTxProver {
         convert_param_bytes: &[u8],
         append_param_bytes: &[u8],
     ) -> Self {
-        let p = parse_parameters(spend_param_bytes, output_param_bytes, convert_param_bytes, append_param_bytes);
+        let p = parse_parameters(
+            spend_param_bytes,
+            output_param_bytes,
+            convert_param_bytes,
+            append_param_bytes,
+        );
 
         LocalTxProver {
             spend_params: p.spend_params,
@@ -137,11 +151,20 @@ impl LocalTxProver {
         } else {
             return None;
         };
-        if !(spend_path.exists() && output_path.exists() && convert_path.exists() && append_path.exists()) {
+        if !(spend_path.exists()
+            && output_path.exists()
+            && convert_path.exists()
+            && append_path.exists())
+        {
             return None;
         }
 
-        Some(LocalTxProver::new(&spend_path, &output_path, &convert_path, &append_path))
+        Some(LocalTxProver::new(
+            &spend_path,
+            &output_path,
+            &convert_path,
+            &append_path,
+        ))
     }
 
     // /// Creates a `LocalTxProver` using Sapling parameters bundled inside the binary.
@@ -264,12 +287,8 @@ impl TxProver for LocalTxProver {
         merkle_path: MerklePath<Node>,
         new_cmus: Vec<Node>,
     ) -> Result<([u8; GROTH_PROOF_SIZE], Node), ()> {
-        let (proof, new_root) = append_proof(
-            merkle_path,
-            new_cmus,
-            &self.append_params,
-            &self.append_vk,
-        )?;
+        let (proof, new_root) =
+            append_proof(merkle_path, new_cmus, &self.append_params, &self.append_vk)?;
 
         let mut zkproof = [0u8; GROTH_PROOF_SIZE];
         proof

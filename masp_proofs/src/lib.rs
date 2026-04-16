@@ -357,7 +357,12 @@ pub fn load_parameters(
 /// Parse Bls12 keys from bytes as serialized by [`Parameters::write`].
 ///
 /// This function will panic if it encounters unparseable data.
-pub fn parse_parameters<R: io::Read>(spend_fs: R, output_fs: R, convert_fs: R, append_fs: R) -> MASPParameters {
+pub fn parse_parameters<R: io::Read>(
+    spend_fs: R,
+    output_fs: R,
+    convert_fs: R,
+    append_fs: R,
+) -> MASPParameters {
     let mut spend_fs = hashreader::HashReader::new(spend_fs);
     let mut output_fs = hashreader::HashReader::new(output_fs);
     let mut convert_fs = hashreader::HashReader::new(convert_fs);

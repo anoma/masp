@@ -1,7 +1,7 @@
 use super::masp_compute_value_balance;
+use crate::circuit::append::Append;
 use crate::circuit::convert::Convert;
 use crate::circuit::sapling::{Output, Spend};
-use crate::circuit::append::Append;
 use bellman::{
     gadgets::multipack,
     groth16::{Parameters, PreparedVerifyingKey, Proof, create_random_proof, verify_proof},
@@ -9,6 +9,7 @@ use bellman::{
 use bls12_381::Bls12;
 use group::ff::Field;
 use group::{Curve, GroupEncoding};
+use masp_primitives::merkle_tree::Hashable;
 use masp_primitives::{
     asset_type::AssetType,
     constants::{spending_key_generator, value_commitment_randomness_generator},
@@ -22,7 +23,6 @@ use masp_primitives::{
 };
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
-use masp_primitives::merkle_tree::Hashable;
 
 /// A context object for creating the Sapling components of a Zcash transaction.
 pub struct SaplingProvingContext {
@@ -348,7 +348,10 @@ pub fn append_proof(
             .iter()
             .map(|(node, _b)| Some((*node).into()))
             .collect(),
-        new_cmus: new_cmus.iter().map(|x| Some(bls12_381::Scalar::from(*x))).collect(),
+        new_cmus: new_cmus
+            .iter()
+            .map(|x| Some(bls12_381::Scalar::from(*x)))
+            .collect(),
     };
 
     // Create proof

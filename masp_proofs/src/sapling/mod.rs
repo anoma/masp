@@ -5,7 +5,7 @@ use masp_primitives::asset_type::AssetType;
 mod prover;
 mod verifier;
 
-pub use self::prover::{append_proof, SaplingProvingContext};
+pub use self::prover::{SaplingProvingContext, append_proof};
 pub use self::verifier::{
     BatchValidator, SaplingVerificationContext, SaplingVerificationContextInner,
 };
