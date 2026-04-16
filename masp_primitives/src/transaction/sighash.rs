@@ -1,9 +1,7 @@
 use std::convert::TryInto;
 
-use blake2b_simd::Hash as Blake2bHash;
-
 use super::{
-    Authorization, TransactionData, TxDigests, TxVersion,
+    Authorization, KeccakHash, TransactionData, TxDigests, TxVersion,
     components::{
         sapling::{self, GrothProofBytes},
         transparent,
@@ -38,7 +36,7 @@ impl SignableInput {
     }
 }
 
-pub struct SignatureHash(Blake2bHash);
+pub struct SignatureHash(KeccakHash);
 
 impl AsRef<[u8; 32]> for SignatureHash {
     fn as_ref(&self) -> &[u8; 32] {
@@ -67,7 +65,7 @@ pub fn signature_hash<
 >(
     tx: &TransactionData<A>,
     signable_input: &SignableInput,
-    txid_parts: &TxDigests<Blake2bHash>,
+    txid_parts: &TxDigests<KeccakHash>,
 ) -> SignatureHash {
     SignatureHash(match tx.version {
         TxVersion::MASPv5 => v5_signature_hash(tx, signable_input, txid_parts),

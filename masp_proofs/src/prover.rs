@@ -76,7 +76,7 @@ impl LocalTxProver {
     /// use std::path::Path;
     /// use masp_proofs::prover::LocalTxProver;
     ///
-    /// let tx_prover = LocalTxProver::from_bytes(&[0u8], &[0u8], &[0u8]);
+    /// let tx_prover = LocalTxProver::from_bytes(&[0u8], &[0u8], &[0u8], &[0u8]);
     /// ```
     ///
     /// # Panics

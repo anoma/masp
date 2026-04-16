@@ -2,11 +2,11 @@ use std::borrow::Borrow;
 use std::convert::TryFrom;
 use std::io::Write;
 
-use blake2b_simd::{Hash as Blake2bHash, Params, State};
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{LittleEndian, WriteBytesExt};
 use ff::PrimeField;
 use group::GroupEncoding;
+use sha3::{Digest, Keccak256};
 
 use crate::consensus::{BlockHeight, BranchId};
 
@@ -44,15 +44,52 @@ const ZCASH_AUTH_PERSONALIZATION_PREFIX: &[u8; 12] = b"ZTxAuthHash_";
 const ZCASH_TRANSPARENT_SCRIPTS_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxAuthTransHash";
 const ZCASH_SAPLING_SIGS_HASH_PERSONALIZATION: &[u8; 16] = b"ZTxAuthSapliHash";
 
-fn hasher(personal: &[u8; 16]) -> State {
-    Params::new().hash_length(32).personal(personal).to_state()
+/// Represents a Keccak hash
+#[derive(Copy, Clone)]
+pub struct KeccakHash([u8; 32]);
+
+impl KeccakHash {
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl AsRef<[u8]> for KeccakHash {
+    fn as_ref(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
+/// Structure to provide additional functionality to Keccak hasher
+struct Keccak256Adapter(Keccak256);
+
+impl Keccak256Adapter {
+    /// Retrieve result and consume hasher instance.
+    fn finalize(self) -> KeccakHash {
+        KeccakHash(self.0.finalize().into())
+    }
+}
+
+impl Write for Keccak256Adapter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.update(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn hasher(personal: &[u8; 16]) -> Keccak256Adapter {
+    Keccak256Adapter(Keccak256::new_with_prefix(personal))
 }
 
 /// Sequentially append the full serialized value of each transparent output
 /// to a hash personalized by ZCASH_OUTPUTS_HASH_PERSONALIZATION.
 /// In the case that no outputs are provided, this produces a default
 /// hash from just the personalization string.
-pub(crate) fn transparent_outputs_hash<T: Borrow<TxOut>>(vout: &[T]) -> Blake2bHash {
+pub(crate) fn transparent_outputs_hash<T: Borrow<TxOut>>(vout: &[T]) -> KeccakHash {
     let mut h = hasher(ZCASH_OUTPUTS_HASH_PERSONALIZATION);
     for t_out in vout {
         t_out.borrow().write(&mut h).unwrap();
@@ -69,7 +106,7 @@ pub(crate) fn transparent_inputs_hash<
     T: Borrow<TxIn<TransparentAuth>>,
 >(
     vin: &[T],
-) -> Blake2bHash {
+) -> KeccakHash {
     let mut h = hasher(ZCASH_INPUTS_HASH_PERSONALIZATION);
     for t_in in vin {
         let t_in = t_in.borrow();
@@ -89,7 +126,7 @@ pub(crate) fn transparent_inputs_hash<
 /// Then, hash these together personalized by ZCASH_SAPLING_SPENDS_HASH_PERSONALIZATION
 pub(crate) fn hash_sapling_spends<A: sapling::Authorization + PartialEq>(
     shielded_spends: &[SpendDescription<A>],
-) -> Blake2bHash {
+) -> KeccakHash {
     let mut h = hasher(ZCASH_SAPLING_SPENDS_HASH_PERSONALIZATION);
     if !shielded_spends.is_empty() {
         let mut ch = hasher(ZCASH_SAPLING_SPENDS_COMPACT_HASH_PERSONALIZATION);
@@ -118,7 +155,7 @@ pub(crate) fn hash_sapling_spends<A: sapling::Authorization + PartialEq>(
 ///
 pub(crate) fn hash_sapling_converts<Proof: Clone + PartialEq>(
     shielded_converts: &[ConvertDescription<Proof>],
-) -> Blake2bHash {
+) -> KeccakHash {
     let mut h = hasher(ZCASH_SAPLING_CONVERTS_HASH_PERSONALIZATION);
     if !shielded_converts.is_empty() {
         for s_convert in shielded_converts {
@@ -139,7 +176,7 @@ pub(crate) fn hash_sapling_converts<Proof: Clone + PartialEq>(
 /// Then, hash these together personalized with ZCASH_SAPLING_OUTPUTS_HASH_PERSONALIZATION
 pub(crate) fn hash_sapling_outputs<Proof: Clone>(
     shielded_outputs: &[OutputDescription<Proof>],
-) -> Blake2bHash {
+) -> KeccakHash {
     let mut h = hasher(ZCASH_SAPLING_OUTPUTS_HASH_PERSONALIZATION);
     if !shielded_outputs.is_empty() {
         let mut ch = hasher(ZCASH_SAPLING_OUTPUTS_COMPACT_HASH_PERSONALIZATION);
@@ -174,7 +211,7 @@ pub(crate) fn hash_sapling_outputs<Proof: Clone>(
 /// prevout and sequence_hash components of txid
 fn transparent_digests<A: transparent::Authorization>(
     bundle: &transparent::Bundle<A>,
-) -> TransparentDigests<Blake2bHash> {
+) -> TransparentDigests<KeccakHash> {
     TransparentDigests {
         inputs_digest: transparent_inputs_hash(&bundle.vin),
         outputs_digest: transparent_outputs_hash(&bundle.vout),
@@ -187,7 +224,7 @@ fn hash_header_txid_data(
     consensus_branch_id: BranchId,
     lock_time: u32,
     expiry_height: BlockHeight,
-) -> Blake2bHash {
+) -> KeccakHash {
     let mut h = hasher(ZCASH_HEADERS_HASH_PERSONALIZATION);
 
     h.write_u32::<LittleEndian>(version.header()).unwrap();
@@ -203,8 +240,8 @@ fn hash_header_txid_data(
 
 /// Implements [ZIP 244 section T.2](https://zips.z.cash/zip-0244#t-2-transparent-digest)
 pub(crate) fn hash_transparent_txid_data(
-    t_digests: Option<&TransparentDigests<Blake2bHash>>,
-) -> Blake2bHash {
+    t_digests: Option<&TransparentDigests<KeccakHash>>,
+) -> KeccakHash {
     let mut h = hasher(ZCASH_TRANSPARENT_HASH_PERSONALIZATION);
     if let Some(d) = t_digests {
         h.write_all(d.inputs_digest.as_bytes()).unwrap();
@@ -218,7 +255,7 @@ fn hash_sapling_txid_data<
     A: sapling::Authorization + PartialEq + BorshSerialize + BorshDeserialize,
 >(
     bundle: &sapling::Bundle<A>,
-) -> Blake2bHash {
+) -> KeccakHash {
     let mut h = hasher(ZCASH_SAPLING_HASH_PERSONALIZATION);
     if !(bundle.shielded_spends.is_empty()
         && bundle.shielded_converts.is_empty()
@@ -236,7 +273,7 @@ fn hash_sapling_txid_data<
     h.finalize()
 }
 
-fn hash_sapling_txid_empty() -> Blake2bHash {
+fn hash_sapling_txid_empty() -> KeccakHash {
     hasher(ZCASH_SAPLING_HASH_PERSONALIZATION).finalize()
 }
 
@@ -250,11 +287,11 @@ fn hash_sapling_txid_empty() -> Blake2bHash {
 pub struct TxIdDigester;
 
 impl<A: Authorization> TransactionDigest<A> for TxIdDigester {
-    type HeaderDigest = Blake2bHash;
-    type TransparentDigest = Option<TransparentDigests<Blake2bHash>>;
-    type SaplingDigest = Option<Blake2bHash>;
+    type HeaderDigest = KeccakHash;
+    type TransparentDigest = Option<TransparentDigests<KeccakHash>>;
+    type SaplingDigest = Option<KeccakHash>;
 
-    type Digest = TxDigests<Blake2bHash>;
+    type Digest = TxDigests<KeccakHash>;
 
     fn digest_header(
         &self,
@@ -297,10 +334,10 @@ impl<A: Authorization> TransactionDigest<A> for TxIdDigester {
 pub(crate) fn to_hash(
     _txversion: TxVersion,
     consensus_branch_id: BranchId,
-    header_digest: Blake2bHash,
-    transparent_digest: Blake2bHash,
-    sapling_digest: Option<Blake2bHash>,
-) -> Blake2bHash {
+    header_digest: KeccakHash,
+    transparent_digest: KeccakHash,
+    sapling_digest: Option<KeccakHash>,
+) -> KeccakHash {
     let mut personal = [0; 16];
     personal[..12].copy_from_slice(ZCASH_TX_PERSONALIZATION_PREFIX);
     (&mut personal[12..])
@@ -323,7 +360,7 @@ pub(crate) fn to_hash(
 pub fn to_txid(
     txversion: TxVersion,
     consensus_branch_id: BranchId,
-    digests: &TxDigests<Blake2bHash>,
+    digests: &TxDigests<KeccakHash>,
 ) -> TxId {
     let txid_digest = to_hash(
         txversion,
@@ -346,10 +383,10 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
     /// We use the header digest to pass the transaction ID into
     /// where it needs to be used for personalization string construction.
     type HeaderDigest = BranchId;
-    type TransparentDigest = Blake2bHash;
-    type SaplingDigest = Blake2bHash;
+    type TransparentDigest = KeccakHash;
+    type SaplingDigest = KeccakHash;
 
-    type Digest = Blake2bHash;
+    type Digest = KeccakHash;
 
     fn digest_header(
         &self,
@@ -364,7 +401,7 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
     fn digest_transparent(
         &self,
         transparent_bundle: Option<&transparent::Bundle<transparent::Authorized>>,
-    ) -> Blake2bHash {
+    ) -> KeccakHash {
         let mut h = hasher(ZCASH_TRANSPARENT_SCRIPTS_HASH_PERSONALIZATION);
         if let Some(bundle) = transparent_bundle {
             for txout in &bundle.vout {
@@ -379,7 +416,7 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
     fn digest_sapling(
         &self,
         sapling_bundle: Option<&sapling::Bundle<sapling::Authorized>>,
-    ) -> Blake2bHash {
+    ) -> KeccakHash {
         let mut h = hasher(ZCASH_SAPLING_SIGS_HASH_PERSONALIZATION);
         if let Some(bundle) = sapling_bundle {
             for spend in &bundle.shielded_spends {

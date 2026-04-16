@@ -1,7 +1,5 @@
-use blake2b_simd::Hash as Blake2bHash;
-
 use crate::transaction::{
-    Authorization, TransactionData, TransparentDigests, TxDigests,
+    Authorization, KeccakHash, TransactionData, TransparentDigests, TxDigests,
     sighash::{SignableInput, TransparentAuthorizingContext},
     transparent,
     txid::{hash_transparent_txid_data, to_hash},
@@ -9,9 +7,9 @@ use crate::transaction::{
 
 /// Implements [ZIP 244 section S.2](https://zips.z.cash/zip-0244#s-2-transparent-sig-digest).
 fn transparent_sig_digest<A: TransparentAuthorizingContext>(
-    tx_data: Option<(&transparent::Bundle<A>, &TransparentDigests<Blake2bHash>)>,
+    tx_data: Option<(&transparent::Bundle<A>, &TransparentDigests<KeccakHash>)>,
     _input: &SignableInput,
-) -> Blake2bHash {
+) -> KeccakHash {
     match tx_data {
         // No transparent inputs or outputs.
         None => hash_transparent_txid_data(None),
@@ -27,8 +25,8 @@ pub fn v5_signature_hash<
 >(
     tx: &TransactionData<A>,
     signable_input: &SignableInput,
-    txid_parts: &TxDigests<Blake2bHash>,
-) -> Blake2bHash {
+    txid_parts: &TxDigests<KeccakHash>,
+) -> KeccakHash {
     // The caller must provide the transparent digests if and only if the transaction has a
     // transparent component.
     assert_eq!(

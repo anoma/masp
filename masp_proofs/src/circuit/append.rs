@@ -44,8 +44,8 @@ pub fn constrain_to_boolean_vec_le<CS: ConstraintSystem<bls12_381::Scalar>>(
                 return Err(SynthesisError::Unsatisfiable)
             }
             // Bytes beyond the given bit width not allowed
-            for i in ((bit_width+7)/8)..32 {
-                if bytes[i] != 0 {
+            for byte in bytes.iter().skip((bit_width+7)/8) {
+                if *byte != 0 {
                     return Err(SynthesisError::Unsatisfiable)
                 }
             }
@@ -91,7 +91,7 @@ pub fn ternary_constraint<CS: ConstraintSystem<bls12_381::Scalar>>(
     // The variable that will hold result of evaluating ternary expression
     let ternary = num::AllocatedNum::alloc(
         cs.namespace(|| "ternary"),
-        || Ok(*if *condition.get_value().get()? { &consequent } else { &alternate }.get_value().get()?),
+        || Ok(*if *condition.get_value().get()? { consequent } else { alternate }.get_value().get()?),
     )?;
     let lca = condition.lc(CS::one(), bls12_381::Scalar::ONE);
     let lcb = LinearCombination::from_variable(consequent.get_variable()) - alternate.get_variable();
@@ -185,7 +185,7 @@ impl Circuit<bls12_381::Scalar> for Append {
                 cs.namespace(|| "conditional reversal of preimage"),
                 &cur,
                 &path_element,
-                &cur_is_right,
+                cur_is_right,
             )?;
             
             // We don't need to be strict, because the function is
@@ -306,7 +306,7 @@ impl Circuit<bls12_381::Scalar> for Append {
                 cs.namespace(|| "conditional reversal of preimage"),
                 &cur,
                 &path_element,
-                &cur_is_right,
+                cur_is_right,
             )?;
             
             // We don't need to be strict, because the function is

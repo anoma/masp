@@ -6,7 +6,6 @@ pub mod fees;
 pub mod sighash;
 pub mod sighash_v5;
 pub mod txid;
-use blake2b_simd::Hash as Blake2bHash;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ff::PrimeField;
 use memuse::DynamicUsage;
@@ -32,7 +31,7 @@ use self::{
         },
         transparent::{self, TxIn, TxOut},
     },
-    txid::{BlockTxCommitmentDigester, TxIdDigester, to_txid},
+    txid::{BlockTxCommitmentDigester, KeccakHash, TxIdDigester, to_txid},
 };
 use crate::MaybeArbitrary;
 use borsh::schema::Fields;
@@ -808,7 +807,7 @@ impl Transaction {
     }
 
     // TODO: should this be moved to `from_data` and stored?
-    pub fn auth_commitment(&self) -> Blake2bHash {
+    pub fn auth_commitment(&self) -> KeccakHash {
         self.data.digest(BlockTxCommitmentDigester)
     }
 }
