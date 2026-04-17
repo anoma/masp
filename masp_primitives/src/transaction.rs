@@ -674,8 +674,10 @@ impl Transaction {
         let v_convert_proofs = Array::read(&mut reader, n_converts, |r| sapling::read_zkproof(r))?;
         let v_output_proofs = Array::read(&mut reader, n_outputs, |r| sapling::read_zkproof(r))?;
 
-        let binding_sig = if n_spends > 0 || n_converts > 0 || n_outputs > 0 {
-            Some(redjubjub::Signature::read(&mut reader)?)
+        let binding_spends_auth_sig = if n_spends > 0 || n_converts > 0 || n_outputs > 0 {
+            let binding_sig = redjubjub::Signature::read(&mut reader)?;
+            let spends_auth_sig = redjubjub::Signature::read(&mut reader)?;
+            Some((binding_sig, spends_auth_sig))
         } else {
             None
         };
@@ -701,12 +703,12 @@ impl Transaction {
             .map(|(od_5, zkproof)| od_5.into_output_description(zkproof))
             .collect();
 
-        Ok(binding_sig.map(|binding_sig| sapling::Bundle {
+        Ok(binding_spends_auth_sig.map(|(binding_sig, spends_auth_sig)| sapling::Bundle {
             value_balance,
             shielded_spends,
             shielded_converts,
             shielded_outputs,
-            authorization: sapling::Authorized { binding_sig },
+            authorization: sapling::Authorized { binding_sig, spends_auth_sig },
         }))
     }
     pub fn write<W: Write>(&self, writer: W) -> io::Result<()> {
@@ -796,6 +798,7 @@ impl Transaction {
                 && bundle.shielded_outputs.is_empty())
             {
                 bundle.authorization.binding_sig.write(&mut writer)?;
+                bundle.authorization.spends_auth_sig.write(&mut writer)?;
             }
         } else {
             CompactSize::write(&mut writer, 0)?;

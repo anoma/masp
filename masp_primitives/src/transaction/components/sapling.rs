@@ -51,6 +51,7 @@ impl Authorization for Unproven {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
 pub struct Authorized {
     pub binding_sig: redjubjub::Signature,
+    pub spends_auth_sig: redjubjub::Signature,
 }
 
 impl Authorization for Authorized {

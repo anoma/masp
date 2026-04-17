@@ -1188,6 +1188,19 @@ impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
             .binding_sig(ctx, &self.value_balance, sighash_bytes)
             .map_err(|_| Error::BindingSig)?;
 
+        let mut asks = PrivateKey(jubjub::Fr::ZERO);
+        let mut ars = jubjub::Fr::ZERO;
+        for (i, spend) in self.shielded_spends.iter().enumerate() {
+            let ask = spend.spend_auth_sig
+                .extsk
+                .to_spending_key()
+                .expect("Spend authorization key must be known for each MASP spend.")
+                .expsk
+                .ask;
+            asks = PrivateKey(asks.0 + ask);
+            ars += bparams.spend_alpha(i);
+        }
+        let spends_auth_sig = spend_sig_internal(asks, ars, sighash_bytes, rng);
         Ok((
             Bundle {
                 shielded_spends: self
@@ -1206,7 +1219,7 @@ impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
                 shielded_converts: self.shielded_converts,
                 shielded_outputs: self.shielded_outputs,
                 value_balance: self.value_balance,
-                authorization: Authorized { binding_sig },
+                authorization: Authorized { binding_sig, spends_auth_sig },
             },
             self.authorization.tx_metadata,
         ))
