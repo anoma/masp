@@ -33,29 +33,16 @@ impl SaplingVerificationContext {
         anchor: bls12_381::Scalar,
         nullifier: &[u8; 32],
         rk: PublicKey,
-        sighash_value: &[u8; 32],
-        spend_auth_sig: Signature,
         zkproof: Proof<Bls12>,
         verifying_key: &PreparedVerifyingKey<Bls12>,
     ) -> bool {
-        let zip216_enabled = true;
         self.inner.check_spend(
             cv,
             anchor,
             nullifier,
             rk,
-            sighash_value,
-            spend_auth_sig,
             zkproof,
             &mut (),
-            |_, rk, msg, spend_auth_sig| {
-                rk.verify_with_zip216(
-                    &msg,
-                    &spend_auth_sig,
-                    spending_key_generator(),
-                    zip216_enabled,
-                )
-            },
             |_, proof, public_inputs| {
                 verify_proof(verifying_key, &proof, &public_inputs[..]).is_ok()
             },
@@ -99,24 +86,36 @@ impl SaplingVerificationContext {
     /// have been checked before calling this function.
     pub fn final_check(
         &self,
-        value_balance: I128Sum,
         sighash_value: &[u8; 32],
+        value_balance: I128Sum,
         binding_sig: Signature,
+        spend_auths_sig: Signature,
     ) -> bool {
         self.inner.final_check(
-            value_balance,
             sighash_value,
+            value_balance,
             binding_sig,
-            |bvk, msg, binding_sig| {
+            spend_auths_sig,
+            |msg, bvk, binding_sig, rks, spend_auths_sig| {
                 // Compute the signature's message for bvk/binding_sig
-                let mut data_to_be_signed = [0u8; 64];
-                data_to_be_signed[0..32].copy_from_slice(&bvk.0.to_bytes());
-                data_to_be_signed[32..64].copy_from_slice(msg);
+                let mut bvk_data_to_be_signed = [0u8; 64];
+                bvk_data_to_be_signed[0..32].copy_from_slice(&bvk.0.to_bytes());
+                bvk_data_to_be_signed[32..64].copy_from_slice(msg);
+
+                // Compute the signature's message for rks/spend_auths_sig
+                let mut rks_data_to_be_signed = [0u8; 64];
+                rks_data_to_be_signed[0..32].copy_from_slice(&rks.0.to_bytes());
+                rks_data_to_be_signed[32..64].copy_from_slice(msg);
 
                 bvk.verify_with_zip216(
-                    &data_to_be_signed,
+                    &bvk_data_to_be_signed,
                     &binding_sig,
                     value_commitment_randomness_generator(),
+                    self.zip216_enabled,
+                ) && rks.verify_with_zip216(
+                    &rks_data_to_be_signed,
+                    &spend_auths_sig,
+                    spending_key_generator(),
                     self.zip216_enabled,
                 )
             },

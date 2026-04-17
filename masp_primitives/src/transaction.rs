@@ -27,7 +27,7 @@ use self::{
     components::{
         amount::{I128Sum, ValueSum},
         sapling::{
-            self, ConvertDescriptionV5, OutputDescriptionV5, SpendDescription, SpendDescriptionV5,
+            self, ConvertDescriptionV5, OutputDescriptionV5, SpendDescriptionV5,
         },
         transparent::{self, TxIn, TxOut},
     },
@@ -668,26 +668,23 @@ impl Transaction {
         };
 
         let v_spend_proofs = Array::read(&mut reader, n_spends, |r| sapling::read_zkproof(r))?;
-        let v_spend_auth_sigs = Array::read(&mut reader, n_spends, |r| {
-            SpendDescription::read_spend_auth_sig(r)
-        })?;
         let v_convert_proofs = Array::read(&mut reader, n_converts, |r| sapling::read_zkproof(r))?;
         let v_output_proofs = Array::read(&mut reader, n_outputs, |r| sapling::read_zkproof(r))?;
 
-        let binding_spends_auth_sig = if n_spends > 0 || n_converts > 0 || n_outputs > 0 {
+        let binding_spend_auths_sig = if n_spends > 0 || n_converts > 0 || n_outputs > 0 {
             let binding_sig = redjubjub::Signature::read(&mut reader)?;
-            let spends_auth_sig = redjubjub::Signature::read(&mut reader)?;
-            Some((binding_sig, spends_auth_sig))
+            let spend_auths_sig = redjubjub::Signature::read(&mut reader)?;
+            Some((binding_sig, spend_auths_sig))
         } else {
             None
         };
 
         let shielded_spends = sd_v5s
             .into_iter()
-            .zip(v_spend_proofs.into_iter().zip(v_spend_auth_sigs))
-            .map(|(sd_5, (zkproof, spend_auth_sig))| {
+            .zip(v_spend_proofs)
+            .map(|(sd_5, zkproof)| {
                 // the following `unwrap` is safe because we know n_spends > 0.
-                sd_5.into_spend_description(spend_anchor.unwrap(), zkproof, spend_auth_sig)
+                sd_5.into_spend_description(spend_anchor.unwrap(), zkproof)
             })
             .collect();
 
@@ -703,12 +700,12 @@ impl Transaction {
             .map(|(od_5, zkproof)| od_5.into_output_description(zkproof))
             .collect();
 
-        Ok(binding_spends_auth_sig.map(|(binding_sig, spends_auth_sig)| sapling::Bundle {
+        Ok(binding_spend_auths_sig.map(|(binding_sig, spend_auths_sig)| sapling::Bundle {
             value_balance,
             shielded_spends,
             shielded_converts,
             shielded_outputs,
-            authorization: sapling::Authorized { binding_sig, spends_auth_sig },
+            authorization: sapling::Authorized { binding_sig, spend_auths_sig },
         }))
     }
     pub fn write<W: Write>(&self, writer: W) -> io::Result<()> {
@@ -775,11 +772,6 @@ impl Transaction {
                 bundle.shielded_spends.iter().map(|s| s.zkproof),
                 |w, e| w.write_all(e),
             )?;
-            Array::write(
-                &mut writer,
-                bundle.shielded_spends.iter().map(|s| s.spend_auth_sig),
-                |w, e| e.write(w),
-            )?;
 
             Array::write(
                 &mut writer,
@@ -798,7 +790,7 @@ impl Transaction {
                 && bundle.shielded_outputs.is_empty())
             {
                 bundle.authorization.binding_sig.write(&mut writer)?;
-                bundle.authorization.spends_auth_sig.write(&mut writer)?;
+                bundle.authorization.spend_auths_sig.write(&mut writer)?;
             }
         } else {
             CompactSize::write(&mut writer, 0)?;

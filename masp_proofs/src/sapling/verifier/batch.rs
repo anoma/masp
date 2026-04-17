@@ -94,23 +94,8 @@ impl BatchValidator {
                 spend.anchor,
                 &spend.nullifier.0,
                 spend.rk,
-                &sighash,
-                spend.spend_auth_sig,
                 zkproof,
                 self,
-                |this, rk, _, spend_auth_sig| {
-                    let rk = redjubjub::VerificationKeyBytes::<redjubjub::SpendAuth>::from(
-                        rk.0.to_bytes(),
-                    );
-                    let spend_auth_sig = {
-                        let mut buf = [0; 64];
-                        spend_auth_sig.write(&mut buf[..]).unwrap();
-                        redjubjub::Signature::<redjubjub::SpendAuth>::from(buf)
-                    };
-
-                    this.signatures.queue((rk, spend_auth_sig, &sighash));
-                    true
-                },
                 |this, proof, public_inputs| {
                     this.spend_proofs.queue(proof, public_inputs.to_vec());
                     true
@@ -174,10 +159,11 @@ impl BatchValidator {
 
         // Check the whole-bundle consensus rules, and batch the binding signature.
         ctx.final_check(
-            bundle.value_balance,
             &sighash,
+            bundle.value_balance,
             bundle.authorization.binding_sig,
-            |bvk, _, binding_sig| {
+            bundle.authorization.spend_auths_sig,
+            |_, bvk, binding_sig, rks, spend_auths_sig| {
                 let bvk =
                     redjubjub::VerificationKeyBytes::<redjubjub::Binding>::from(bvk.0.to_bytes());
                 let binding_sig = {
@@ -187,6 +173,16 @@ impl BatchValidator {
                 };
 
                 self.signatures.queue((bvk, binding_sig, &sighash));
+
+                let rks =
+                    redjubjub::VerificationKeyBytes::<redjubjub::SpendAuth>::from(rks.0.to_bytes());
+                let spend_auths_sig = {
+                    let mut buf = [0; 64];
+                    spend_auths_sig.write(&mut buf[..]).unwrap();
+                    redjubjub::Signature::<redjubjub::SpendAuth>::from(buf)
+                };
+
+                self.signatures.queue((rks, spend_auths_sig, &sighash));
                 true
             },
         )

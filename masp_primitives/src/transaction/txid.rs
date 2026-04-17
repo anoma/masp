@@ -423,10 +423,6 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
                 h.write_all(&spend.zkproof).unwrap();
             }
 
-            for spend in &bundle.shielded_spends {
-                spend.spend_auth_sig.write(&mut h).unwrap();
-            }
-
             for convert in &bundle.shielded_converts {
                 h.write_all(&convert.zkproof).unwrap();
             }
@@ -436,6 +432,7 @@ impl TransactionDigest<Authorized> for BlockTxCommitmentDigester {
             }
 
             bundle.authorization.binding_sig.write(&mut h).unwrap();
+            bundle.authorization.spend_auths_sig.write(&mut h).unwrap();
         }
         h.finalize()
     }

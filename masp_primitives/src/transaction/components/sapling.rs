@@ -51,12 +51,12 @@ impl Authorization for Unproven {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
 pub struct Authorized {
     pub binding_sig: redjubjub::Signature,
-    pub spends_auth_sig: redjubjub::Signature,
+    pub spend_auths_sig: redjubjub::Signature,
 }
 
 impl Authorization for Authorized {
     type Proof = GrothProofBytes;
-    type AuthSig = redjubjub::Signature;
+    type AuthSig = ();
 }
 
 pub trait MapAuth<A: Authorization, B: Authorization> {
@@ -267,7 +267,6 @@ impl SpendDescriptionV5 {
         self,
         anchor: bls12_381::Scalar,
         zkproof: GrothProofBytes,
-        spend_auth_sig: Signature,
     ) -> SpendDescription<Authorized> {
         SpendDescription {
             cv: self.cv,
@@ -275,7 +274,7 @@ impl SpendDescriptionV5 {
             nullifier: self.nullifier,
             rk: self.rk,
             zkproof,
-            spend_auth_sig,
+            spend_auth_sig: (),
         }
     }
 }
@@ -663,7 +662,6 @@ pub mod testing {
             zkproof in vec(any::<u8>(), GROTH_PROOF_SIZE)
                 .prop_map(|v| <[u8;GROTH_PROOF_SIZE]>::try_from(v.as_slice()).unwrap()),
             rng_seed in prop::array::uniform32(prop::num::u8::ANY),
-            fake_sighash_bytes in prop::array::uniform32(prop::num::u8::ANY),
         ) -> SpendDescription<Authorized> {
             let mut rng = StdRng::from_seed(rng_seed);
             let sk1 = PrivateKey(jubjub::Fr::random(&mut rng));
@@ -674,7 +672,7 @@ pub mod testing {
                 nullifier,
                 rk,
                 zkproof,
-                spend_auth_sig: sk1.sign(&fake_sighash_bytes, &mut rng, spending_key_generator()),
+                spend_auth_sig: (),
             }
         }
     }
@@ -714,12 +712,14 @@ pub mod testing {
             value_balance in arb_i128_sum(),
             rng_seed in prop::array::uniform32(prop::num::u8::ANY),
             fake_bvk_bytes in prop::array::uniform32(prop::num::u8::ANY),
+            fake_rks_bytes in prop::array::uniform32(prop::num::u8::ANY),
         ) -> Option<Bundle<Authorized>> {
             if shielded_spends.is_empty() && shielded_outputs.is_empty() {
                 None
             } else {
                 let mut rng = StdRng::from_seed(rng_seed);
                 let bsk = PrivateKey(jubjub::Fr::random(&mut rng));
+                let rks = PrivateKey(jubjub::Fr::random(&mut rng));
 
                 Some(
                     Bundle {
@@ -727,7 +727,10 @@ pub mod testing {
                         shielded_converts,
                         shielded_outputs,
                         value_balance,
-                        authorization: Authorized { binding_sig: bsk.sign(&fake_bvk_bytes, &mut rng, value_commitment_randomness_generator()) },
+                        authorization: Authorized {
+                            binding_sig: bsk.sign(&fake_bvk_bytes, &mut rng, value_commitment_randomness_generator()),
+                            spend_auths_sig: rks.sign(&fake_rks_bytes, &mut rng, spending_key_generator()),
+                        },
                     }
                 )
             }

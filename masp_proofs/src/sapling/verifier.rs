@@ -2,7 +2,7 @@
 
 use bellman::{gadgets::multipack, groth16::Proof};
 use bls12_381::Bls12;
-use group::{Curve, GroupEncoding};
+use group::Curve;
 use masp_primitives::{
     sapling::redjubjub::{PublicKey, Signature},
     transaction::components::I128Sum,
@@ -20,6 +20,8 @@ pub use batch::BatchValidator;
 pub struct SaplingVerificationContextInner {
     // (sum of the Spend value commitments) - (sum of the Output value commitments)
     cv_sum: jubjub::ExtendedPoint,
+    // sum of randomized public keys
+    rk_sum: PublicKey,
 }
 
 impl SaplingVerificationContextInner {
@@ -27,6 +29,7 @@ impl SaplingVerificationContextInner {
     pub fn new() -> Self {
         SaplingVerificationContextInner {
             cv_sum: jubjub::ExtendedPoint::identity(),
+            rk_sum: PublicKey(jubjub::ExtendedPoint::identity()),
         }
     }
 
@@ -39,11 +42,8 @@ impl SaplingVerificationContextInner {
         anchor: bls12_381::Scalar,
         nullifier: &[u8; 32],
         rk: PublicKey,
-        sighash_value: &[u8; 32],
-        spend_auth_sig: Signature,
         zkproof: Proof<Bls12>,
         verifier_ctx: &mut C,
-        spend_auth_sig_verifier: impl FnOnce(&mut C, PublicKey, [u8; 64], Signature) -> bool,
         proof_verifier: impl FnOnce(&mut C, Proof<Bls12>, [bls12_381::Scalar; 7]) -> bool,
     ) -> bool {
         if (cv.is_small_order() | rk.0.is_small_order()).into() {
@@ -52,20 +52,14 @@ impl SaplingVerificationContextInner {
 
         // Accumulate the value commitment in the context
         self.cv_sum += cv;
+        // Accumulate the public key in the context
+        self.rk_sum.0 += rk.0;
 
         // Grab the nullifier as a sequence of bytes
         let nullifier = &nullifier[..];
 
-        // Compute the signature's message for rk/spend_auth_sig
-        let mut data_to_be_signed = [0u8; 64];
-        data_to_be_signed[0..32].copy_from_slice(&rk.0.to_bytes());
-        data_to_be_signed[32..64].copy_from_slice(&sighash_value[..]);
-
         // Verify the spend_auth_sig
         let rk_affine = rk.0.to_affine();
-        if !spend_auth_sig_verifier(verifier_ctx, rk, data_to_be_signed, spend_auth_sig) {
-            return false;
-        }
 
         // Construct public input for circuit
         let mut public_input = [bls12_381::Scalar::default(); 7];
@@ -172,10 +166,11 @@ impl SaplingVerificationContextInner {
     /// have been checked before calling this function.
     pub fn final_check(
         &self,
-        value_balance: I128Sum,
         sighash_value: &[u8; 32],
+        value_balance: I128Sum,
         binding_sig: Signature,
-        binding_sig_verifier: impl FnOnce(PublicKey, &[u8; 32], Signature) -> bool,
+        spend_auths_sig: Signature,
+        sig_verifier: impl FnOnce(&[u8; 32], PublicKey, Signature, PublicKey, Signature) -> bool,
     ) -> bool {
         // Obtain current cv_sum from the context
         let mut bvk = PublicKey(self.cv_sum);
@@ -199,6 +194,6 @@ impl SaplingVerificationContextInner {
         };
 
         // Verify the binding_sig
-        binding_sig_verifier(bvk, sighash_value, binding_sig)
+        sig_verifier(sighash_value, bvk, binding_sig, self.rk_sum, spend_auths_sig)
     }
 }

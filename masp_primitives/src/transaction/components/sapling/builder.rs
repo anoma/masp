@@ -1161,14 +1161,14 @@ impl<
 impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
     SpendDescription<Unauthorized<K>>
 {
-    pub fn apply_signature(&self, spend_auth_sig: Signature) -> SpendDescription<Authorized> {
+    pub fn finalize(&self) -> SpendDescription<Authorized> {
         SpendDescription {
             cv: self.cv,
             anchor: self.anchor,
             nullifier: self.nullifier,
             rk: self.rk,
             zkproof: self.zkproof,
-            spend_auth_sig,
+            spend_auth_sig: (),
         }
     }
 }
@@ -1200,26 +1200,18 @@ impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
             asks = PrivateKey(asks.0 + ask);
             ars += bparams.spend_alpha(i);
         }
-        let spends_auth_sig = spend_sig_internal(asks, ars, sighash_bytes, rng);
+        let spend_auths_sig = spend_sig_internal(asks, ars, sighash_bytes, rng);
         Ok((
             Bundle {
                 shielded_spends: self
                     .shielded_spends
                     .iter()
-                    .enumerate()
-                    .map(|(i, spend)| {
-                        spend.apply_signature(spend_sig_internal(
-                            PrivateKey(spend.spend_auth_sig.extsk.to_spending_key().expect("Spend authorization key must be known for each MASP spend.").expsk.ask),
-                            bparams.spend_alpha(i),
-                            sighash_bytes,
-                            rng,
-                        ))
-                    })
+                    .map(SpendDescription::finalize)
                     .collect(),
                 shielded_converts: self.shielded_converts,
                 shielded_outputs: self.shielded_outputs,
                 value_balance: self.value_balance,
-                authorization: Authorized { binding_sig, spends_auth_sig },
+                authorization: Authorized { binding_sig, spend_auths_sig },
             },
             self.authorization.tx_metadata,
         ))
