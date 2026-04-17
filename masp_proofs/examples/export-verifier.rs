@@ -4,66 +4,14 @@ use bls12_381::Fp;
 
 // Extract the lowest 32 bytes of the base field element
 fn lo_string(fp: Fp) -> String {
-    let lo = &fp.to_bytes_le()[0..32];
-    format!(
-        "0x{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        lo[31],
-        lo[30],
-        lo[29],
-        lo[28],
-        lo[27],
-        lo[26],
-        lo[25],
-        lo[24],
-        lo[23],
-        lo[22],
-        lo[21],
-        lo[20],
-        lo[19],
-        lo[18],
-        lo[17],
-        lo[16],
-        lo[15],
-        lo[14],
-        lo[13],
-        lo[12],
-        lo[11],
-        lo[10],
-        lo[9],
-        lo[8],
-        lo[7],
-        lo[6],
-        lo[5],
-        lo[4],
-        lo[3],
-        lo[2],
-        lo[1],
-        lo[0]
-    )
+    let lo = &fp.to_bytes_be()[16..48];
+    format!("0x{}", const_hex::encode(lo))
 }
 
 // Extract the highest 16 bytes of the base field element
 fn hi_string(fp: Fp) -> String {
-    let hi = &fp.to_bytes_le()[32..48];
-    format!(
-        "0x{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        hi[15],
-        hi[14],
-        hi[13],
-        hi[12],
-        hi[11],
-        hi[10],
-        hi[9],
-        hi[8],
-        hi[7],
-        hi[6],
-        hi[5],
-        hi[4],
-        hi[3],
-        hi[2],
-        hi[1],
-        hi[0]
-    )
+    let hi = &fp.to_bytes_be()[0..16];
+    format!("0x{}", const_hex::encode(hi))
 }
 
 // Export Solidity verifier constants for use with verifier_groth16_bls12381.sol.ejs

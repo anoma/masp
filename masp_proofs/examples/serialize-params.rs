@@ -10,12 +10,14 @@ fn main() {
             &path.join("masp-spend.params"),
             &path.join("masp-output.params"),
             &path.join("masp-convert.params"),
+            &path.join("masp-append.params"),
         );
 
         for (filename, vk) in [
             ("masp-spend.vk", params.spend_params.vk),
             ("masp-output.vk", params.output_params.vk),
             ("masp-convert.vk", params.convert_params.vk),
+            ("masp-append.vk", params.append_params.vk),
         ]
         .iter()
         {
