@@ -1,4 +1,3 @@
-use super::masp_compute_value_balance;
 use crate::circuit::append::Append;
 use crate::circuit::convert::Convert;
 use crate::circuit::sapling::{Output, Spend};
@@ -7,6 +6,7 @@ use bellman::{
     groth16::{Parameters, PreparedVerifyingKey, Proof, create_random_proof, verify_proof},
 };
 use bls12_381::Bls12;
+use group::cofactor::CofactorGroup;
 use group::ff::Field;
 use group::{Curve, GroupEncoding};
 use masp_primitives::merkle_tree::Hashable;
@@ -296,18 +296,9 @@ impl SaplingProvingContext {
         // commitments (as the verifier would) and apply value_balance to compare
         // against our derived bvk.
         {
-            let final_bvk = assets_and_values
-                .components()
-                .map(|(asset_type, value_balance)| {
-                    // Compute value balance for each asset
-                    // Error for bad value balances (-INT128_MAX value)
-                    masp_compute_value_balance(*asset_type, *value_balance)
-                })
-                .fold(self.cv_sum, |tmp, value_balance| {
-                    // Compute cv_sum minus sum of all value balances
-                    tmp - value_balance
-                });
-
+            // Compute cv_sum minus sum of all value balances
+            let final_bvk =
+                self.cv_sum - jubjub::ExtendedPoint::from(assets_and_values).clear_cofactor();
             // The result should be the same, unless the provided valueBalance is wrong.
             if bvk.0 != final_bvk {
                 return Err(());

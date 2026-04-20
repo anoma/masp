@@ -87,32 +87,9 @@ impl From<AllowedConversion> for I128Sum {
 impl From<I128Sum> for AllowedConversion {
     /// Produces an asset generator without cofactor cleared
     fn from(assets: I128Sum) -> Self {
-        let mut asset_generator = jubjub::ExtendedPoint::identity();
-        for (asset, value) in assets.components() {
-            // Compute the absolute value
-            let abs = if *value >= 0 {
-                *value as u128
-            } else {
-                (-(value + 1)) as u128
-            };
-            // Compute it in the exponent
-            let mut abs_bytes = [0u8; 32];
-            abs_bytes[0..16].copy_from_slice(&abs.to_le_bytes());
-            let abs_scalar = jubjub::Fr::from_bytes(&abs_bytes).unwrap();
-            // Negate if necessary
-            let scalar = if *value >= 0 {
-                abs_scalar
-            } else {
-                -abs_scalar - jubjub::Fr::one()
-            };
-            // Compute it in the exponent
-            let value_balance = asset.asset_generator() * scalar;
-            // Add to asset generator
-            asset_generator += value_balance;
-        }
         AllowedConversion {
+            generator: jubjub::ExtendedPoint::from(&assets),
             assets,
-            generator: asset_generator,
         }
     }
 }

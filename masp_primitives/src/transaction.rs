@@ -26,9 +26,7 @@ use crate::{
 use self::{
     components::{
         amount::{I128Sum, ValueSum},
-        sapling::{
-            self, ConvertDescriptionV5, OutputDescriptionV5, SpendDescriptionV5,
-        },
+        sapling::{self, ConvertDescriptionV5, OutputDescriptionV5, SpendDescriptionV5},
         transparent::{self, TxIn, TxOut},
     },
     txid::{BlockTxCommitmentDigester, KeccakHash, TxIdDigester, to_txid},
@@ -700,13 +698,18 @@ impl Transaction {
             .map(|(od_5, zkproof)| od_5.into_output_description(zkproof))
             .collect();
 
-        Ok(binding_spend_auths_sig.map(|(binding_sig, spend_auths_sig)| sapling::Bundle {
-            value_balance,
-            shielded_spends,
-            shielded_converts,
-            shielded_outputs,
-            authorization: sapling::Authorized { binding_sig, spend_auths_sig },
-        }))
+        Ok(
+            binding_spend_auths_sig.map(|(binding_sig, spend_auths_sig)| sapling::Bundle {
+                value_balance,
+                shielded_spends,
+                shielded_converts,
+                shielded_outputs,
+                authorization: sapling::Authorized {
+                    binding_sig,
+                    spend_auths_sig,
+                },
+            }),
+        )
     }
     pub fn write<W: Write>(&self, writer: W) -> io::Result<()> {
         match self.version {

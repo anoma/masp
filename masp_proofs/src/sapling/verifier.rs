@@ -8,9 +8,8 @@ use masp_primitives::{
     transaction::components::I128Sum,
 };
 
-use super::masp_compute_value_balance;
-
 mod single;
+use group::cofactor::CofactorGroup;
 pub use single::SaplingVerificationContext;
 
 mod batch;
@@ -174,22 +173,15 @@ impl SaplingVerificationContextInner {
     ) -> bool {
         // Obtain current cv_sum from the context
         let mut bvk = PublicKey(self.cv_sum);
-
-        // Compute value balance
-        let value_balance = value_balance
-            .components()
-            .map(|(asset_type, value_balance)| {
-                // Compute value balance for each asset
-                masp_compute_value_balance(*asset_type, *value_balance)
-            })
-            .collect::<Vec<_>>();
-
-        bvk.0 = value_balance.iter().fold(bvk.0, |tmp, value_balance| {
-            // Compute cv_sum minus sum of all value balances
-            tmp - value_balance
-        });
-
+        // Compute cv_sum minus sum of all value balances
+        bvk.0 -= jubjub::ExtendedPoint::from(&value_balance).clear_cofactor();
         // Verify the binding_sig
-        sig_verifier(sighash_value, bvk, binding_sig, self.rk_sum, spend_auths_sig)
+        sig_verifier(
+            sighash_value,
+            bvk,
+            binding_sig,
+            self.rk_sum,
+            spend_auths_sig,
+        )
     }
 }

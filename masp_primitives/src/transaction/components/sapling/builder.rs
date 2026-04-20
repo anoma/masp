@@ -1191,7 +1191,8 @@ impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
         let mut asks = PrivateKey(jubjub::Fr::ZERO);
         let mut ars = jubjub::Fr::ZERO;
         for (i, spend) in self.shielded_spends.iter().enumerate() {
-            let ask = spend.spend_auth_sig
+            let ask = spend
+                .spend_auth_sig
                 .extsk
                 .to_spending_key()
                 .expect("Spend authorization key must be known for each MASP spend.")
@@ -1211,7 +1212,10 @@ impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
                 shielded_converts: self.shielded_converts,
                 shielded_outputs: self.shielded_outputs,
                 value_balance: self.value_balance,
-                authorization: Authorized { binding_sig, spend_auths_sig },
+                authorization: Authorized {
+                    binding_sig,
+                    spend_auths_sig,
+                },
             },
             self.authorization.tx_metadata,
         ))
