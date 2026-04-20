@@ -180,18 +180,14 @@ impl SaplingVerificationContextInner {
             .components()
             .map(|(asset_type, value_balance)| {
                 // Compute value balance for each asset
-                // Error for bad value balances (-INT64_MAX value)
-                masp_compute_value_balance(*asset_type, *value_balance).ok_or(())
+                masp_compute_value_balance(*asset_type, *value_balance)
             })
-            .collect::<Result<Vec<_>, _>>();
+            .collect::<Vec<_>>();
 
-        bvk.0 = match value_balance {
-            Ok(vb) => vb.iter().fold(bvk.0, |tmp, value_balance| {
-                // Compute cv_sum minus sum of all value balances
-                tmp - value_balance
-            }),
-            Err(_) => return false,
-        };
+        bvk.0 = value_balance.iter().fold(bvk.0, |tmp, value_balance| {
+            // Compute cv_sum minus sum of all value balances
+            tmp - value_balance
+        });
 
         // Verify the binding_sig
         sig_verifier(sighash_value, bvk, binding_sig, self.rk_sum, spend_auths_sig)

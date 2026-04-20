@@ -303,10 +303,10 @@ impl SaplingProvingContext {
                     // Error for bad value balances (-INT128_MAX value)
                     masp_compute_value_balance(*asset_type, *value_balance)
                 })
-                .try_fold(self.cv_sum, |tmp, value_balance| {
+                .fold(self.cv_sum, |tmp, value_balance| {
                     // Compute cv_sum minus sum of all value balances
-                    Ok(tmp - value_balance.ok_or(())?)
-                })?;
+                    tmp - value_balance
+                });
 
             // The result should be the same, unless the provided valueBalance is wrong.
             if bvk.0 != final_bvk {
