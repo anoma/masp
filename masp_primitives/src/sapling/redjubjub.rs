@@ -34,7 +34,7 @@ fn write_scalar<W: Write>(s: &jubjub::Fr, mut writer: W) -> io::Result<()> {
     writer.write_all(s.to_repr().as_ref())
 }
 
-fn h_star(a: &[u8], b: &[u8]) -> jubjub::Fr {
+pub fn h_star(a: &[u8], b: &[u8]) -> jubjub::Fr {
     hash_to_scalar(b"MASP__RedJubjubH", a, b)
 }
 

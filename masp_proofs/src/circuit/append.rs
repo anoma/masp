@@ -14,6 +14,7 @@ use masp_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
 pub const TREE_DEPTH: usize = SAPLING_COMMITMENT_TREE_DEPTH;
 pub const BATCH_SIZE: usize = 32;
 
+/// This is an instance of the `Append` circuit.
 pub struct Append {
     /// Current size of the Merkle tree
     pub old_size: Option<bls12_381::Scalar>,
@@ -370,7 +371,7 @@ impl Circuit<bls12_381::Scalar> for Append {
             num::AllocatedNum::alloc(cs.namespace(|| "zero"), || Ok(bls12_381::Scalar::from(0)))?;
         // evaluation = 0
         cs.enforce(
-            || "",
+            || "enforce zero",
             |lc| lc,
             |lc| lc,
             |_| LinearCombination::from_variable(cmu_response.get_variable()),
