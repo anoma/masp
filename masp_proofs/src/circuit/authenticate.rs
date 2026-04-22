@@ -281,23 +281,27 @@ impl Circuit<bls12_381::Scalar> for Authenticate {
         )?;
         // Initialize the value balance to the zero point
         assert_zero_point(cs.namespace(|| "initialize balancing value"), &value_balance)?;
-        for (i, (value_commitment_generator, value)) in self.value_balance.into_iter().enumerate() {
+        for (i, (asset_generator, value)) in self.value_balance.into_iter().enumerate() {
             let cs = &mut cs.namespace(|| format!("value balance component {}", i));
-            let value_commitment_generator = ecc::EdwardsPoint::witness(
-                cs.namespace(|| "value_commitment_generator"),
-                value_commitment_generator,
+            let asset_generator = ecc::EdwardsPoint::witness(
+                cs.namespace(|| "asset generator"),
+                asset_generator,
             )?;
             let value = gadgets::field_into_boolean_vec_le(
                 cs.namespace(|| "value"),
                 value,
             )?;
             // Bind the value to the value commitment generator
+            let value_commitment_generator = asset_generator
+                .double(cs.namespace(|| "value commitment generator computation first doubling"))?
+                .double(cs.namespace(|| "value commitment generator computation second doubling"))?
+                .double(cs.namespace(|| "value commitment generator computation third doubling"))?;
             let component = value_commitment_generator.mul(cs.namespace(|| "compute [v]vb"), &value)?;
             // Accumulate this component onto the value balance
             value_balance = value_balance.add(cs.namespace(|| "accumulate value balance"), &component)?;
             // Record the value commitment generator
             x_vars.push(value_commitment_generator.get_u().clone());
-            y_vars.push(value_commitment_generator.get_v().clone());
+            y_vars.push(boolean_vec_le_into_field(cs.namespace(|| "value as scalar"), value)?);
         }
         // Finally record the balancing value
         x_vars.push(value_balance.get_u().clone());
@@ -325,6 +329,7 @@ fn test_authenticate_circuit_with_bls12_381() {
     use group::Curve;
     use masp_primitives::asset_type::AssetType;
     use masp_primitives::transaction::components::I128Sum;
+    use group::cofactor::CofactorGroup;
 
     // Convert i64 to Jubjub scalar respecting the modulus
     fn i64_to_scalar(a: i64) -> jubjub::Fr {
@@ -402,7 +407,7 @@ fn test_authenticate_circuit_with_bls12_381() {
 
             assert!(cs.is_satisfied());
             assert!(cs.num_constraints() >= 28448);
-            assert!(cs.num_constraints() <= 229632);
+            assert!(cs.num_constraints() <= 223841);
             assert_eq!(cs.get("binding validating key/u/num"), bvk.0.to_affine().get_u());
             assert_eq!(cs.get("binding validating key/v/num"), bvk.0.to_affine().get_v());
             let binding_sig_r = ExtendedPoint::from_bytes(&binding_sig.rbar()).unwrap().to_affine();
@@ -441,12 +446,12 @@ fn test_authenticate_circuit_with_bls12_381() {
                 binding_sig_r.get_v(),
                 spend_auths_sig_r.get_v(),
             ];
-            for (value_commitment_generator, _) in value_balance {
-                let value_commitment_generator = value_commitment_generator.unwrap().to_affine();
+            for (asset_generator, value) in value_balance {
+                let value_commitment_generator = asset_generator.unwrap().mul_by_cofactor().to_affine();
                 x_vars.push(value_commitment_generator.get_u());
-                y_vars.push(value_commitment_generator.get_v());
+                y_vars.push(bls12_381::Scalar::from_repr(value.unwrap().to_repr()).unwrap());
             }
-            let value_sum = jubjub::ExtendedPoint::from(&value_sum);
+            let value_sum = jubjub::ExtendedPoint::from(&value_sum).mul_by_cofactor();
             x_vars.push(value_sum.to_affine().get_u());
             y_vars.push(value_sum.to_affine().get_v());
 
