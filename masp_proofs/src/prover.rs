@@ -17,12 +17,12 @@ use std::path::Path;
 
 use crate::{
     parse_parameters,
-    sapling::{SaplingProvingContext, append_proof},
+    sapling::{SaplingProvingContext, append_proof, authenticate_proof},
 };
 
 #[cfg(feature = "local-prover")]
 use crate::{
-    MASP_APPEND_NAME, MASP_CONVERT_NAME, MASP_OUTPUT_NAME, MASP_SPEND_NAME, default_params_folder,
+    MASP_APPEND_NAME, MASP_CONVERT_NAME, MASP_OUTPUT_NAME, MASP_SPEND_NAME, MASP_AUTHENTICATE_NAME, default_params_folder,
     load_parameters,
 };
 
@@ -34,6 +34,8 @@ pub struct LocalTxProver {
     output_params: Parameters<Bls12>,
     convert_params: Parameters<Bls12>,
     convert_vk: PreparedVerifyingKey<Bls12>,
+    authenticate_params: Parameters<Bls12>,
+    authenticate_vk: PreparedVerifyingKey<Bls12>,
     append_params: Parameters<Bls12>,
     append_vk: PreparedVerifyingKey<Bls12>,
 }
@@ -63,15 +65,18 @@ impl LocalTxProver {
         spend_path: &Path,
         output_path: &Path,
         convert_path: &Path,
+        authenticate_path: &Path,
         append_path: &Path,
     ) -> Self {
-        let p = load_parameters(spend_path, output_path, convert_path, append_path);
+        let p = load_parameters(spend_path, output_path, convert_path, authenticate_path, append_path);
         LocalTxProver {
             spend_params: p.spend_params,
             spend_vk: p.spend_vk,
             output_params: p.output_params,
             convert_params: p.convert_params,
             convert_vk: p.convert_vk,
+            authenticate_params: p.authenticate_params,
+            authenticate_vk: p.authenticate_vk,
             append_params: p.append_params,
             append_vk: p.append_vk,
         }
@@ -96,12 +101,14 @@ impl LocalTxProver {
         spend_param_bytes: &[u8],
         output_param_bytes: &[u8],
         convert_param_bytes: &[u8],
+        authenticate_param_bytes: &[u8],
         append_param_bytes: &[u8],
     ) -> Self {
         let p = parse_parameters(
             spend_param_bytes,
             output_param_bytes,
             convert_param_bytes,
+            authenticate_param_bytes,
             append_param_bytes,
         );
 
@@ -111,6 +118,8 @@ impl LocalTxProver {
             output_params: p.output_params,
             convert_params: p.convert_params,
             convert_vk: p.convert_vk,
+            authenticate_params: p.authenticate_params,
+            authenticate_vk: p.authenticate_vk,
             append_params: p.append_params,
             append_vk: p.append_vk,
         }
@@ -141,11 +150,12 @@ impl LocalTxProver {
     #[cfg_attr(docsrs, doc(cfg(feature = "local-prover")))]
     pub fn with_default_location() -> Option<Self> {
         let params_dir = default_params_folder()?;
-        let (spend_path, output_path, convert_path, append_path) = if params_dir.exists() {
+        let (spend_path, output_path, convert_path, authenticate_path, append_path) = if params_dir.exists() {
             (
                 params_dir.join(MASP_SPEND_NAME),
                 params_dir.join(MASP_OUTPUT_NAME),
                 params_dir.join(MASP_CONVERT_NAME),
+                params_dir.join(MASP_AUTHENTICATE_NAME),
                 params_dir.join(MASP_APPEND_NAME),
             )
         } else {
@@ -154,6 +164,7 @@ impl LocalTxProver {
         if !(spend_path.exists()
             && output_path.exists()
             && convert_path.exists()
+            && authenticate_path.exists()
             && append_path.exists())
         {
             return None;
@@ -163,6 +174,7 @@ impl LocalTxProver {
             &spend_path,
             &output_path,
             &convert_path,
+            &authenticate_path,
             &append_path,
         ))
     }
@@ -280,6 +292,38 @@ impl TxProver for LocalTxProver {
             .expect("should be able to serialize a proof");
 
         Ok((zkproof, cv))
+    }
+
+    fn authenticate_proof(
+        &self,
+        bvk: PublicKey,
+        binding_c: jubjub::Fr,
+        binding_sig: Signature,
+        rks: PublicKey,
+        spend_auths_c: jubjub::Fr,
+        spend_auths_sig: Signature,
+        value_sum: I128Sum,
+        max_asset_types: usize,
+    ) -> Result<([u8; GROTH_PROOF_SIZE], bls12_381::Scalar, bls12_381::Scalar), ()> {
+        let (proof, x_challenge, y_challenge) = authenticate_proof(
+            bvk,
+            binding_c,
+            binding_sig,
+            rks,
+            spend_auths_c,
+            spend_auths_sig,
+            value_sum,
+            max_asset_types,
+            &self.authenticate_params,
+            &self.authenticate_vk,
+        )?;
+
+        let mut zkproof = [0u8; GROTH_PROOF_SIZE];
+        proof
+            .write(&mut zkproof[..])
+            .expect("should be able to serialize a proof");
+
+        Ok((zkproof, x_challenge, y_challenge))
     }
 
     fn append_proof(

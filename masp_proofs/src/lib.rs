@@ -66,6 +66,9 @@ pub const MASP_OUTPUT_NAME: &str = "masp-output.params";
 /// The MASP convert parameters file name.
 pub const MASP_CONVERT_NAME: &str = "masp-convert.params";
 
+/// The MASP authenticate parameters file name.
+pub const MASP_AUTHENTICATE_NAME: &str = "masp-authenticate.params";
+
 /// The MASP append parameters file name.
 pub const MASP_APPEND_NAME: &str = "masp-append.params";
 
@@ -73,11 +76,13 @@ pub const MASP_APPEND_NAME: &str = "masp-append.params";
 pub const MASP_SPEND_HASH: &str = "196e7c717f25e16653431559ce2c8816e750a4490f98696e3c031efca37e25e0647182b7b013660806db11eb2b1e365fb2d6a0f24dbbd9a4a8314fef10a7cba2";
 pub const MASP_OUTPUT_HASH: &str = "eafc3b1746cccc8b9eed2b69395692c5892f6aca83552a07dceb2dcbaa64dcd0e22434260b3aa3b049b633a08b008988cbe0d31effc77e2bc09bfab690a23724";
 pub const MASP_CONVERT_HASH: &str = "dc4aaf3c3ce056ab448b6c4a7f43c1d68502c2902ea89ab8769b1524a2e8ace9a5369621a73ee1daa52aec826907a19974a37874391cf8f11bbe0b0420de1ab7";
+pub const MASP_AUTHENTICATE_HASH: &str = "dc4aaf3c3ce056ab448b6c4a7f43c1d68502c2902ea89ab8769b1524a2e8ace9a5369621a73ee1daa52aec826907a19974a37874391cf8f11bbe0b0420de1ab7";
 pub const MASP_APPEND_HASH: &str = "c2b947742fd3af9d0f566e79ebf7ce459d5864c333d8af44ae7334d4d4b53fb806aa9f5637161bf0d0e37cb73b39792b79642dd06ae011d3cc01809d135ac9a2";
 // Circuit parameter file sizes
 pub const MASP_SPEND_BYTES: u64 = 49848572;
 pub const MASP_CONVERT_BYTES: u64 = 22570940;
 pub const MASP_OUTPUT_BYTES: u64 = 16398620;
+pub const MASP_AUTHENTICATE_BYTES: u64 = 16398620;
 pub const MASP_APPEND_BYTES: u64 = 77773272;
 
 #[cfg(feature = "download-params")]
@@ -97,6 +102,9 @@ pub struct MASPParameterPaths {
 
     /// The path to the MASP convert parameter file.
     pub convert: PathBuf,
+
+    /// The path to the MASP authenticate parameter file.
+    pub authenticate: PathBuf,
 
     /// The path to the MASP append parameter file.
     pub append: PathBuf,
@@ -140,6 +148,12 @@ pub fn download_masp_parameters(timeout: Option<u64>) -> Result<MASPParameterPat
         MASP_CONVERT_BYTES,
         timeout,
     )?;
+    let authenticate = fetch_params(
+        MASP_AUTHENTICATE_NAME,
+        MASP_AUTHENTICATE_HASH,
+        MASP_AUTHENTICATE_BYTES,
+        timeout,
+    )?;
     let append = fetch_params(
         MASP_APPEND_NAME,
         MASP_APPEND_HASH,
@@ -151,6 +165,7 @@ pub fn download_masp_parameters(timeout: Option<u64>) -> Result<MASPParameterPat
         spend,
         output,
         convert,
+        authenticate,
         append,
     })
 }
@@ -285,6 +300,8 @@ pub struct MASPParameters {
     pub output_vk: PreparedVerifyingKey<Bls12>,
     pub convert_params: Parameters<Bls12>,
     pub convert_vk: PreparedVerifyingKey<Bls12>,
+    pub authenticate_params: Parameters<Bls12>,
+    pub authenticate_vk: PreparedVerifyingKey<Bls12>,
     pub append_params: Parameters<Bls12>,
     pub append_vk: PreparedVerifyingKey<Bls12>,
 }
@@ -296,6 +313,7 @@ pub fn load_parameters(
     spend_path: &Path,
     output_path: &Path,
     convert_path: &Path,
+    authenticate_path: &Path,
     append_path: &Path,
 ) -> MASPParameters {
     // Check the file sizes are correct before hashing large amounts of data.
@@ -331,6 +349,16 @@ pub fn load_parameters(
              please clean your MASP parameters directory and re-run `fetch-params`.",
     );
     verify_file_size(
+        authenticate_path,
+        MASP_AUTHENTICATE_BYTES,
+        "masp authenticate",
+        &authenticate_path.to_string_lossy(),
+    )
+    .expect(
+        "parameter file size is not correct, \
+             please clean your MASP parameters directory and re-run `fetch-params`.",
+    );
+    verify_file_size(
         append_path,
         MASP_APPEND_BYTES,
         "masp append",
@@ -344,12 +372,14 @@ pub fn load_parameters(
     let spend_fs = File::open(spend_path).expect("couldn't load MASP spend parameters file");
     let output_fs = File::open(output_path).expect("couldn't load MASP output parameters file");
     let convert_fs = File::open(convert_path).expect("couldn't load MASP convert parameters file");
+    let authenticate_fs = File::open(authenticate_path).expect("couldn't load MASP authenticate parameters file");
     let append_fs = File::open(append_path).expect("couldn't load MASP convert parameters file");
 
     parse_parameters(
         BufReader::with_capacity(1024 * 1024, spend_fs),
         BufReader::with_capacity(1024 * 1024, output_fs),
         BufReader::with_capacity(1024 * 1024, convert_fs),
+        BufReader::with_capacity(1024 * 1024, authenticate_fs),
         BufReader::with_capacity(1024 * 1024, append_fs),
     )
 }
@@ -361,11 +391,13 @@ pub fn parse_parameters<R: io::Read>(
     spend_fs: R,
     output_fs: R,
     convert_fs: R,
+    authenticate_fs: R,
     append_fs: R,
 ) -> MASPParameters {
     let mut spend_fs = hashreader::HashReader::new(spend_fs);
     let mut output_fs = hashreader::HashReader::new(output_fs);
     let mut convert_fs = hashreader::HashReader::new(convert_fs);
+    let mut authenticate_fs = hashreader::HashReader::new(authenticate_fs);
     let mut append_fs = hashreader::HashReader::new(append_fs);
 
     // Deserialize params
@@ -375,6 +407,8 @@ pub fn parse_parameters<R: io::Read>(
         .expect("couldn't deserialize MASP output parameters file");
     let convert_params = Parameters::<Bls12>::read(&mut convert_fs, false)
         .expect("couldn't deserialize MASP convert parameters file");
+    let authenticate_params = Parameters::<Bls12>::read(&mut authenticate_fs, false)
+        .expect("couldn't deserialize MASP authenticate parameters file");
     let append_params = Parameters::<Bls12>::read(&mut append_fs, false)
         .expect("couldn't deserialize MASP append parameters file");
 
@@ -426,6 +460,19 @@ pub fn parse_parameters<R: io::Read>(
     );
 
     verify_hash(
+        authenticate_fs,
+        &mut sink,
+        MASP_AUTHENTICATE_HASH,
+        MASP_AUTHENTICATE_BYTES,
+        MASP_AUTHENTICATE_NAME,
+        "a file",
+    )
+    .expect(
+        "MASP authenticate parameter file is not correct, \
+         please clean your `~/.masp-params/` and re-run `fetch-params`.",
+    );
+
+    verify_hash(
         append_fs,
         &mut sink,
         MASP_APPEND_HASH,
@@ -442,6 +489,7 @@ pub fn parse_parameters<R: io::Read>(
     let spend_vk = prepare_verifying_key(&spend_params.vk);
     let output_vk = prepare_verifying_key(&output_params.vk);
     let convert_vk = prepare_verifying_key(&convert_params.vk);
+    let authenticate_vk = prepare_verifying_key(&authenticate_params.vk);
     let append_vk = prepare_verifying_key(&append_params.vk);
 
     MASPParameters {
@@ -451,6 +499,8 @@ pub fn parse_parameters<R: io::Read>(
         output_vk,
         convert_params,
         convert_vk,
+        authenticate_params,
+        authenticate_vk,
         append_params,
         append_vk,
     }

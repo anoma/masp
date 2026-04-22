@@ -71,6 +71,21 @@ pub trait TxProver {
         rcv: jubjub::Fr,
     ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint), ()>;
 
+    /// Prove that the given binding signature and spend authorizations siganture are
+    /// valid with respect to the message constant. Also prove that the given value
+    /// balance was computed correctly.
+    fn authenticate_proof(
+        &self,
+        bvk: PublicKey,
+        binding_c: jubjub::Fr,
+        binding_sig: Signature,
+        rks: PublicKey,
+        spend_auths_c: jubjub::Fr,
+        spend_auths_sig: Signature,
+        value_sum: I128Sum,
+        max_asset_types: usize,
+    ) -> Result<([u8; GROTH_PROOF_SIZE], bls12_381::Scalar, bls12_381::Scalar), ()>;
+
     /// Create a new Merkle tree root by inserting new note commitments at the
     /// given path and also return a proof that the new root was computed
     /// correctly.
@@ -104,6 +119,7 @@ pub mod mock {
         },
         transaction::components::{GROTH_PROOF_SIZE, I128Sum},
     };
+    use ff::Field;
 
     use super::TxProver;
 
@@ -165,6 +181,20 @@ pub mod mock {
                 .into();
 
             Ok(([0u8; GROTH_PROOF_SIZE], cv))
+        }
+
+        fn authenticate_proof(
+            &self,
+            _bvk: PublicKey,
+            _binding_c: jubjub::Fr,
+            _binding_sig: Signature,
+            _rks: PublicKey,
+            _spend_auths_c: jubjub::Fr,
+            _spend_auths_sig: Signature,
+            _value_sum: I128Sum,
+            _max_asset_types: usize,
+        ) -> Result<([u8; GROTH_PROOF_SIZE], bls12_381::Scalar, bls12_381::Scalar), ()> {
+            Ok(([0u8; GROTH_PROOF_SIZE], bls12_381::Scalar::ZERO, bls12_381::Scalar::ZERO))
         }
 
         fn append_proof(
