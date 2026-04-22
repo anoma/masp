@@ -10,6 +10,8 @@ use bellman::gadgets::boolean::Boolean;
 use bellman::gadgets::{Assignment, num};
 use bellman::LinearCombination;
 use group::ff::Field;
+use masp_primitives::sapling::Node;
+use masp_primitives::merkle_tree::Hashable;
 use crate::constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR, FixedGenerator};
 use super::ecc;
 use super::gadgets;
@@ -123,11 +125,15 @@ pub fn commit<CS>(
     vars: &Vec<num::AllocatedNum<bls12_381::Scalar>>,
 ) -> Result<num::AllocatedNum<bls12_381::Scalar>, SynthesisError> where
     CS: ConstraintSystem<bls12_381::Scalar>, {
+    let blank = bls12_381::Scalar::from(Node::blank());
     // Where the commitment hashes are accumulated
     let mut commitment = num::AllocatedNum::alloc(
         cs.namespace(|| format!("partial commitment {}", vars.len())),
-        || Ok(bls12_381::Scalar::ZERO),
+        || Ok(bls12_381::Scalar::from(blank)),
     )?;
+    // Force our new variable to equal to the blank node
+    let lc = LinearCombination::from_variable(commitment.get_variable()) - (blank, CS::one());
+    cs.enforce(|| "ensure empty leaf 0", |lc| lc, |lc| lc, |_| lc);
     // Repeateddly use binary hash function to commit to all inputs
     for (i, var) in vars.iter().enumerate().rev() {
         // Convert allocated numbers to bits in preparation for hashing
@@ -156,7 +162,7 @@ pub fn fiat_shamir<CS>(
     challenge.inputize(cs.namespace(|| "challenge"))?;
     // Evaluate a polynomial on the challenge
     let mut response =
-        num::AllocatedNum::alloc(cs.namespace(|| "zero"), || Ok(bls12_381::Scalar::from(0)))?;
+        num::AllocatedNum::alloc(cs.namespace(|| "zero"), || Ok(bls12_381::Scalar::ZERO))?;
     // response = 0
     cs.enforce(
         || "enforce zero",
@@ -318,8 +324,6 @@ fn test_authenticate_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
     use group::ff::Field;
 
-    use masp_primitives::merkle_tree::FrozenCommitmentTree;
-    use masp_primitives::sapling::Node;
     use rand_core::SeedableRng;
     use rand_xorshift::XorShiftRng;
     use rand_core::RngCore;
@@ -329,24 +333,7 @@ fn test_authenticate_circuit_with_bls12_381() {
     use group::Curve;
     use masp_primitives::asset_type::AssetType;
     use masp_primitives::transaction::components::I128Sum;
-    use group::cofactor::CofactorGroup;
-
-    // Convert i64 to Jubjub scalar respecting the modulus
-    fn i64_to_scalar(a: i64) -> jubjub::Fr {
-        // Compute the absolute value
-        let abs = if a >= 0 {
-            a as u64
-        } else {
-            (-(a+1)) as u64
-        };
-        let abs_scalar = jubjub::Fr::from(abs);
-        // Negate if necessary
-        if a >= 0 {
-            abs_scalar
-        } else {
-            -abs_scalar - jubjub::Fr::one()
-        }
-    }
+    use crate::sapling::i128_to_scalar;
 
     let mut rng = XorShiftRng::from_seed([
         0x58, 0x62, 0xbe, 0x3d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
@@ -382,12 +369,12 @@ fn test_authenticate_circuit_with_bls12_381() {
         let mut value_balance = Vec::new();
         let mut value_sum = I128Sum::zero();
         
-        for j in 0..i {
+        for _j in 0..i {
             let mut asset_type = [0u8; 64];
             rng.fill_bytes(&mut asset_type);
             let asset_type = AssetType::new(&asset_type).unwrap();
             let value: i64 = rng.next_u64() as i64;
-            value_balance.push((Some(asset_type.asset_generator()), Some(i64_to_scalar(value))));
+            value_balance.push((Some(asset_type.asset_generator()), Some(i128_to_scalar(value.into()))));
             value_sum += I128Sum::from_pair(asset_type, i128::from(value));
         }
 
@@ -406,8 +393,8 @@ fn test_authenticate_circuit_with_bls12_381() {
             instance.synthesize(&mut cs).unwrap();
 
             assert!(cs.is_satisfied());
-            assert!(cs.num_constraints() >= 28448);
-            assert!(cs.num_constraints() <= 223841);
+            assert!(cs.num_constraints() >= 28450);
+            assert!(cs.num_constraints() <= 223843);
             assert_eq!(cs.get("binding validating key/u/num"), bvk.0.to_affine().get_u());
             assert_eq!(cs.get("binding validating key/v/num"), bvk.0.to_affine().get_v());
             let binding_sig_r = ExtendedPoint::from_bytes(&binding_sig.rbar()).unwrap().to_affine();

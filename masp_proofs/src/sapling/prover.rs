@@ -1,4 +1,5 @@
 use crate::circuit::append::Append;
+use crate::circuit::authenticate::Authenticate;
 use crate::circuit::convert::Convert;
 use crate::circuit::sapling::{Output, Spend};
 use bellman::{
@@ -23,6 +24,7 @@ use masp_primitives::{
 };
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
+use group::ff::PrimeField;
 
 /// A context object for creating the Sapling components of a Zcash transaction.
 pub struct SaplingProvingContext {
@@ -364,4 +366,123 @@ pub fn append_proof(
     verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())?;
 
     Ok((proof, Node::from_scalar(public_input[2])))
+}
+
+// Convert i128 to Jubjub scalar respecting the modulus
+pub fn i128_to_scalar(a: i128) -> jubjub::Fr {
+    // Compute the absolute value
+    let abs = if a >= 0 {
+        a as u128
+    } else {
+        (-(a+1)) as u128
+    };
+    // Compute it in the exponent
+    let mut abs_bytes = [0u8; 32];
+    abs_bytes[0..16].copy_from_slice(&abs.to_le_bytes());
+    let abs_scalar = jubjub::Fr::from_bytes(&abs_bytes).unwrap();
+    // Negate if necessary
+    if a >= 0 {
+        abs_scalar
+    } else {
+        -abs_scalar - jubjub::Fr::one()
+    }
+}
+
+/// Prove that the given binding signature and spend authorizations siganture are
+/// valid with respect to the message constant. Also prove that the given value
+/// balance was computed correctly.
+pub fn authenticate_proof(
+    bvk: PublicKey,
+    binding_c: jubjub::Fr,
+    binding_sig: Signature,
+    rks: PublicKey,
+    spend_auths_c: jubjub::Fr,
+    spend_auths_sig: Signature,
+    value_sum: I128Sum,
+    max_asset_types: usize,
+    proving_key: &Parameters<Bls12>,
+    verifying_key: &PreparedVerifyingKey<Bls12>,
+) -> Result<(Proof<Bls12>, bls12_381::Scalar, bls12_381::Scalar), ()> {
+    // Initialize secure RNG
+    let mut rng = OsRng;
+
+    // Compute asset generator witnesses
+    let mut value_balance = vec![(Some(jubjub::ExtendedPoint::identity()), Some(jubjub::Fr::ZERO)); max_asset_types];
+    for (i, (asset_type, value)) in value_sum.components().enumerate() {
+        value_balance[i] = (Some(asset_type.asset_generator()), Some(i128_to_scalar(*value)));
+    }
+    // We now have the full witness for our circuit
+    let instance = Authenticate {
+        binding_c: Some(binding_c),
+        spend_auths_c: Some(spend_auths_c),
+        bvk: Some(bvk),
+        rks: Some(rks),
+        binding_sig: Some(binding_sig),
+        spend_auths_sig: Some(spend_auths_sig),
+        value_balance: value_balance.clone(),
+    };
+    // Create proof
+    let proof =
+        create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
+    // Extract the chalenge variables
+    let binding_sig_r = jubjub::ExtendedPoint::from_bytes(&binding_sig.rbar()).unwrap().to_affine();
+    let spend_auths_sig_r = jubjub::ExtendedPoint::from_bytes(&spend_auths_sig.rbar()).unwrap().to_affine();
+    let neg_binding_s = -jubjub::Fr::from_repr(binding_sig.sbar()).unwrap();
+    let neg_binding_s = bls12_381::Scalar::from_repr(neg_binding_s.to_repr()).unwrap();
+    let binding_c = bls12_381::Scalar::from_repr(binding_c.to_repr()).unwrap();
+    let neg_spend_auths_s = -jubjub::Fr::from_repr(spend_auths_sig.sbar()).unwrap();
+    let neg_spend_auths_s = bls12_381::Scalar::from_repr(neg_spend_auths_s.to_repr()).unwrap();
+    let spend_auths_c = bls12_381::Scalar::from_repr(spend_auths_c.to_repr()).unwrap();
+    // Prepare the polynomial coefficients
+    let mut x_vars = vec![
+        neg_binding_s,
+        binding_c,
+        bvk.0.to_affine().get_u(),
+        rks.0.to_affine().get_u(),
+        binding_sig_r.get_u(),
+        spend_auths_sig_r.get_u(),
+    ];
+    let mut y_vars = vec![
+        neg_spend_auths_s,
+        spend_auths_c,
+        bvk.0.to_affine().get_v(),
+        rks.0.to_affine().get_v(),
+        binding_sig_r.get_v(),
+        spend_auths_sig_r.get_v(),
+    ];
+    for (asset_generator, value) in value_balance {
+        let value_commitment_generator = asset_generator.unwrap().mul_by_cofactor().to_affine();
+        x_vars.push(value_commitment_generator.get_u());
+        y_vars.push(bls12_381::Scalar::from_repr(value.unwrap().to_repr()).unwrap());
+    }
+    let value_sum = jubjub::ExtendedPoint::from(&value_sum).mul_by_cofactor();
+    x_vars.push(value_sum.to_affine().get_u());
+    y_vars.push(value_sum.to_affine().get_v());
+    // Compute the challenges
+    let mut x_challenge = Node::blank();
+    let mut y_challenge = Node::blank();
+    for (i, (x_var, y_var)) in x_vars.iter().zip(y_vars.iter()).enumerate().rev() {
+        x_challenge = Node::combine(i, &Node::from_scalar(*x_var), &x_challenge);
+        y_challenge = Node::combine(i, &Node::from_scalar(*y_var), &y_challenge);
+    }
+    // Compute the challenge responses
+    let x_challenge = bls12_381::Scalar::from(x_challenge);
+    let y_challenge = bls12_381::Scalar::from(y_challenge);
+    let mut x_response = bls12_381::Scalar::ZERO;
+    let mut y_response = bls12_381::Scalar::ZERO;
+    for (x_var, y_var) in x_vars.into_iter().zip(y_vars) {
+        x_response = x_response * x_challenge + x_var;
+        y_response = y_response * y_challenge + y_var;
+    }
+    // Try to verify the proof:
+    // Construct public input for circuit
+    let mut public_input = [bls12_381::Scalar::ZERO; 4];
+    public_input[0] = x_challenge;
+    public_input[1] = x_response;
+    public_input[2] = y_challenge;
+    public_input[3] = y_response;
+
+    // Verify the proof
+    verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())?;
+    Ok((proof, public_input[0], public_input[2]))
 }
