@@ -304,8 +304,8 @@ impl TxProver for LocalTxProver {
         spend_auths_sig: Signature,
         value_sum: I128Sum,
         max_asset_types: usize,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], bls12_381::Scalar, bls12_381::Scalar), ()> {
-        let (proof, x_challenge, y_challenge) = authenticate_proof(
+    ) -> Result<([u8; GROTH_PROOF_SIZE], bls12_381::Scalar, bls12_381::Scalar, bls12_381::Scalar, bls12_381::Scalar), ()> {
+        let (proof, x_challenge, x_response, y_challenge, y_response) = authenticate_proof(
             bvk,
             binding_c,
             binding_sig,
@@ -323,7 +323,7 @@ impl TxProver for LocalTxProver {
             .write(&mut zkproof[..])
             .expect("should be able to serialize a proof");
 
-        Ok((zkproof, x_challenge, y_challenge))
+        Ok((zkproof, x_challenge, x_response, y_challenge, y_response))
     }
 
     fn append_proof(

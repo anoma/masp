@@ -402,7 +402,7 @@ pub fn authenticate_proof(
     max_asset_types: usize,
     proving_key: &Parameters<Bls12>,
     verifying_key: &PreparedVerifyingKey<Bls12>,
-) -> Result<(Proof<Bls12>, bls12_381::Scalar, bls12_381::Scalar), ()> {
+) -> Result<(Proof<Bls12>, bls12_381::Scalar, bls12_381::Scalar, bls12_381::Scalar, bls12_381::Scalar), ()> {
     // Initialize secure RNG
     let mut rng = OsRng;
 
@@ -484,5 +484,5 @@ pub fn authenticate_proof(
 
     // Verify the proof
     verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())?;
-    Ok((proof, public_input[0], public_input[2]))
+    Ok((proof, public_input[0], public_input[1], public_input[2], public_input[3]))
 }

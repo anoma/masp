@@ -17,6 +17,9 @@ use super::ecc;
 use super::gadgets;
 use super::pedersen_hash;
 
+/// Maximum number of assets that can be included in value balance
+pub const MAX_ASSETS: usize = 6;
+
 /// This is an instance of the `Authenticate` circuit.
 pub struct Authenticate {
     /// Binding validating key

@@ -110,6 +110,12 @@ name = "generate-append-calldata"
 [[example]]
 name = "generate-append-parameters"
 
+[[example]]
+name = "generate-authenticate-parameters"
+
+[[example]]
+name = "generate-authenticate-calldata"
+
 [badges]
 maintenance = { status = "actively-developed" }
 
