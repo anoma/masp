@@ -11,7 +11,6 @@ use rand_xorshift::XorShiftRng;
 use rand_core::RngCore;
 use masp_primitives::sapling::redjubjub::PrivateKey;
 use masp_primitives::constants::{value_commitment_randomness_generator, spending_key_generator};
-use masp_primitives::sapling::redjubjub::h_star;
 use masp_primitives::asset_type::AssetType;
 use masp_primitives::transaction::components::I128Sum;
 use masp_primitives::sapling::redjubjub::PublicKey;
@@ -56,9 +55,7 @@ fn main() {
     let mut data_to_be_signed0 = [0u8; 64];
     rng.fill_bytes(&mut data_to_be_signed0);
     // Sign random message
-    let binding_sig = bsk.sign(&data_to_be_signed0, &mut rng, r_sapling);
-    // The c value used in validation
-    let binding_c = h_star(&binding_sig.rbar()[..], &data_to_be_signed0);
+    let (binding_c, binding_sig) = bsk.sign(&data_to_be_signed0, &mut rng, r_sapling);
     
     let g_sapling = spending_key_generator();
     // Generate random key
@@ -68,9 +65,7 @@ fn main() {
     let mut data_to_be_signed1 = [0u8; 64];
     rng.fill_bytes(&mut data_to_be_signed1);
     // Sign random message
-    let spend_auths_sig = rsks.sign(&data_to_be_signed1, &mut rng, g_sapling);
-    // The c value used in validation
-    let spend_auths_c = h_star(&spend_auths_sig.rbar()[..], &data_to_be_signed1);
+    let (spend_auths_c, spend_auths_sig) = rsks.sign(&data_to_be_signed1, &mut rng, g_sapling);
 
     // Generate a value balance
     let mut value_sum = I128Sum::zero();

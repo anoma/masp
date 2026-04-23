@@ -103,7 +103,7 @@ pub trait TxProver {
         ctx: &mut Self::SaplingProvingContext,
         amount: &I128Sum,
         sighash: &[u8; 32],
-    ) -> Result<Signature, ()>;
+    ) -> Result<(PublicKey, jubjub::Fr, Signature), ()>;
 }
 
 #[cfg(any(test, feature = "test-dependencies"))]
@@ -193,16 +193,16 @@ pub mod mock {
             _spend_auths_sig: Signature,
             _value_sum: I128Sum,
             _max_asset_types: usize,
-        ) -> Result<([u8; GROTH_PROOF_SIZE], bls12_381::Scalar, bls12_381::Scalar), ()> {
-            Ok(([0u8; GROTH_PROOF_SIZE], bls12_381::Scalar::ZERO, bls12_381::Scalar::ZERO))
+        ) -> Result<([u8; GROTH_PROOF_SIZE], bls12_381::Scalar, bls12_381::Scalar, bls12_381::Scalar, bls12_381::Scalar), ()> {
+            Ok(([0u8; GROTH_PROOF_SIZE], bls12_381::Scalar::ZERO, bls12_381::Scalar::ZERO, bls12_381::Scalar::ZERO, bls12_381::Scalar::ZERO))
         }
 
         fn append_proof(
             &self,
             merkle_path: MerklePath<Node>,
             new_cmus: Vec<Node>,
-        ) -> Result<([u8; GROTH_PROOF_SIZE], Node), ()> {
-            Ok(([0u8; GROTH_PROOF_SIZE], merkle_path.batch_root(new_cmus)?))
+        ) -> Result<([u8; GROTH_PROOF_SIZE], Node, bls12_381::Scalar), ()> {
+            Ok(([0u8; GROTH_PROOF_SIZE], merkle_path.batch_root(new_cmus)?, bls12_381::Scalar::ZERO))
         }
 
         fn binding_sig(
@@ -210,7 +210,7 @@ pub mod mock {
             _ctx: &mut Self::SaplingProvingContext,
             _value: &I128Sum,
             _sighash: &[u8; 32],
-        ) -> Result<Signature, ()> {
+        ) -> Result<(PublicKey, jubjub::Fr, Signature), ()> {
             Err(())
         }
     }

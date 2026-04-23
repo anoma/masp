@@ -17,6 +17,7 @@ use crate::{
     memo::MemoBytes,
     merkle_tree::MerklePath,
     sapling::{
+        SAPLING_AUTHENTICATE_MAX_ASSETS,
         Diversifier, Node, Note, PaymentAddress, ProofGenerationKey, Rseed,
         note_encryption::sapling_note_encryption,
         prover::TxProver,
@@ -394,6 +395,7 @@ pub enum Error {
     InvalidAmount,
     SpendProof,
     ConvertProof,
+    AuthenticateProof,
 }
 
 impl fmt::Display for Error {
@@ -407,6 +409,7 @@ impl fmt::Display for Error {
             Error::InvalidAmount => write!(f, "Invalid amount"),
             Error::SpendProof => write!(f, "Failed to create MASP spend proof"),
             Error::ConvertProof => write!(f, "Failed to create MASP convert proof"),
+            Error::AuthenticateProof => write!(f, "Failed to create MASP authenticate proof"),
         }
     }
 }
@@ -1184,7 +1187,7 @@ impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
         bparams: &mut S,
         sighash_bytes: &[u8; 32],
     ) -> Result<(Bundle<Authorized>, SaplingMetadata), Error> {
-        let binding_sig = prover
+        let (bvk, binding_c, binding_sig) = prover
             .binding_sig(ctx, &self.value_balance, sighash_bytes)
             .map_err(|_| Error::BindingSig)?;
 
@@ -1201,7 +1204,18 @@ impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
             asks = PrivateKey(asks.0 + ask);
             ars += bparams.spend_alpha(i);
         }
-        let spend_auths_sig = spend_sig_internal(asks, ars, sighash_bytes, rng);
+        let (rks, spend_auths_c, spend_auths_sig) = spend_sig_internal(asks, ars, sighash_bytes, rng);
+        // Prove that the signatures were computed correctly
+        let (zkproof, x_challenge, _, y_challenge, _) = prover.authenticate_proof(
+            bvk,
+            binding_c,
+            binding_sig,
+            rks,
+            spend_auths_c,
+            spend_auths_sig,
+            self.value_balance.clone(),
+            SAPLING_AUTHENTICATE_MAX_ASSETS,
+        ).map_err(|_| Error::SpendProof)?;
         Ok((
             Bundle {
                 shielded_spends: self
@@ -1215,6 +1229,9 @@ impl<K: ExtendedKey + Debug + Clone + PartialEq + for<'a> MaybeArbitrary<'a>>
                 authorization: Authorized {
                     binding_sig,
                     spend_auths_sig,
+                    zkproof,
+                    x_challenge,
+                    y_challenge,
                 },
             },
             self.authorization.tx_metadata,

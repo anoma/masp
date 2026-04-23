@@ -143,7 +143,7 @@ impl PrivateKey {
         write_scalar::<W>(&self.0, writer)
     }
 
-    pub fn sign<R: RngCore>(&self, msg: &[u8], rng: &mut R, p_g: SubgroupPoint) -> Signature {
+    pub fn sign<R: RngCore>(&self, msg: &[u8], rng: &mut R, p_g: SubgroupPoint) -> (jubjub::Fr, Signature) {
         // T = (l_H + 128) bits of randomness
         // For H*, l_H = 512 bits
         let mut t = [0u8; 80];
@@ -157,14 +157,15 @@ impl PrivateKey {
         let rbar = r_g.to_bytes();
 
         // S = r + H*(Rbar || M) . sk
-        let mut s = h_star(&rbar[..], msg);
+        let c = h_star(&rbar[..], msg);
+        let mut s = c;
         s.mul_assign(&self.0);
         s.add_assign(&r);
         let mut sbar = [0u8; 32];
         write_scalar::<&mut [u8]>(&s, &mut sbar[..])
             .expect("Jubjub scalars should serialize to 32 bytes");
 
-        Signature { rbar, sbar }
+        (c, Signature { rbar, sbar })
     }
 }
 
@@ -302,13 +303,13 @@ mod tests {
         let sk1 = PrivateKey(jubjub::Fr::random(&mut rng));
         let vk1 = PublicKey::from_private(&sk1, p_g);
         let msg1 = b"Foo bar";
-        let sig1 = sk1.sign(msg1, &mut rng, p_g);
+        let sig1 = sk1.sign(msg1, &mut rng, p_g).1;
         assert!(vk1.verify(msg1, &sig1, p_g));
 
         let sk2 = PrivateKey(jubjub::Fr::random(&mut rng));
         let vk2 = PublicKey::from_private(&sk2, p_g);
         let msg2 = b"Foo bar";
-        let sig2 = sk2.sign(msg2, &mut rng, p_g);
+        let sig2 = sk2.sign(msg2, &mut rng, p_g).1;
         assert!(vk2.verify(msg2, &sig2, p_g));
 
         let mut batch = vec![
@@ -366,7 +367,7 @@ mod tests {
 
         // TODO: This test will need to change when #77 is fixed
         let msg = b"Foo bar";
-        let sig = sk.sign(msg, &mut rng, p_g);
+        let sig = sk.sign(msg, &mut rng, p_g).1;
         assert!(vk.verify(msg, &sig, p_g));
 
         let vktorsion = PublicKey(vk.0 + p8);
@@ -385,7 +386,7 @@ mod tests {
             let sk = PrivateKey(jubjub::Fr::random(&mut rng));
             let vk = PublicKey::from_private(&sk, p_g);
             let msg = b"Foo bar";
-            let sig = sk.sign(msg, &mut rng, p_g);
+            let sig = sk.sign(msg, &mut rng, p_g).1;
 
             let mut sk_bytes = [0u8; 32];
             let mut vk_bytes = [0u8; 32];
@@ -423,8 +424,8 @@ mod tests {
             let msg1 = b"Foo bar";
             let msg2 = b"Spam eggs";
 
-            let sig1 = sk.sign(msg1, &mut rng, p_g);
-            let sig2 = sk.sign(msg2, &mut rng, p_g);
+            let sig1 = sk.sign(msg1, &mut rng, p_g).1;
+            let sig2 = sk.sign(msg2, &mut rng, p_g).1;
 
             assert!(vk.verify(msg1, &sig1, p_g));
             assert!(vk.verify(msg2, &sig2, p_g));
@@ -435,8 +436,8 @@ mod tests {
             let rsk = sk.randomize(alpha);
             let rvk = vk.randomize(alpha, p_g);
 
-            let sig1 = rsk.sign(msg1, &mut rng, p_g);
-            let sig2 = rsk.sign(msg2, &mut rng, p_g);
+            let sig1 = rsk.sign(msg1, &mut rng, p_g).1;
+            let sig2 = rsk.sign(msg2, &mut rng, p_g).1;
 
             assert!(rvk.verify(msg1, &sig1, p_g));
             assert!(rvk.verify(msg2, &sig2, p_g));

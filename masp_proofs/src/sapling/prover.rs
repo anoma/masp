@@ -284,7 +284,7 @@ impl SaplingProvingContext {
         &self,
         assets_and_values: &I128Sum,
         sighash: &[u8; 32],
-    ) -> Result<Signature, ()> {
+    ) -> Result<(PublicKey, jubjub::Fr, Signature), ()> {
         // Initialize secure RNG
         let mut rng = OsRng;
 
@@ -313,11 +313,12 @@ impl SaplingProvingContext {
         data_to_be_signed[32..64].copy_from_slice(&sighash[..]);
 
         // Sign
-        Ok(bsk.sign(
+        let (c, sig) = bsk.sign(
             &data_to_be_signed,
             &mut rng,
             value_commitment_randomness_generator(),
-        ))
+        );
+        Ok((bvk, c, sig))
     }
 }
 

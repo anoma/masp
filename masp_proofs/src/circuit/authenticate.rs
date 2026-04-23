@@ -13,12 +13,13 @@ use group::ff::Field;
 use masp_primitives::sapling::Node;
 use masp_primitives::merkle_tree::Hashable;
 use crate::constants::{SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR, FixedGenerator};
+use masp_primitives::sapling::SAPLING_AUTHENTICATE_MAX_ASSETS;
 use super::ecc;
 use super::gadgets;
 use super::pedersen_hash;
 
 /// Maximum number of assets that can be included in value balance
-pub const MAX_ASSETS: usize = 6;
+pub const MAX_ASSETS: usize = SAPLING_AUTHENTICATE_MAX_ASSETS;
 
 /// This is an instance of the `Authenticate` circuit.
 pub struct Authenticate {
@@ -323,7 +324,6 @@ fn test_authenticate_circuit_with_bls12_381() {
     use rand_core::RngCore;
     use masp_primitives::sapling::redjubjub::PrivateKey;
     use masp_primitives::constants::{value_commitment_randomness_generator, spending_key_generator};
-    use masp_primitives::sapling::redjubjub::h_star;
     use group::Curve;
     use masp_primitives::asset_type::AssetType;
     use masp_primitives::transaction::components::I128Sum;
@@ -343,9 +343,7 @@ fn test_authenticate_circuit_with_bls12_381() {
         let mut data_to_be_signed0 = [0u8; 64];
         rng.fill_bytes(&mut data_to_be_signed0);
         // Sign random message
-        let binding_sig = bsk.sign(&data_to_be_signed0, &mut rng, r_sapling);
-        // The c value used in validation
-        let binding_c = h_star(&binding_sig.rbar()[..], &data_to_be_signed0);
+        let (binding_c, binding_sig) = bsk.sign(&data_to_be_signed0, &mut rng, r_sapling);
         
         let g_sapling = spending_key_generator();
         // Generate random key
@@ -355,9 +353,7 @@ fn test_authenticate_circuit_with_bls12_381() {
         let mut data_to_be_signed1 = [0u8; 64];
         rng.fill_bytes(&mut data_to_be_signed1);
         // Sign random message
-        let spend_auths_sig = rsks.sign(&data_to_be_signed1, &mut rng, g_sapling);
-        // The c value used in validation
-        let spend_auths_c = h_star(&spend_auths_sig.rbar()[..], &data_to_be_signed1);
+        let (spend_auths_c, spend_auths_sig) = rsks.sign(&data_to_be_signed1, &mut rng, g_sapling);
 
         // Generate a value balance
         let mut value_balance = Vec::new();
@@ -389,16 +385,16 @@ fn test_authenticate_circuit_with_bls12_381() {
             assert!(cs.is_satisfied());
             assert!(cs.num_constraints() >= 28450);
             assert!(cs.num_constraints() <= 223843);
-            assert_eq!(cs.get("binding validating key/u/num"), bvk.0.to_affine().get_u());
-            assert_eq!(cs.get("binding validating key/v/num"), bvk.0.to_affine().get_v());
+            assert_eq!(cs.get("binding signature/validating key/u/num"), bvk.0.to_affine().get_u());
+            assert_eq!(cs.get("binding signature/validating key/v/num"), bvk.0.to_affine().get_v());
             let binding_sig_r = ExtendedPoint::from_bytes(&binding_sig.rbar()).unwrap().to_affine();
-            assert_eq!(cs.get("binding signature R/u/num"), binding_sig_r.get_u());
-            assert_eq!(cs.get("binding signature R/v/num"), binding_sig_r.get_v());
-            assert_eq!(cs.get("randomized validating key/u/num"), rks.0.to_affine().get_u());
-            assert_eq!(cs.get("randomized validating key/v/num"), rks.0.to_affine().get_v());
+            assert_eq!(cs.get("binding signature/signature R/u/num"), binding_sig_r.get_u());
+            assert_eq!(cs.get("binding signature/signature R/v/num"), binding_sig_r.get_v());
+            assert_eq!(cs.get("spend authorizations signature/validating key/u/num"), rks.0.to_affine().get_u());
+            assert_eq!(cs.get("spend authorizations signature/validating key/v/num"), rks.0.to_affine().get_v());
             let spend_auths_sig_r = ExtendedPoint::from_bytes(&spend_auths_sig.rbar()).unwrap().to_affine();
-            assert_eq!(cs.get("spend authorizations signature R/u/num"), spend_auths_sig_r.get_u());
-            assert_eq!(cs.get("spend authorizations signature R/v/num"), spend_auths_sig_r.get_v());
+            assert_eq!(cs.get("spend authorizations signature/signature R/u/num"), spend_auths_sig_r.get_u());
+            assert_eq!(cs.get("spend authorizations signature/signature R/v/num"), spend_auths_sig_r.get_v());
             let neg_binding_s = -jubjub::Fr::from_repr(binding_sig.sbar()).unwrap();
             let neg_binding_s = bls12_381::Scalar::from_repr(neg_binding_s.to_repr()).unwrap();
             assert_eq!(cs.get("-binding S as scalar/value/num"), neg_binding_s);

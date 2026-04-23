@@ -49,6 +49,7 @@ use borsh::schema::add_definition;
 use std::collections::BTreeMap;
 
 pub const SAPLING_COMMITMENT_TREE_DEPTH: usize = 32;
+pub const SAPLING_AUTHENTICATE_MAX_ASSETS: usize = 6;
 
 /// Compute a parent node in the Sapling commitment tree given its two children.
 pub fn merkle_hash(depth: usize, lhs: &[u8; 32], rhs: &[u8; 32]) -> [u8; 32] {
@@ -169,7 +170,7 @@ pub fn spend_sig<R: RngCore + CryptoRng>(
     ar: jubjub::Fr,
     sighash: &[u8; 32],
     rng: &mut R,
-) -> Signature {
+) -> (PublicKey, jubjub::Fr, Signature) {
     spend_sig_internal(ask, ar, sighash, rng)
 }
 
@@ -178,7 +179,7 @@ pub(crate) fn spend_sig_internal<R: RngCore>(
     ar: jubjub::Fr,
     sighash: &[u8; 32],
     rng: &mut R,
-) -> Signature {
+) -> (PublicKey, jubjub::Fr, Signature) {
     // We compute `rsk`...
     let rsk = ask.randomize(ar);
 
@@ -191,7 +192,8 @@ pub(crate) fn spend_sig_internal<R: RngCore>(
     data_to_be_signed[32..64].copy_from_slice(&sighash[..]);
 
     // Do the signing
-    rsk.sign(&data_to_be_signed, rng, spending_key_generator())
+    let (c, sig) = rsk.sign(&data_to_be_signed, rng, spending_key_generator());
+    (rk, c, sig)
 }
 
 #[derive(Clone)]

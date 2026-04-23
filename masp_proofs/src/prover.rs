@@ -53,6 +53,7 @@ impl LocalTxProver {
     ///     Path::new("/path/to/masp-spend.params"),
     ///     Path::new("/path/to/masp-output.params"),
     ///     Path::new("/path/to/masp-convert.params"),
+    ///     Path::new("/path/to/masp-authenticate.params"),
     ///     Path::new("/path/to/masp-append.params"),
     /// );
     /// ```
@@ -90,7 +91,7 @@ impl LocalTxProver {
     /// use std::path::Path;
     /// use masp_proofs::prover::LocalTxProver;
     ///
-    /// let tx_prover = LocalTxProver::from_bytes(&[0u8], &[0u8], &[0u8], &[0u8]);
+    /// let tx_prover = LocalTxProver::from_bytes(&[0u8], &[0u8], &[0u8], &[0u8], &[0u8]);
     /// ```
     ///
     /// # Panics
@@ -347,7 +348,7 @@ impl TxProver for LocalTxProver {
         ctx: &mut Self::SaplingProvingContext,
         assets_and_values: &I128Sum,
         sighash: &[u8; 32],
-    ) -> Result<Signature, ()> {
+    ) -> Result<(PublicKey, jubjub::Fr, Signature), ()> {
         ctx.binding_sig(assets_and_values, sighash)
     }
 }

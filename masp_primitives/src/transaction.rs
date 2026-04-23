@@ -670,9 +670,12 @@ impl Transaction {
         let v_output_proofs = Array::read(&mut reader, n_outputs, |r| sapling::read_zkproof(r))?;
 
         let binding_spend_auths_sig = if n_spends > 0 || n_converts > 0 || n_outputs > 0 {
+            let authenticate_proof = sapling::read_zkproof(&mut reader)?;
             let binding_sig = redjubjub::Signature::read(&mut reader)?;
             let spend_auths_sig = redjubjub::Signature::read(&mut reader)?;
-            Some((binding_sig, spend_auths_sig))
+            let x_challenge = sapling::read_base(&mut reader, "authenticate x-challenge")?;
+            let y_challenge = sapling::read_base(&mut reader, "authenticate y-challenge")?;
+            Some((binding_sig, spend_auths_sig, authenticate_proof, x_challenge, y_challenge))
         } else {
             None
         };
@@ -699,7 +702,7 @@ impl Transaction {
             .collect();
 
         Ok(
-            binding_spend_auths_sig.map(|(binding_sig, spend_auths_sig)| sapling::Bundle {
+            binding_spend_auths_sig.map(|(binding_sig, spend_auths_sig, authenticate_proof, x_challenge, y_challenge)| sapling::Bundle {
                 value_balance,
                 shielded_spends,
                 shielded_converts,
@@ -707,6 +710,9 @@ impl Transaction {
                 authorization: sapling::Authorized {
                     binding_sig,
                     spend_auths_sig,
+                    zkproof: authenticate_proof,
+                    x_challenge,
+                    y_challenge,
                 },
             }),
         )
@@ -792,8 +798,11 @@ impl Transaction {
                 && bundle.shielded_converts.is_empty()
                 && bundle.shielded_outputs.is_empty())
             {
+                writer.write_all(&bundle.authorization.zkproof)?;
                 bundle.authorization.binding_sig.write(&mut writer)?;
                 bundle.authorization.spend_auths_sig.write(&mut writer)?;
+                writer.write_all(bundle.authorization.x_challenge.to_repr().as_ref())?;
+                writer.write_all(bundle.authorization.y_challenge.to_repr().as_ref())?;
             }
         } else {
             CompactSize::write(&mut writer, 0)?;

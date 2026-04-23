@@ -48,15 +48,60 @@ impl Authorization for Unproven {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, BorshSchema)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Authorized {
     pub binding_sig: redjubjub::Signature,
     pub spend_auths_sig: redjubjub::Signature,
+    pub zkproof: GrothProofBytes,
+    #[borsh(serialize_with = "serialize_scalar", deserialize_with = "deserialize_scalar")]
+    pub x_challenge: bls12_381::Scalar,
+    #[borsh(serialize_with = "serialize_scalar", deserialize_with = "deserialize_scalar")]
+    pub y_challenge: bls12_381::Scalar,
 }
 
 impl Authorization for Authorized {
     type Proof = GrothProofBytes;
     type AuthSig = ();
+}
+
+pub fn serialize_scalar<W: borsh::io::Write>(
+    obj: &bls12_381::Scalar,
+    writer: &mut W,
+) -> Result<(), borsh::io::Error> {
+    BorshSerialize::serialize(&obj.to_repr(), writer)
+}
+
+pub fn deserialize_scalar<R: borsh::io::Read>(
+    reader: &mut R,
+) -> Result<bls12_381::Scalar, borsh::io::Error> {
+    read_base(reader, "base")
+}
+
+impl BorshSchema for Authorized {
+    fn add_definitions_recursively(
+        definitions: &mut std::collections::BTreeMap<borsh::schema::Declaration, Definition>,
+    ) {
+        // Add the definition for the `Authorized` struct itself
+        let definition = Definition::Struct {
+            fields: Fields::NamedFields(vec![
+                ("binding_sig".to_string(), <redjubjub::Signature>::declaration()),
+                ("spend_auths_sig".to_string(), <redjubjub::Signature>::declaration()),
+                ("zkproof".to_string(), <GrothProofBytes>::declaration()),
+                ("x_challenge".to_string(), <[u8; 32]>::declaration()),
+                ("y_challenge".to_string(), <[u8; 32]>::declaration()),
+            ]),
+        };
+        
+        borsh::schema::add_definition(Self::declaration(), definition, definitions);
+        // Ensure all constituent types have their definitions added
+        <redjubjub::Signature>::add_definitions_recursively(definitions);
+        <GrothProofBytes>::add_definitions_recursively(definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> borsh::schema::Declaration {
+        "Authorized".into()
+    }
 }
 
 pub trait MapAuth<A: Authorization, B: Authorization> {
@@ -713,6 +758,14 @@ pub mod testing {
             rng_seed in prop::array::uniform32(prop::num::u8::ANY),
             fake_bvk_bytes in prop::array::uniform32(prop::num::u8::ANY),
             fake_rks_bytes in prop::array::uniform32(prop::num::u8::ANY),
+            zkproof in vec(any::<u8>(), GROTH_PROOF_SIZE)
+                .prop_map(|v| <[u8;GROTH_PROOF_SIZE]>::try_from(v.as_slice()).unwrap()),
+            x_challenge in vec(any::<u8>(), 32)
+                .prop_map(|v| <[u8;32]>::try_from(v.as_slice()).unwrap())
+                .prop_map(|v| bls12_381::Scalar::from_bytes_le(&v).unwrap()),
+            y_challenge in vec(any::<u8>(), 32)
+                .prop_map(|v| <[u8;32]>::try_from(v.as_slice()).unwrap())
+                .prop_map(|v| bls12_381::Scalar::from_bytes_le(&v).unwrap()),
         ) -> Option<Bundle<Authorized>> {
             if shielded_spends.is_empty() && shielded_outputs.is_empty() {
                 None
@@ -728,8 +781,11 @@ pub mod testing {
                         shielded_outputs,
                         value_balance,
                         authorization: Authorized {
-                            binding_sig: bsk.sign(&fake_bvk_bytes, &mut rng, value_commitment_randomness_generator()),
-                            spend_auths_sig: rks.sign(&fake_rks_bytes, &mut rng, spending_key_generator()),
+                            binding_sig: bsk.sign(&fake_bvk_bytes, &mut rng, value_commitment_randomness_generator()).1,
+                            spend_auths_sig: rks.sign(&fake_rks_bytes, &mut rng, spending_key_generator()).1,
+                            zkproof,
+                            x_challenge,
+                            y_challenge,
                         },
                     }
                 )
