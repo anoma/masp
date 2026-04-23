@@ -330,8 +330,8 @@ impl TxProver for LocalTxProver {
         &self,
         merkle_path: MerklePath<Node>,
         new_cmus: Vec<Node>,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], Node), ()> {
-        let (proof, new_root) =
+    ) -> Result<([u8; GROTH_PROOF_SIZE], Node, bls12_381::Scalar), ()> {
+        let (proof, new_root, challenge_response) =
             append_proof(merkle_path, new_cmus, &self.append_params, &self.append_vk)?;
 
         let mut zkproof = [0u8; GROTH_PROOF_SIZE];
@@ -339,7 +339,7 @@ impl TxProver for LocalTxProver {
             .write(&mut zkproof[..])
             .expect("should be able to serialize a proof");
 
-        Ok((zkproof, new_root))
+        Ok((zkproof, new_root, challenge_response))
     }
 
     fn binding_sig(

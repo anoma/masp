@@ -93,7 +93,7 @@ pub trait TxProver {
         &self,
         merkle_path: MerklePath<Node>,
         new_cmus: Vec<Node>,
-    ) -> Result<([u8; GROTH_PROOF_SIZE], Node), ()>;
+    ) -> Result<([u8; GROTH_PROOF_SIZE], Node, bls12_381::Scalar), ()>;
 
     /// Create the `bindingSig` for a Sapling transaction. All calls to
     /// [`TxProver::spend_proof`] and [`TxProver::output_proof`] must be completed before

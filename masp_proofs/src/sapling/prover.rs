@@ -329,7 +329,7 @@ pub fn append_proof(
     new_cmus: Vec<Node>,
     proving_key: &Parameters<Bls12>,
     verifying_key: &PreparedVerifyingKey<Bls12>,
-) -> Result<(Proof<Bls12>, Node), ()> {
+) -> Result<(Proof<Bls12>, Node, bls12_381::Scalar), ()> {
     // Initialize secure RNG
     let mut rng = OsRng;
 
@@ -365,7 +365,7 @@ pub fn append_proof(
     // Verify the proof
     verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())?;
 
-    Ok((proof, Node::from_scalar(public_input[2])))
+    Ok((proof, Node::from_scalar(public_input[2]), public_input[3]))
 }
 
 // Convert i128 to Jubjub scalar respecting the modulus

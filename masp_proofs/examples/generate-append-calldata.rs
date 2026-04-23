@@ -1,13 +1,13 @@
 use bellman::groth16::Parameters;
-use bellman::groth16::create_random_proof;
 use bls12_381::Bls12;
 use bls12_381::Fp;
 use bls12_381::Scalar;
 use group::ff::Field;
 use masp_primitives::merkle_tree::FrozenCommitmentTree;
 use masp_primitives::sapling::Node;
-use masp_proofs::circuit::append::Append;
 use masp_proofs::circuit::append::BATCH_SIZE;
+use masp_proofs::sapling::append_proof;
+use bellman::groth16::prepare_verifying_key;
 
 use rand_core::SeedableRng;
 use rand_xorshift::XorShiftRng;
@@ -56,33 +56,15 @@ fn main() {
     for _j in 0..BATCH_SIZE {
         leaves.push(Node::from_scalar(bls12_381::Scalar::random(&mut rng)));
     }
-    let new_tree = FrozenCommitmentTree::new(&leaves);
-    let new_root = new_tree.root();
 
-    let auth_path: Vec<_> = auth_path
-        .auth_path
-        .iter()
-        .map(|x| Some(bls12_381::Scalar::from(x.0)))
-        .collect();
     let k = i as usize;
 
-    let instance = Append {
-        old_size: Some(old_size_scalar),
-        auth_path: auth_path.clone(),
-        new_cmus: leaves[k..(k + BATCH_SIZE)]
-            .iter()
-            .map(|x| Some(bls12_381::Scalar::from(*x)))
-            .collect(),
-    };
-
-    let proof = create_random_proof(instance, &proving_key, &mut rng)
-        .expect("failed to generate spend proof");
-
-    let mut response = bls12_381::Scalar::ZERO;
-    for m in (0..BATCH_SIZE).rev() {
-        response *= bls12_381::Scalar::from(new_root);
-        response += bls12_381::Scalar::from(leaves[old_size + m]);
-    }
+    let (proof, new_root, response) = append_proof(
+        auth_path,
+        leaves[k..(k + BATCH_SIZE)].to_vec(),
+        &proving_key,
+        &prepare_verifying_key(&proving_key.vk),
+    ).expect("failed to generate append proof");
 
     let pi_a_g1_x = proof.a.x();
     let pi_a_g1_y = proof.a.y();
