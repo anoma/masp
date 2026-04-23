@@ -89,6 +89,41 @@ fn validate_signature<CS: ConstraintSystem<bls12_381::Scalar>>(
     Ok(())
 }
 
+// Allocate variables necessary for signature validation using the given
+// witnesses, validate the given signature, and return the variables.
+fn process_signature<CS: ConstraintSystem<bls12_381::Scalar>>(
+    mut cs: CS,
+    base: FixedGenerator,
+    vk: Option<PublicKey>,
+    c: Option<jubjub::Fr>,
+    sig: Option<Signature>,
+) -> Result<(ecc::EdwardsPoint, ecc::EdwardsPoint, Vec<Boolean>, Vec<Boolean>), SynthesisError> {
+    // Allocate signature variables using the given witnesses
+    let vk = ecc::EdwardsPoint::witness(
+        cs.namespace(|| "validating key"),
+        vk.as_ref().map(|a| a.0),
+    )?;
+    let c = gadgets::field_into_boolean_vec_le(cs.namespace(|| "c"), c)?;
+    let neg_s = gadgets::field_into_boolean_vec_le(
+        cs.namespace(|| "signature S negated"),
+        sig.as_ref().map(|x| -jubjub::Fr::from_repr(x.sbar()).unwrap()),
+    )?;
+    let r = ecc::EdwardsPoint::witness(
+        cs.namespace(|| "signature R"),
+        sig.as_ref().map(|a| ExtendedPoint::from_bytes(&a.rbar()).unwrap()),
+    )?;
+    // Then make constraints to validate the signature
+    validate_signature(
+        cs.namespace(|| "signature verification"),
+        base,
+        &vk,
+        &r,
+        &c,
+        &neg_s,
+    )?;
+    Ok((vk, r, c, neg_s))
+}
+
 // Convert a little endian vector of bits into an allocated number
 pub fn boolean_vec_le_into_field<Scalar, CS>(
     mut cs: CS,
@@ -204,66 +239,22 @@ impl Circuit<bls12_381::Scalar> for Authenticate {
         self,
         cs: &mut CS,
     ) -> Result<(), SynthesisError> {
-        // Validate the binding signature
-        let bvk = ecc::EdwardsPoint::witness(
-            cs.namespace(|| "binding validating key"),
-            self.bvk
-                .as_ref()
-                .map(|a| a.0),
-        )?;
-        let binding_c = gadgets::field_into_boolean_vec_le(
-            cs.namespace(|| "binding c"),
-            self.binding_c,
-        )?;
-        let neg_binding_s = gadgets::field_into_boolean_vec_le(
-            cs.namespace(|| "binding signature s negated"),
-            self.binding_sig.as_ref().map(|x| -jubjub::Fr::from_repr(x.sbar()).unwrap()),
-        )?;
-        let binding_r = ecc::EdwardsPoint::witness(
-            cs.namespace(|| "binding signature R"),
-            self.binding_sig
-                .as_ref()
-                .map(|a| ExtendedPoint::from_bytes(&a.rbar()).unwrap()),
-        )?;
-        validate_signature(
-            cs.namespace(|| "binding signature verification"),
+        // Process and validate the binding signature
+        let (bvk, binding_r, binding_c, neg_binding_s) = process_signature(
+            cs.namespace(|| "binding signature"),
             &VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
-            &bvk,
-            &binding_r,
-            &binding_c,
-            &neg_binding_s,
+            self.bvk,
+            self.binding_c,
+            self.binding_sig,
         )?;
-
         // Validate the spend authorizations signature
-        let rks = ecc::EdwardsPoint::witness(
-            cs.namespace(|| "randomized validating key"),
-            self.rks
-                .as_ref()
-                .map(|a| a.0),
-        )?;
-        let spend_auths_c = gadgets::field_into_boolean_vec_le(
-            cs.namespace(|| "spend auths c"),
-            self.spend_auths_c,
-        )?;
-        let neg_spend_auths_s = gadgets::field_into_boolean_vec_le(
-            cs.namespace(|| "spend authorizations signature s negated"),
-            self.spend_auths_sig.as_ref().map(|x| -jubjub::Fr::from_repr(x.sbar()).unwrap()),
-        )?;
-        let spend_auths_r = ecc::EdwardsPoint::witness(
-            cs.namespace(|| "spend authorizations signature R"),
-            self.spend_auths_sig
-                .as_ref()
-                .map(|a| ExtendedPoint::from_bytes(&a.rbar()).unwrap()),
-        )?;
-        validate_signature(
-            cs.namespace(|| "spend authorization signature verification"),
+        let (rks, spend_auths_r, spend_auths_c, neg_spend_auths_s) = process_signature(
+            cs.namespace(|| "spend authorizations signature"),
             &SPENDING_KEY_GENERATOR,
-            &rks,
-            &spend_auths_r,
-            &spend_auths_c,
-            &neg_spend_auths_s,
+            self.rks,
+            self.spend_auths_c,
+            self.spend_auths_sig,
         )?;
-
         // Initialize variables to be included in first challenge
         let mut x_vars = vec![
             boolean_vec_le_into_field(cs.namespace(|| "-binding S as scalar"), neg_binding_s)?,
