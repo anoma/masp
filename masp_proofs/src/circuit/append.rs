@@ -12,7 +12,7 @@ use masp_primitives::sapling::Node;
 use masp_primitives::sapling::SAPLING_COMMITMENT_TREE_DEPTH;
 
 pub const TREE_DEPTH: usize = SAPLING_COMMITMENT_TREE_DEPTH;
-pub const BATCH_SIZE: usize = 32;
+pub const BATCH_SIZE: usize = 255;
 
 /// This is an instance of the `Append` circuit.
 pub struct Append {
