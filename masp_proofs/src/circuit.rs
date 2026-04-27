@@ -1,7 +1,7 @@
-//! Implementations of the MASP circuits and personalized Pedersen hash
+//! Implementations of the MASP circuits and Poseidon2 hashing gadgets
 
 pub mod convert;
 pub mod ecc;
 pub mod gadgets;
-pub mod pedersen_hash;
+pub mod poseidon_hash;
 pub mod sapling;

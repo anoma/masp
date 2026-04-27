@@ -1,9 +1,6 @@
 //! Various constants used by the Zcash primitives.
 
-use ff::PrimeField;
-use group::Group;
 use jubjub::SubgroupPoint;
-use lazy_static::lazy_static;
 
 /// First 64 bytes of the BLAKE2s input during group hash.
 /// This is chosen to be some random string that we couldn't have anticipated when we designed
@@ -20,9 +17,6 @@ pub const CRH_IVK_PERSONALIZATION: &[u8; 8] = b"MASP_ivk";
 pub const PRF_NF_PERSONALIZATION: &[u8; 8] = b"MASP__nf";
 
 // Group hash personalizations
-/// BLAKE2s Personalization for Pedersen hash generators.
-pub const PEDERSEN_HASH_GENERATORS_PERSONALIZATION: &[u8; 8] = b"MASP__PH";
-
 /// BLAKE2s Personalization for the group hash for key diversification
 pub const KEY_DIVERSIFICATION_PERSONALIZATION: &[u8; 8] = b"MASP__gd";
 
@@ -61,48 +55,6 @@ pub fn proof_generation_key_generator() -> SubgroupPoint {
             0x36b4_9c71_a2af_0708,
             0xc654_dfdd_3600_4de9,
             0x0093_0d67_d690_6365,
-        ])
-        .unwrap(),
-    )
-}
-
-/// The note commitment is randomized over this generator.
-pub fn note_commitment_randomness_generator() -> SubgroupPoint {
-    SubgroupPoint::from_raw_unchecked(
-        bls12_381::Scalar::from_u64s_le(&[
-            0xfc033fa2bf88cb2e,
-            0xcd80edf5fe44c7bf,
-            0xc6de7556abb84082,
-            0x434c9be15267b091,
-        ])
-        .unwrap(),
-        bls12_381::Scalar::from_u64s_le(&[
-            0xc6b8daa0ee22aeed,
-            0x690b295c66b85c64,
-            0x6d277197e97af8f0,
-            0x29e2926993d3bc73,
-        ])
-        .unwrap(),
-    )
-}
-
-/// The node commitment is randomized again by the position in order to supply the
-/// nullifier computation with a unique input w.r.t. the note being spent, to prevent
-/// Faerie gold attacks.
-pub fn nullifier_position_generator() -> SubgroupPoint {
-    SubgroupPoint::from_raw_unchecked(
-        bls12_381::Scalar::from_u64s_le(&[
-            0xaafee844265fc1e7,
-            0x1e09674f28a4b844,
-            0x84678dc2d85293df,
-            0x50de6d98fee5282f,
-        ])
-        .unwrap(),
-        bls12_381::Scalar::from_u64s_le(&[
-            0xed034e3ee13a1eb3,
-            0x226945aee96dfe0a,
-            0xf3f70dc31afe799d,
-            0x03260f0bf1244050,
         ])
         .unwrap(),
     )
@@ -148,155 +100,9 @@ pub fn spending_key_generator() -> SubgroupPoint {
     )
 }
 
-/// The generators (for each segment) used in all Pedersen commitments.
-pub fn pedersen_hash_generators() -> [SubgroupPoint; 6] {
-    [
-        SubgroupPoint::from_raw_unchecked(
-            bls12_381::Scalar::from_u64s_le(&[
-                0x1010503570c3ebf6,
-                0x5c22a82a281c9181,
-                0x98ba470b0d28801b,
-                0x113de62be6e0d323,
-            ])
-            .unwrap(),
-            bls12_381::Scalar::from_u64s_le(&[
-                0xf031edff274efb14,
-                0x2ba3032d7064d633,
-                0x15cea14bc9f6b04b,
-                0x5059678472abb6ae,
-            ])
-            .unwrap(),
-        ),
-        SubgroupPoint::from_raw_unchecked(
-            bls12_381::Scalar::from_u64s_le(&[
-                0xb9efa2cb80331936,
-                0x0a0df10182a290fd,
-                0xfc7cbea3c311f67f,
-                0x08c02a4c57f7f2cf,
-            ])
-            .unwrap(),
-            bls12_381::Scalar::from_u64s_le(&[
-                0xdaf19ac3ab182662,
-                0xec376560c925452d,
-                0x4dc07857131f22a0,
-                0x2e560a50271fd3fc,
-            ])
-            .unwrap(),
-        ),
-        SubgroupPoint::from_raw_unchecked(
-            bls12_381::Scalar::from_u64s_le(&[
-                0xc93573b98709291e,
-                0xdf0694e57c6cbc03,
-                0x413bc3c44e7aabe0,
-                0x210f22d61b65767d,
-            ])
-            .unwrap(),
-            bls12_381::Scalar::from_u64s_le(&[
-                0x4781e2656b1ddaad,
-                0xc6262ed423179659,
-                0xfb33884c42727482,
-                0x3f46b3371cff7474,
-            ])
-            .unwrap(),
-        ),
-        SubgroupPoint::from_raw_unchecked(
-            bls12_381::Scalar::from_u64s_le(&[
-                0xcf0bc7224a63d094,
-                0x2bcc52dbba0ebf3a,
-                0xa02f0d3f7aad771d,
-                0x274e99b16d4af911,
-            ])
-            .unwrap(),
-            bls12_381::Scalar::from_u64s_le(&[
-                0xe82e9061620a1df4,
-                0xfd0153cfe15ec653,
-                0x6b15ec6e59478694,
-                0x31f5e34f0804a874,
-            ])
-            .unwrap(),
-        ),
-        SubgroupPoint::from_raw_unchecked(
-            bls12_381::Scalar::from_u64s_le(&[
-                0xc64e25ca51961b53,
-                0x7058160b9afaafaf,
-                0x50aa77ad2f57d2f7,
-                0x3ca8b98873e5d19e,
-            ])
-            .unwrap(),
-            bls12_381::Scalar::from_u64s_le(&[
-                0x9dab539b32327842,
-                0x5eb152c4606beb7e,
-                0x238af7c9376608d6,
-                0x10609ce821a5a292,
-            ])
-            .unwrap(),
-        ),
-        SubgroupPoint::from_raw_unchecked(
-            bls12_381::Scalar::from_u64s_le(&[
-                0xf0ef2a816469118e,
-                0x5bdd5c30d83781f0,
-                0xdb3ff866eaf1bc85,
-                0x1ab3fe2ac6b3ff8a,
-            ])
-            .unwrap(),
-            bls12_381::Scalar::from_u64s_le(&[
-                0xe7c079b4e48233f5,
-                0xa6b5863148627619,
-                0xd5681f2f5c740d19,
-                0x2031e442c4af8277,
-            ])
-            .unwrap(),
-        ),
-    ]
-}
-
-/// The maximum number of chunks per segment of the Pedersen hash.
-pub const PEDERSEN_HASH_CHUNKS_PER_GENERATOR: usize = 63;
-
-/// The window size for exponentiation of Pedersen hash generators outside the circuit.
-pub const PEDERSEN_HASH_EXP_WINDOW_SIZE: u32 = 8;
-
-lazy_static! {
-    /// The exp table for [`PEDERSEN_HASH_GENERATORS`].
-    pub static ref PEDERSEN_HASH_EXP_TABLE: Vec<Vec<Vec<SubgroupPoint>>> =
-        generate_pedersen_hash_exp_table();
-}
-
-/// Creates the exp table for the Pedersen hash generators.
-fn generate_pedersen_hash_exp_table() -> Vec<Vec<Vec<SubgroupPoint>>> {
-    let window = PEDERSEN_HASH_EXP_WINDOW_SIZE;
-
-    pedersen_hash_generators()
-        .iter()
-        .cloned()
-        .map(|mut g| {
-            let mut tables = vec![];
-
-            let mut num_bits = 0;
-            while num_bits <= jubjub::Fr::NUM_BITS {
-                let mut table = Vec::with_capacity(1 << window);
-                let mut base = SubgroupPoint::identity();
-
-                for _ in 0..(1 << window) {
-                    table.push(base);
-                    base += g;
-                }
-
-                tables.push(table);
-                num_bits += window;
-
-                for _ in 0..window {
-                    g = g.double();
-                }
-            }
-
-            tables
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
+    use group::Group;
     use jubjub::SubgroupPoint;
 
     use super::*;
@@ -329,22 +135,6 @@ mod tests {
     }
 
     #[test]
-    fn test_note_commitment_randomness_generator() {
-        assert_eq!(
-            find_group_hash(b"r", PEDERSEN_HASH_GENERATORS_PERSONALIZATION),
-            note_commitment_randomness_generator(),
-        );
-    }
-
-    #[test]
-    fn test_nullifier_position_generator() {
-        assert_eq!(
-            find_group_hash(&[], NULLIFIER_POSITION_IN_TREE_GENERATOR_PERSONALIZATION),
-            nullifier_position_generator(),
-        );
-    }
-
-    #[test]
     fn test_value_commitment_randomness_generator() {
         assert_eq!(
             find_group_hash(b"r", VALUE_COMMITMENT_RANDOMNESS_PERSONALIZATION),
@@ -361,24 +151,9 @@ mod tests {
     }
 
     #[test]
-    fn test_pedersen_hash_generators() {
-        for (m, actual) in pedersen_hash_generators().iter().enumerate() {
-            assert_eq!(
-                &find_group_hash(
-                    &(m as u32).to_le_bytes(),
-                    PEDERSEN_HASH_GENERATORS_PERSONALIZATION
-                ),
-                actual
-            );
-        }
-    }
-
-    #[test]
     fn no_duplicate_fixed_base_generators() {
         let fixed_base_generators = [
             proof_generation_key_generator(),
-            note_commitment_randomness_generator(),
-            nullifier_position_generator(),
             value_commitment_randomness_generator(),
             spending_key_generator(),
         ];
@@ -395,57 +170,5 @@ mod tests {
                 }
             }
         }
-    }
-
-    /// Check for simple relations between the generators, that make finding collisions easy;
-    /// far worse than spec inconsistencies!
-    fn check_consistency_of_pedersen_hash_generators(
-        pedersen_hash_generators: &[jubjub::SubgroupPoint],
-    ) {
-        for (i, p1) in pedersen_hash_generators.iter().enumerate() {
-            if p1.is_identity().into() {
-                panic!("Neutral element!");
-            }
-            for p2 in pedersen_hash_generators.iter().skip(i + 1) {
-                if p1 == p2 {
-                    panic!("Duplicate generator!");
-                }
-                if *p1 == -p2 {
-                    panic!("Inverse generator!");
-                }
-            }
-
-            // check for a generator being the sum of any other two
-            for (j, p2) in pedersen_hash_generators.iter().enumerate() {
-                if j == i {
-                    continue;
-                }
-                for (k, p3) in pedersen_hash_generators.iter().enumerate() {
-                    if k == j || k == i {
-                        continue;
-                    }
-                    let sum = p2 + p3;
-                    if sum == *p1 {
-                        panic!("Linear relation between generators!");
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn pedersen_hash_generators_consistency() {
-        check_consistency_of_pedersen_hash_generators(&pedersen_hash_generators());
-    }
-
-    #[test]
-    #[should_panic(expected = "Linear relation between generators!")]
-    fn test_jubjub_bls12_pedersen_hash_generators_consistency_check_linear_relation() {
-        let mut pedersen_hash_gens = pedersen_hash_generators().to_vec();
-
-        // Test for linear relation
-        pedersen_hash_gens.push(pedersen_hash_generators()[0] + pedersen_hash_generators()[1]);
-
-        check_consistency_of_pedersen_hash_generators(&pedersen_hash_gens);
     }
 }

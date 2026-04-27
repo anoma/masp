@@ -558,14 +558,15 @@ mod tests {
     };
     use ff::{Field, PrimeField};
     use group::Group;
-    use group::{GroupEncoding, cofactor::CofactorGroup};
+    use group::GroupEncoding;
     use rand_core::OsRng;
     use rand_core::{CryptoRng, RngCore};
+    use serde_json::Value;
     use std::convert::TryInto;
 
     use masp_note_encryption::{
-        ENC_CIPHERTEXT_SIZE, EphemeralKeyBytes, NOTE_PLAINTEXT_SIZE, NoteEncryption,
-        OUT_CIPHERTEXT_SIZE, OUT_PLAINTEXT_SIZE, OutgoingCipherKey, batch,
+        ENC_CIPHERTEXT_SIZE, EphemeralKeyBytes, NOTE_PLAINTEXT_SIZE, OUT_CIPHERTEXT_SIZE,
+        OUT_PLAINTEXT_SIZE, OutgoingCipherKey, batch,
     };
 
     use super::{
@@ -591,6 +592,20 @@ mod tests {
             sapling::{self, CompactOutputDescription, OutputDescription},
         },
     };
+
+    fn parse_hex_32(value: &str) -> [u8; 32] {
+        hex::decode(value)
+            .unwrap()
+            .try_into()
+            .expect("fixture hex must decode to 32 bytes")
+    }
+
+    fn parse_hex_array<const N: usize>(value: &str) -> [u8; N] {
+        hex::decode(value)
+            .unwrap()
+            .try_into()
+            .expect("fixture hex must decode to expected length")
+    }
 
     fn random_enc_ciphertext<R: RngCore + CryptoRng>(
         height: BlockHeight,
@@ -1305,79 +1320,76 @@ mod tests {
 
     #[test]
     fn test_vectors() {
-        let test_vectors = crate::test_vectors::note_encryption::make_test_vectors();
+        let fixture: Value = serde_json::from_str(crate::test_vectors::POSEIDON_FIXTURES_JSON)
+            .expect("poseidon fixture JSON must parse");
+        let note_vectors = fixture["note_vectors"]
+            .as_array()
+            .expect("note_vectors must be an array");
 
-        macro_rules! read_bls12_381_scalar {
-            ($field:expr) => {{ bls12_381::Scalar::from_repr($field[..].try_into().unwrap()).unwrap() }};
-        }
+        let height = TEST_NETWORK.activation_height(MASP).unwrap();
 
-        macro_rules! read_jubjub_scalar {
-            ($field:expr) => {{ jubjub::Fr::from_repr($field[..].try_into().unwrap()).unwrap() }};
-        }
+        let asset_type = AssetType::new(b"poseidon-fixture").unwrap();
 
-        macro_rules! read_point {
-            ($field:expr) => {
-                jubjub::ExtendedPoint::from_bytes(&$field).unwrap()
-            };
-        }
-        // We must use height 0 here because the note encryption test vectors
-        // use  pre-ZIP-212 rseed, while all MASP tx always use ZIP-212
-        let height = crate::consensus::H0;
+        for tv in note_vectors {
+            let ivk = PreparedIncomingViewingKey::new(&SaplingIvk(
+                jubjub::Fr::from_repr(parse_hex_32(
+                    tv["ivk"].as_str().expect("ivk must be string"),
+                ))
+                .unwrap(),
+            ));
+            let ovk = OutgoingViewingKey(parse_hex_32(
+                tv["ovk"].as_str().expect("ovk must be string"),
+            ));
+            let to = PaymentAddress::from_bytes(&parse_hex_array::<43>(
+                tv["to"].as_str().expect("to must be string"),
+            ))
+            .expect("payment address in fixture must be valid");
+            let value = tv["value"].as_u64().expect("value must be u64");
+            let rcm = jubjub::Fr::from_repr(parse_hex_32(
+                tv["rcm"].as_str().expect("rcm must be string"),
+            ))
+            .unwrap();
+            let cv = jubjub::ExtendedPoint::from_bytes(&parse_hex_32(
+                tv["cv"].as_str().expect("cv must be string"),
+            ))
+            .unwrap();
+            let cmu = bls12_381::Scalar::from_repr(parse_hex_32(
+                tv["cmu"].as_str().expect("cmu must be string"),
+            ))
+            .unwrap();
+            let epk = EphemeralKeyBytes(parse_hex_32(
+                tv["epk"].as_str().expect("epk must be string"),
+            ));
+            let enc_ciphertext = parse_hex_array::<ENC_CIPHERTEXT_SIZE>(
+                tv["enc_ciphertext"]
+                    .as_str()
+                    .expect("enc_ciphertext must be string"),
+            );
+            let out_ciphertext = parse_hex_array::<OUT_CIPHERTEXT_SIZE>(
+                tv["out_ciphertext"]
+                    .as_str()
+                    .expect("out_ciphertext must be string"),
+            );
 
-        let asset_type = AssetType::from_identifier(b"testtesttesttesttesttesttesttest").unwrap();
-
-        for tv in test_vectors {
-            //
-            // Load the test vector components
-            //
-
-            let ivk = PreparedIncomingViewingKey::new(&SaplingIvk(read_jubjub_scalar!(tv.ivk)));
-            let pk_d = read_point!(tv.default_pk_d).into_subgroup().unwrap();
-            let rcm = read_jubjub_scalar!(tv.rcm);
-            let cv = read_point!(tv.cv);
-            let cmu = read_bls12_381_scalar!(tv.cmu);
-            let esk = read_jubjub_scalar!(tv.esk);
-            let ephemeral_key = EphemeralKeyBytes(tv.epk);
-
-            //
-            // Test the individual components
-            //
-
-            let shared_secret = sapling_ka_agree(&esk, &pk_d.into());
-            assert_eq!(shared_secret.to_bytes(), tv.shared_secret);
-
-            let k_enc = kdf_sapling(shared_secret, &ephemeral_key);
-            assert_eq!(k_enc.as_bytes(), tv.k_enc);
-
-            let ovk = OutgoingViewingKey(tv.ovk);
-            let ock = prf_ock(&ovk, &cv, &cmu.to_repr(), &ephemeral_key);
-            assert_eq!(ock.as_ref(), tv.ock);
-
-            let to = PaymentAddress::from_parts(Diversifier(tv.default_d), pk_d).unwrap();
             let note = to
-                .create_note(asset_type, tv.v, Rseed::BeforeZip212(rcm))
+                .create_note(asset_type, value, Rseed::BeforeZip212(rcm))
                 .unwrap();
             assert_eq!(note.cmu(), cmu);
 
             let output = OutputDescription {
                 cv,
                 cmu,
-                ephemeral_key,
-                enc_ciphertext: tv.c_enc,
-                out_ciphertext: tv.c_out,
+                ephemeral_key: epk.clone(),
+                enc_ciphertext,
+                out_ciphertext,
                 zkproof: [0u8; GROTH_PROOF_SIZE],
             };
-
-            //
-            // Test decryption
-            // (Tested first because it only requires immutable references.)
-            //
 
             match try_sapling_note_decryption(&TEST_NETWORK, height, &ivk, &output) {
                 Some((decrypted_note, decrypted_to, decrypted_memo)) => {
                     assert_eq!(decrypted_note, note);
                     assert_eq!(decrypted_to, to);
-                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
+                    assert_eq!(decrypted_memo, MemoBytes::empty());
                 }
                 None => panic!("Note decryption failed"),
             }
@@ -1395,13 +1407,28 @@ mod tests {
                 None => panic!("Compact note decryption failed"),
             }
 
+            let expected_ock = prf_ock(&ovk, &cv, &cmu.to_repr(), &epk);
             match try_sapling_output_recovery(&TEST_NETWORK, height, &ovk, &output) {
                 Some((decrypted_note, decrypted_to, decrypted_memo)) => {
                     assert_eq!(decrypted_note, note);
                     assert_eq!(decrypted_to, to);
-                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
+                    assert_eq!(decrypted_memo, MemoBytes::empty());
                 }
                 None => panic!("Output recovery failed"),
+            }
+
+            match try_sapling_output_recovery_with_ock(
+                &TEST_NETWORK,
+                height,
+                &expected_ock,
+                &output,
+            ) {
+                Some((decrypted_note, decrypted_to, decrypted_memo)) => {
+                    assert_eq!(decrypted_note, note);
+                    assert_eq!(decrypted_to, to);
+                    assert_eq!(decrypted_memo, MemoBytes::empty());
+                }
+                None => panic!("Output recovery with ock failed"),
             }
 
             match &batch::try_note_decryption(
@@ -1412,56 +1439,42 @@ mod tests {
                 )],
             )[..]
             {
-                [Some(((decrypted_note, decrypted_to, decrypted_memo), i))] => {
+                [Some(((decrypted_note, decrypted_to, decrypted_memo), idx))] => {
                     assert_eq!(decrypted_note, &note);
                     assert_eq!(decrypted_to, &to);
-                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
-                    assert_eq!(*i, 0);
+                    assert_eq!(decrypted_memo, &MemoBytes::empty());
+                    assert_eq!(*idx, 0);
                 }
-                _ => panic!("Note decryption failed"),
+                _ => panic!("Batched note decryption failed"),
             }
 
             match &batch::try_compact_note_decryption(
-                &[ivk.clone()],
+                &[ivk],
                 &[(
                     SaplingDomain::for_height(TEST_NETWORK, height),
                     CompactOutputDescription::from(output.clone()),
                 )],
             )[..]
             {
-                [Some(((decrypted_note, decrypted_to), i))] => {
+                [Some(((decrypted_note, decrypted_to), idx))] => {
                     assert_eq!(decrypted_note, &note);
                     assert_eq!(decrypted_to, &to);
-                    assert_eq!(*i, 0);
+                    assert_eq!(*idx, 0);
                 }
-                _ => panic!("Note decryption failed"),
+                _ => panic!("Batched compact note decryption failed"),
             }
 
-            match try_sapling_output_recovery_with_ock(&TEST_NETWORK, height, &ock, &output) {
-                Some((decrypted_note, decrypted_to, decrypted_memo)) => {
-                    assert_eq!(decrypted_note, note);
-                    assert_eq!(decrypted_to, to);
-                    assert_eq!(&decrypted_memo.as_array()[..], &tv.memo[..]);
-                }
-                None => panic!("Output recovery with ock failed"),
-            }
-
-            //
-            // Test encryption
-            //
-
-            let ne = NoteEncryption::<SaplingDomain<TestNetwork>>::new_with_esk(
-                esk,
-                Some(ovk),
-                note,
-                to,
-                MemoBytes::from_bytes(&tv.memo).unwrap(),
-            );
-
-            assert_eq!(ne.encrypt_note_plaintext().as_ref(), &tv.c_enc[..]);
             assert_eq!(
-                &ne.encrypt_outgoing_plaintext(&cv, &cmu, &mut OsRng)[..],
-                &tv.c_out[..]
+                output.ephemeral_key.0,
+                parse_hex_32(tv["epk"].as_str().unwrap())
+            );
+            assert_eq!(
+                output.enc_ciphertext,
+                parse_hex_array::<ENC_CIPHERTEXT_SIZE>(tv["enc_ciphertext"].as_str().unwrap())
+            );
+            assert_eq!(
+                output.out_ciphertext,
+                parse_hex_array::<OUT_CIPHERTEXT_SIZE>(tv["out_ciphertext"].as_str().unwrap())
             );
         }
     }

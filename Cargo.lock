@@ -1275,6 +1275,7 @@ dependencies = [
  "nam-jubjub",
  "nam-num-traits",
  "nonempty 0.11.0",
+ "poseidon2-r1cs-bls12-381",
  "proptest",
  "rand 0.8.5",
  "rand_core 0.6.4",
@@ -1307,6 +1308,7 @@ dependencies = [
  "nam-jubjub",
  "nam-redjubjub",
  "pairing",
+ "poseidon2-r1cs-bls12-381",
  "pprof",
  "rand_core 0.6.4",
  "rand_xorshift 0.3.0",
@@ -1754,6 +1756,18 @@ dependencies = [
  "cpufeatures",
  "opaque-debug",
  "universal-hash",
+]
+
+[[package]]
+name = "poseidon2-r1cs-bls12-381"
+version = "0.2.0"
+source = "git+https://github.com/heliaxdev/poseidon2-r1cs-bls12-381?tag=v0.2.0#6ade922db8a1e3e17813931c8b0a6811e8853f67"
+dependencies = [
+ "bellpepper-core",
+ "ff",
+ "group",
+ "nam-bellperson",
+ "nam-blstrs",
 ]
 
 [[package]]

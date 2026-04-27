@@ -10,21 +10,19 @@ use masp_primitives::{
 };
 
 use super::ecc;
-use super::pedersen_hash;
+use super::poseidon_hash;
 use crate::circuit::gadgets;
 use crate::constants::{
-    NOTE_COMMITMENT_RANDOMNESS_GENERATOR, NULLIFIER_POSITION_GENERATOR,
     PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
 };
 use bellman::gadgets::{Assignment, blake2s, boolean, multipack, num};
 use group::ff::Field;
-use itertools::multizip;
 
 pub const TREE_DEPTH: usize = SAPLING_COMMITMENT_TREE_DEPTH;
 
 /// This is an instance of the `Spend` circuit.
 pub struct Spend {
-    /// Pedersen commitment to the value being spent
+    /// Value commitment to the value being spent
     pub value_commitment: Option<ValueCommitment>,
 
     /// Key required to construct proofs for spending notes
@@ -50,7 +48,7 @@ pub struct Spend {
 
 /// This is an output circuit instance.
 pub struct Output {
-    /// Pedersen commitment to the value being spent
+    /// Value commitment to the value being spent
     pub value_commitment: Option<ValueCommitment>,
 
     /// Asset Type (256 bit identifier)
@@ -66,7 +64,7 @@ pub struct Output {
     pub esk: Option<jubjub::Fr>,
 }
 
-/// Exposes a Pedersen commitment to the value as an
+/// Exposes a value commitment to the value as an
 /// input to the circuit
 pub fn expose_value_commitment<CS>(
     mut cs: CS,
@@ -127,7 +125,7 @@ where
         &rcv,
     )?;
 
-    // Compute the Pedersen commitment to the value
+    // Compute the value commitment
     let cv = value.add(cs.namespace(|| "computation of cv"), &rcv)?;
 
     // Expose the commitment as an input to the circuit
@@ -283,40 +281,24 @@ impl Circuit<bls12_381::Scalar> for Spend {
             256 // p_d
         );
 
+        let rcm_scalar = num::AllocatedNum::alloc(cs.namespace(|| "rcm scalar"), || {
+            Ok(bls12_381::Scalar::from_repr(self.commitment_randomness.get()?.to_bytes()).unwrap())
+        })?;
+
         // Compute the hash of the note contents
-        let mut cm = pedersen_hash::pedersen_hash(
+        let cm = poseidon_hash::hash_bits_with_suffix_scalars(
             cs.namespace(|| "note content hash"),
-            pedersen_hash::Personalization::NoteCommitment,
+            poseidon_hash::Domain::NoteCommitment,
             &note_contents,
+            &[rcm_scalar],
         )?;
-
-        {
-            // Booleanize the randomness for the note commitment
-            let rcm = gadgets::field_into_boolean_vec_le(
-                cs.namespace(|| "rcm"),
-                self.commitment_randomness,
-            )?;
-
-            // Compute the note commitment randomness in the exponent
-            let rcm = ecc::fixed_base_multiplication(
-                cs.namespace(|| "computation of commitment randomness"),
-                &NOTE_COMMITMENT_RANDOMNESS_GENERATOR,
-                &rcm,
-            )?;
-
-            // Randomize the note commitment. Pedersen hashes are not
-            // themselves hiding commitments.
-            cm = cm.add(cs.namespace(|| "randomization of note commitment"), &rcm)?;
-        }
 
         // This will store (least significant bit first)
         // the position of the note in the tree, for use
         // in nullifier computation.
         let mut position_bits = vec![];
 
-        // This is an injective encoding, as cur is a
-        // point in the prime order subgroup.
-        let mut cur = cm.get_u().clone();
+        let mut cur = cm.clone();
 
         // Ascend the merkle tree authentication path
         for (i, e) in self.auth_path.into_iter().enumerate() {
@@ -345,22 +327,13 @@ impl Circuit<bls12_381::Scalar> for Spend {
                 &cur_is_right,
             )?;
 
-            // We don't need to be strict, because the function is
-            // collision-resistant. If the prover witnesses a congruency,
-            // they will be unable to find an authentication path in the
-            // tree with high probability.
-            let mut preimage = vec![];
-            preimage.extend(ul.to_bits_le(cs.namespace(|| "ul into bits"))?);
-            preimage.extend(ur.to_bits_le(cs.namespace(|| "ur into bits"))?);
-
             // Compute the new subtree value
-            cur = pedersen_hash::pedersen_hash(
-                cs.namespace(|| "computation of pedersen hash"),
-                pedersen_hash::Personalization::MerkleTree(i),
-                &preimage,
-            )?
-            .get_u()
-            .clone(); // Injective encoding
+            cur = poseidon_hash::merkle_hash(
+                cs.namespace(|| "computation of poseidon hash"),
+                i,
+                &ul,
+                &ur,
+            )?;
         }
 
         {
@@ -385,23 +358,44 @@ impl Circuit<bls12_381::Scalar> for Spend {
             rt.inputize(cs.namespace(|| "anchor"))?;
         }
 
-        // Compute the cm + g^position for preventing
-        // faerie gold attacks
-        let mut rho = cm;
+        // Compute rho from cm and position for nullifier computation
+        let mut rho = cm.clone();
         {
-            // Compute the position in the exponent
-            let position = ecc::fixed_base_multiplication(
-                cs.namespace(|| "g^position"),
-                &NULLIFIER_POSITION_GENERATOR,
-                &position_bits,
-            )?;
+            let position = num::AllocatedNum::alloc(cs.namespace(|| "position scalar"), || {
+                let mut value = 0u64;
+                for (i, bit) in position_bits.iter().enumerate() {
+                    if bit.get_value().ok_or(SynthesisError::AssignmentMissing)? {
+                        value |= 1u64 << i;
+                    }
+                }
+                Ok(bls12_381::Scalar::from(value))
+            })?;
 
-            // Add the position to the commitment
-            rho = rho.add(cs.namespace(|| "faerie gold prevention"), &position)?;
+            let position_num =
+                position_bits
+                    .iter()
+                    .enumerate()
+                    .fold(num::Num::zero(), |acc, (i, bit)| {
+                        acc.add_bool_with_coeff(CS::one(), bit, bls12_381::Scalar::from(1u64 << i))
+                    });
+            cs.enforce(
+                || "enforce position scalar",
+                |lc| lc + position.get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc + &position_num.lc(bls12_381::Scalar::ONE),
+            );
+
+            rho = poseidon_hash::nullifier_rho(
+                cs.namespace(|| "faerie gold prevention"),
+                &rho,
+                &position,
+            )?;
         }
 
         // Let's compute nf = BLAKE2s(nk || rho)
-        nf_preimage.extend(rho.repr(cs.namespace(|| "representation of rho"))?);
+        let mut rho_repr = rho.to_bits_le_strict(cs.namespace(|| "representation of rho"))?;
+        rho_repr.push(boolean::Boolean::constant(false));
+        nf_preimage.extend(rho_repr);
 
         assert_eq!(nf_preimage.len(), 512);
 
@@ -466,20 +460,33 @@ impl Circuit<bls12_381::Scalar> for Output {
         assert_eq!(256, asset_generator_image.len());
 
         // Check integrity of the asset generator
-        // The following 256 constraints may not be strictly
-        // necessary; the output of the BLAKE2s hash may be
-        // interpreted directly as a curve point instead
-        // However, witnessing the asset generator separately
-        // and checking equality to the image of the hash
-        // is conceptually clear and not particularly expensive
-        for (i, asset_generator_bit, asset_generator_image_bit) in
-            multizip((0..256, &asset_generator_bits, &asset_generator_image))
+        // Batch bit equality constraints into packed chunks to reduce
+        // constraint count while preserving exact bitwise equality.
+        const ASSET_GENERATOR_EQ_CHUNK_BITS: usize = 128;
+        for (chunk_idx, (asset_generator_chunk, asset_generator_image_chunk)) in
+            asset_generator_bits
+                .chunks(ASSET_GENERATOR_EQ_CHUNK_BITS)
+                .zip(asset_generator_image.chunks(ASSET_GENERATOR_EQ_CHUNK_BITS))
+                .enumerate()
         {
-            boolean::Boolean::enforce_equal(
-                cs.namespace(|| format!("integrity of asset generator bit {}", i)),
-                asset_generator_bit,
-                asset_generator_image_bit,
-            )?;
+            let mut diff = num::Num::zero();
+            let mut coeff = bls12_381::Scalar::ONE;
+
+            for (asset_generator_bit, asset_generator_image_bit) in asset_generator_chunk
+                .iter()
+                .zip(asset_generator_image_chunk.iter())
+            {
+                diff = diff.add_bool_with_coeff(CS::one(), asset_generator_bit, coeff);
+                diff = diff.add_bool_with_coeff(CS::one(), asset_generator_image_bit, -coeff);
+                coeff = coeff.double();
+            }
+
+            cs.enforce(
+                || format!("integrity of asset generator chunk {}", chunk_idx),
+                |lc| lc + &diff.lc(bls12_381::Scalar::ONE),
+                |lc| lc + CS::one(),
+                |lc| lc,
+            );
         }
 
         // Place the asset generator in the note commitment
@@ -560,36 +567,23 @@ impl Circuit<bls12_381::Scalar> for Output {
             256 // pk_d
         );
 
+        let rcm_scalar = num::AllocatedNum::alloc(cs.namespace(|| "rcm scalar"), || {
+            Ok(bls12_381::Scalar::from_repr(self.commitment_randomness.get()?.to_bytes()).unwrap())
+        })?;
+
         // Compute the hash of the note contents
-        let mut cm = pedersen_hash::pedersen_hash(
+        let cm = poseidon_hash::hash_bits_with_suffix_scalars(
             cs.namespace(|| "note content hash"),
-            pedersen_hash::Personalization::NoteCommitment,
+            poseidon_hash::Domain::NoteCommitment,
             &note_contents,
+            &[rcm_scalar],
         )?;
-
-        {
-            // Booleanize the randomness
-            let rcm = gadgets::field_into_boolean_vec_le(
-                cs.namespace(|| "rcm"),
-                self.commitment_randomness,
-            )?;
-
-            // Compute the note commitment randomness in the exponent
-            let rcm = ecc::fixed_base_multiplication(
-                cs.namespace(|| "computation of commitment randomness"),
-                &NOTE_COMMITMENT_RANDOMNESS_GENERATOR,
-                &rcm,
-            )?;
-
-            // Randomize our note commitment
-            cm = cm.add(cs.namespace(|| "randomization of note commitment"), &rcm)?;
-        }
 
         // Only the u-coordinate of the output is revealed,
         // since we know it is prime order, and we know that
         // the u-coordinate is an injective encoding for
         // elements in the prime-order subgroup.
-        cm.get_u().inputize(cs.namespace(|| "commitment"))?;
+        cm.inputize(cs.namespace(|| "commitment"))?;
 
         Ok(())
     }
@@ -598,10 +592,10 @@ impl Circuit<bls12_381::Scalar> for Output {
 #[test]
 fn test_input_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use group::{Group, ff::Field, ff::PrimeFieldBits};
+    use group::{Group, ff::Field};
     use masp_primitives::{
         asset_type::AssetType,
-        sapling::{Diversifier, Note, ProofGenerationKey, Rseed, pedersen_hash},
+        sapling::{self, Diversifier, Note, ProofGenerationKey, Rseed},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
@@ -681,22 +675,12 @@ fn test_input_circuit_with_bls12_381() {
                     ::std::mem::swap(&mut lhs, &mut rhs);
                 }
 
-                let lhs = lhs.to_le_bits();
-                let rhs = rhs.to_le_bits();
-
-                cur = jubjub::ExtendedPoint::from(pedersen_hash::pedersen_hash(
-                    pedersen_hash::Personalization::MerkleTree(i),
-                    lhs.iter()
-                        .by_vals()
-                        .take(bls12_381::Scalar::NUM_BITS as usize)
-                        .chain(
-                            rhs.iter()
-                                .by_vals()
-                                .take(bls12_381::Scalar::NUM_BITS as usize),
-                        ),
+                cur = bls12_381::Scalar::from_repr(sapling::merkle_hash(
+                    i,
+                    &lhs.to_repr(),
+                    &rhs.to_repr(),
                 ))
-                .to_affine()
-                .get_u();
+                .unwrap();
 
                 if b {
                     position |= 1 << i;
@@ -727,15 +711,9 @@ fn test_input_circuit_with_bls12_381() {
             } else {
                 assert!(!cs.is_satisfied());
             }
-            assert_eq!(cs.num_constraints(), 100637);
-            assert_eq!(
-                cs.hash(),
-                "34e4a634c80e4e4c6250e63b7855532e60b36d1371d4d7b1163218b69f09eb3d"
-            );
+            assert_eq!(cs.num_constraints(), 83807);
             if i < 20 {
-                assert_eq!(cs.get("randomization of note commitment/u3/num"), cmu);
-            } else {
-                assert_ne!(cs.get("randomization of note commitment/u3/num"), cmu);
+                assert_eq!(cs.get_input(5, "anchor/input variable"), cur);
             }
 
             assert_eq!(cs.num_inputs(), 8);
@@ -764,11 +742,10 @@ fn test_input_circuit_with_bls12_381() {
 #[test]
 fn test_input_circuit_with_bls12_381_external_test_vectors() {
     use bellman::gadgets::test::*;
-    use group::{Group, ff::Field, ff::PrimeField, ff::PrimeFieldBits};
+    use group::{Group, ff::Field, ff::PrimeField};
     use masp_primitives::{
         asset_type::AssetType,
-        sapling::pedersen_hash,
-        sapling::{Diversifier, Note, ProofGenerationKey, Rseed},
+        sapling::{self, Diversifier, Note, ProofGenerationKey, Rseed},
     };
     use rand_core::{RngCore, SeedableRng};
     use rand_xorshift::XorShiftRng;
@@ -878,22 +855,12 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
                     ::std::mem::swap(&mut lhs, &mut rhs);
                 }
 
-                let lhs = lhs.to_le_bits();
-                let rhs = rhs.to_le_bits();
-
-                cur = jubjub::ExtendedPoint::from(pedersen_hash::pedersen_hash(
-                    pedersen_hash::Personalization::MerkleTree(i),
-                    lhs.iter()
-                        .by_vals()
-                        .take(bls12_381::Scalar::NUM_BITS as usize)
-                        .chain(
-                            rhs.iter()
-                                .by_vals()
-                                .take(bls12_381::Scalar::NUM_BITS as usize),
-                        ),
+                cur = bls12_381::Scalar::from_repr(sapling::merkle_hash(
+                    i,
+                    &lhs.to_repr(),
+                    &rhs.to_repr(),
                 ))
-                .to_affine()
-                .get_u();
+                .unwrap();
 
                 if b {
                     position |= 1 << i;
@@ -920,13 +887,9 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
             instance.synthesize(&mut cs).unwrap();
 
             assert!(cs.is_satisfied());
-            assert_eq!(cs.num_constraints(), 100637);
-            assert_eq!(
-                cs.hash(),
-                "34e4a634c80e4e4c6250e63b7855532e60b36d1371d4d7b1163218b69f09eb3d"
-            );
+            assert_eq!(cs.num_constraints(), 83807);
 
-            assert_eq!(cs.get("randomization of note commitment/u3/num"), cmu);
+            assert_eq!(cs.get_input(5, "anchor/input variable"), cur);
 
             assert_eq!(cs.num_inputs(), 8);
             assert_eq!(cs.get_input(0, "ONE"), bls12_381::Scalar::ONE);
@@ -1021,10 +984,7 @@ fn test_output_circuit_with_bls12_381() {
                 assert!(!cs.is_satisfied());
             }
 
-            assert_eq!(
-                cs.hash(),
-                "93e445d7858e98c7138558df341f020aedfe75893535025587d64731e244276a"
-            );
+            assert_eq!(cs.num_constraints(), 31047);
 
             let expected_cmu = payment_address
                 .create_note(

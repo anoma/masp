@@ -4,7 +4,7 @@ use bellman::{Circuit, ConstraintSystem, SynthesisError};
 
 use masp_primitives::sapling::ValueCommitment;
 
-use super::pedersen_hash;
+use super::poseidon_hash;
 use crate::circuit::sapling::expose_value_commitment;
 
 use bellman::gadgets::Assignment;
@@ -51,15 +51,11 @@ impl Circuit<bls12_381::Scalar> for Convert {
         assert_eq!(asset_generator_bits.len(), 256);
 
         // Compute the hash of the note contents
-        let cm = pedersen_hash::pedersen_hash(
+        let mut cur = poseidon_hash::hash_bits(
             cs.namespace(|| "note content hash"),
-            pedersen_hash::Personalization::NoteCommitment,
+            poseidon_hash::Domain::AllowedConversion,
             &asset_generator_bits,
         )?;
-
-        // This is an injective encoding, as cur is a
-        // point in the prime order subgroup.
-        let mut cur = cm.get_u().clone();
 
         // Ascend the merkle tree authentication path
         for (i, e) in self.auth_path.into_iter().enumerate() {
@@ -85,22 +81,13 @@ impl Circuit<bls12_381::Scalar> for Convert {
                 &cur_is_right,
             )?;
 
-            // We don't need to be strict, because the function is
-            // collision-resistant. If the prover witnesses a congruency,
-            // they will be unable to find an authentication path in the
-            // tree with high probability.
-            let mut preimage = vec![];
-            preimage.extend(ul.to_bits_le(cs.namespace(|| "ul into bits"))?);
-            preimage.extend(ur.to_bits_le(cs.namespace(|| "ur into bits"))?);
-
             // Compute the new subtree value
-            cur = pedersen_hash::pedersen_hash(
-                cs.namespace(|| "computation of pedersen hash"),
-                pedersen_hash::Personalization::MerkleTree(i),
-                &preimage,
-            )?
-            .get_u()
-            .clone(); // Injective encoding
+            cur = poseidon_hash::merkle_hash(
+                cs.namespace(|| "computation of poseidon hash"),
+                i,
+                &ul,
+                &ur,
+            )?;
         }
 
         {
@@ -130,9 +117,9 @@ impl Circuit<bls12_381::Scalar> for Convert {
 #[test]
 fn test_convert_circuit_with_bls12_381() {
     use bellman::gadgets::test::*;
-    use group::{Curve, ff::Field, ff::PrimeField, ff::PrimeFieldBits};
+    use group::{Curve, ff::Field, ff::PrimeField};
     use masp_primitives::{
-        asset_type::AssetType, convert::AllowedConversion, sapling::pedersen_hash,
+        asset_type::AssetType, convert::AllowedConversion, sapling,
         transaction::components::ValueSum,
     };
     use rand_core::{RngCore, SeedableRng};
@@ -185,22 +172,12 @@ fn test_convert_circuit_with_bls12_381() {
                     ::std::mem::swap(&mut lhs, &mut rhs);
                 }
 
-                let lhs = lhs.to_le_bits();
-                let rhs = rhs.to_le_bits();
-
-                cur = jubjub::ExtendedPoint::from(pedersen_hash::pedersen_hash(
-                    pedersen_hash::Personalization::MerkleTree(i),
-                    lhs.iter()
-                        .by_vals()
-                        .take(bls12_381::Scalar::NUM_BITS as usize)
-                        .chain(
-                            rhs.iter()
-                                .by_vals()
-                                .take(bls12_381::Scalar::NUM_BITS as usize),
-                        ),
+                cur = bls12_381::Scalar::from_repr(sapling::merkle_hash(
+                    i,
+                    &lhs.to_repr(),
+                    &rhs.to_repr(),
                 ))
-                .to_affine()
-                .get_u();
+                .unwrap();
             }
 
             let mut cs = TestConstraintSystem::new();
@@ -215,11 +192,7 @@ fn test_convert_circuit_with_bls12_381() {
 
             assert!(cs.is_satisfied());
 
-            assert_eq!(cs.num_constraints(), 47358);
-            assert_eq!(
-                cs.hash(),
-                "f74b47ef6e59081548f81f5806bd15b1f4a65d2e57681e6db2b8db7eef2ff814"
-            );
+            assert_eq!(cs.num_constraints(), 30898);
 
             assert_eq!(cs.num_inputs(), 4);
             assert_eq!(cs.get_input(0, "ONE"), bls12_381::Scalar::ONE);

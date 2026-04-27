@@ -37,6 +37,7 @@ directories = { version = "5.0", optional = true }
 redjubjub = {package = "nam-redjubjub", version = "0.7.1-nam.0" }
 getrandom = { version = "0.2" }
 itertools = "0.14"
+poseidon2-r1cs-bls12-381 = { git = "https://github.com/heliaxdev/poseidon2-r1cs-bls12-381", tag = "v0.2.0" }
 
 # Bellman is also used in the public API, so an update to it
 # might warrant a major version bump
@@ -93,4 +94,3 @@ required-features = ["download-params"]
 
 [badges]
 maintenance = { status = "actively-developed" }
-

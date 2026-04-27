@@ -1,7 +1,7 @@
 use crate::{
     sapling::{
         Node, ValueCommitment,
-        pedersen_hash::{Personalization, pedersen_hash},
+        poseidon_hash::{Domain, hash_bits},
     },
     transaction::components::amount::{I128Sum, ValueSum},
 };
@@ -12,7 +12,7 @@ use borsh::schema::Fields;
 use borsh::schema::add_definition;
 use borsh::{BorshDeserialize, BorshSerialize};
 use ff::Field;
-use group::{Curve, GroupEncoding};
+use group::GroupEncoding;
 use std::collections::BTreeMap;
 use std::{
     io::{self, Write},
@@ -35,8 +35,7 @@ impl AllowedConversion {
         bls12_381::Scalar::ONE
     }
 
-    /// Computes the note commitment, returning the full point.
-    fn cm_full_point(&self) -> jubjub::SubgroupPoint {
+    fn cm_scalar(&self) -> bls12_381::Scalar {
         // Calculate the note contents, as bytes
         let mut asset_generator_bytes = vec![];
 
@@ -45,9 +44,8 @@ impl AllowedConversion {
 
         assert_eq!(asset_generator_bytes.len(), 32);
 
-        // Compute the Pedersen hash of the note contents
-        pedersen_hash(
-            Personalization::NoteCommitment,
+        hash_bits(
+            Domain::AllowedConversion,
             asset_generator_bytes
                 .into_iter()
                 .flat_map(|byte| (0..8).map(move |i| ((byte >> i) & 1) == 1)),
@@ -56,11 +54,7 @@ impl AllowedConversion {
 
     /// Computes the note commitment
     pub fn cmu(&self) -> bls12_381::Scalar {
-        // The commitment is in the prime order subgroup, so mapping the
-        // commitment to the u-coordinate is an injective encoding.
-        jubjub::ExtendedPoint::from(self.cm_full_point())
-            .to_affine()
-            .get_u()
+        self.cm_scalar()
     }
 
     /// Computes the value commitment for a given amount and randomness

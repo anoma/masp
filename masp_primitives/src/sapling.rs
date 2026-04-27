@@ -3,17 +3,16 @@
 pub mod group_hash;
 pub mod keys;
 pub mod note_encryption;
-pub mod pedersen_hash;
+pub mod poseidon_hash;
 pub mod prover;
 pub mod redjubjub;
 pub mod util;
 
-use bitvec::{order::Lsb0, view::AsBits};
 use blake2s_simd::Params as Blake2sParams;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ff::{Field, PrimeField};
-use group::{Curve, Group, GroupEncoding, cofactor::CofactorGroup};
+use group::{Group, GroupEncoding, cofactor::CofactorGroup};
 use incrementalmerkletree::{self, Level};
 use lazy_static::lazy_static;
 use rand_core::{CryptoRng, RngCore};
@@ -42,7 +41,9 @@ use crate::{
 
 use self::{
     group_hash::group_hash,
-    pedersen_hash::{Personalization, pedersen_hash},
+    poseidon_hash::{
+        Domain, hash_bits_with_suffix_scalars, merkle_hash as poseidon_merkle_hash, nullifier_rho,
+    },
     redjubjub::{PrivateKey, PublicKey, Signature},
 };
 use borsh::BorshSchema;
@@ -56,36 +57,9 @@ pub const SAPLING_COMMITMENT_TREE_DEPTH: usize = 32;
 
 /// Compute a parent node in the Sapling commitment tree given its two children.
 pub fn merkle_hash(depth: usize, lhs: &[u8; 32], rhs: &[u8; 32]) -> [u8; 32] {
-    let lhs = {
-        let mut tmp = [false; 256];
-        for (a, b) in tmp.iter_mut().zip(lhs.as_bits::<Lsb0>()) {
-            *a = *b;
-        }
-        tmp
-    };
-
-    let rhs = {
-        let mut tmp = [false; 256];
-        for (a, b) in tmp.iter_mut().zip(rhs.as_bits::<Lsb0>()) {
-            *a = *b;
-        }
-        tmp
-    };
-
-    jubjub::ExtendedPoint::from(pedersen_hash(
-        Personalization::MerkleTree(depth),
-        lhs.iter()
-            .copied()
-            .take(bls12_381::Scalar::NUM_BITS as usize)
-            .chain(
-                rhs.iter()
-                    .copied()
-                    .take(bls12_381::Scalar::NUM_BITS as usize),
-            ),
-    ))
-    .to_affine()
-    .get_u()
-    .to_repr()
+    let lhs = bls12_381::Scalar::from_repr(*lhs).unwrap();
+    let rhs = bls12_381::Scalar::from_repr(*rhs).unwrap();
+    poseidon_merkle_hash(depth, lhs, rhs).to_repr()
 }
 
 /// A node within the Sapling commitment tree.
@@ -800,43 +774,27 @@ impl Note {
         bls12_381::Scalar::ONE
     }
 
-    /// Computes the note commitment, returning the full point.
-    fn cm_full_point(&self) -> jubjub::SubgroupPoint {
-        // Calculate the note contents, as bytes
+    fn cmu_inner(&self) -> bls12_381::Scalar {
         let mut note_contents = vec![];
-
-        // Write the asset generator, cofactor not cleared
         note_contents.extend_from_slice(&self.asset_type.asset_generator().to_bytes());
-
-        // Writing the value in little endian
         note_contents.write_u64::<LittleEndian>(self.value).unwrap();
-
-        // Write g_d
         note_contents.extend_from_slice(&self.g_d.to_bytes());
-
-        // Write pk_d
         note_contents.extend_from_slice(&self.pk_d.to_bytes());
+        let rcm = bls12_381::Scalar::from_repr(self.rcm().to_bytes()).unwrap();
 
-        assert_eq!(note_contents.len(), 32 + 32 + 32 + 8);
-
-        // Compute the Pedersen hash of the note contents
-        let hash_of_contents = pedersen_hash(
-            Personalization::NoteCommitment,
+        hash_bits_with_suffix_scalars(
+            Domain::NoteCommitment,
             note_contents
                 .into_iter()
                 .flat_map(|byte| (0..8).map(move |i| ((byte >> i) & 1) == 1)),
-        );
-
-        // Compute final commitment
-        (constants::note_commitment_randomness_generator() * self.rcm()) + hash_of_contents
+            &[rcm],
+        )
     }
 
     /// Computes the nullifier given the nullifier deriving key and
     /// note position
     pub fn nf(&self, nk: &NullifierDerivingKey, position: u64) -> Nullifier {
-        // Compute rho = cm + position.G
-        let rho = self.cm_full_point()
-            + (constants::nullifier_position_generator() * jubjub::Fr::from(position));
+        let rho = nullifier_rho(self.cmu_inner(), position);
 
         // Compute nf = BLAKE2s(nk | rho)
         Nullifier::from_slice(
@@ -845,7 +803,7 @@ impl Note {
                 .personal(constants::PRF_NF_PERSONALIZATION)
                 .to_state()
                 .update(&nk.0.to_bytes())
-                .update(&rho.to_bytes())
+                .update(&rho.to_repr())
                 .finalize()
                 .as_bytes(),
         )
@@ -854,11 +812,7 @@ impl Note {
 
     /// Computes the note commitment
     pub fn cmu(&self) -> bls12_381::Scalar {
-        // The commitment is in the prime order subgroup, so mapping the
-        // commitment to the u-coordinate is an injective encoding.
-        jubjub::ExtendedPoint::from(self.cm_full_point())
-            .to_affine()
-            .get_u()
+        self.cmu_inner()
     }
 
     pub fn rcm(&self) -> jubjub::Fr {
@@ -1008,10 +962,8 @@ pub mod testing {
     }
 
     prop_compose! {
-        pub fn arb_node()(value in prop::array::uniform32(prop::num::u8::ANY)) -> Node {
-            Node {
-                repr: value
-            }
+        pub fn arb_node()(value in any::<u64>()) -> Node {
+            Node::from_scalar(bls12_381::Scalar::from(value))
         }
     }
 
@@ -1034,14 +986,12 @@ pub mod testing {
 
 #[cfg(test)]
 mod tests {
-    use super::Node;
     use crate::{
         sapling::Note,
         sapling::testing::{arb_note, arb_positive_note_value},
         transaction::components::amount::MAX_MONEY,
     };
     use borsh::BorshDeserialize;
-    use incrementalmerkletree::Hashable;
     use proptest::prelude::*;
 
     #[test]

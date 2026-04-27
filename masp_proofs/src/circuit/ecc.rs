@@ -630,7 +630,7 @@ mod test {
     use bellman::gadgets::test::*;
 
     use super::{AllocatedNum, EdwardsPoint, MontgomeryPoint, fixed_base_multiplication};
-    use crate::constants::{NOTE_COMMITMENT_RANDOMNESS_GENERATOR, to_montgomery_coords};
+    use crate::constants::{SPENDING_KEY_GENERATOR, montgomery_scale};
     use bellman::gadgets::boolean::{AllocatedBit, Boolean};
 
     #[test]
@@ -732,7 +732,7 @@ mod test {
         for _ in 0..100 {
             let mut cs = TestConstraintSystem::<bls12_381::Scalar>::new();
 
-            let p = masp_primitives::constants::note_commitment_randomness_generator();
+            let p = masp_primitives::constants::spending_key_generator();
             let s = jubjub::Fr::random(&mut rng);
             let q = jubjub::ExtendedPoint::from(p * s).to_affine();
             let (u1, v1) = (q.get_u(), q.get_v());
@@ -752,7 +752,7 @@ mod test {
 
             let q = fixed_base_multiplication(
                 cs.namespace(|| "multiplication"),
-                &NOTE_COMMITMENT_RANDOMNESS_GENERATOR,
+                &SPENDING_KEY_GENERATOR,
                 &s_bits,
             )
             .unwrap();
@@ -1110,5 +1110,23 @@ mod test {
         // take all the points from the script
         // assert should be different than multiplying by cofactor, which is the solution
         // is user input verified? https://github.com/zcash/librustzcash/blob/f5d2afb4eabac29b1b1cc860d66e45a5b48b4f88/src/rustzcash.rs#L299
+    }
+
+    #[allow(clippy::many_single_char_names)]
+    fn to_montgomery_coords(
+        g: jubjub::ExtendedPoint,
+    ) -> Option<(bls12_381::Scalar, bls12_381::Scalar)> {
+        let g = g.to_affine();
+        let (x, y) = (g.get_u(), g.get_v());
+
+        if y == bls12_381::Scalar::ONE {
+            None
+        } else if x.is_zero_vartime() {
+            Some((bls12_381::Scalar::ZERO, bls12_381::Scalar::ZERO))
+        } else {
+            let u = (bls12_381::Scalar::ONE + y) * (bls12_381::Scalar::ONE - y).invert().unwrap();
+            let v = u * x.invert().unwrap();
+            Some((u, v * montgomery_scale()))
+        }
     }
 }

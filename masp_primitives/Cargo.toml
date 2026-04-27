@@ -68,6 +68,7 @@ hex = "0.4"
 # - Shielded protocols
 bitvec = "1"
 blake2s_simd = "1"
+poseidon2-r1cs-bls12-381 = { git = "https://github.com/heliaxdev/poseidon2-r1cs-bls12-381", tag = "v0.2.0" }
 
 # - ZIP 32
 aes = "0.8"
