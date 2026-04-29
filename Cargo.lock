@@ -112,12 +112,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
-name = "assert_matches"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
-
-[[package]]
 name = "atomic-polyfill"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1254,7 +1248,6 @@ version = "3.0.11"
 dependencies = [
  "aes",
  "arbitrary",
- "assert_matches",
  "bip0039",
  "bitvec",
  "blake2b_simd",
@@ -1262,7 +1255,6 @@ dependencies = [
  "borsh",
  "byteorder",
  "chacha20poly1305",
- "criterion",
  "ff",
  "fpe",
  "group",
@@ -1274,7 +1266,6 @@ dependencies = [
  "nam-blstrs",
  "nam-jubjub",
  "nam-num-traits",
- "nonempty 0.11.0",
  "poseidon2-r1cs-bls12-381",
  "proptest",
  "rand 0.8.5",
@@ -1283,7 +1274,6 @@ dependencies = [
  "serde",
  "serde-hex",
  "serde_json",
- "sha2",
  "subtle",
  "zcash_encoding",
 ]
@@ -1299,7 +1289,6 @@ dependencies = [
  "ff",
  "getrandom 0.2.16",
  "group",
- "itertools 0.14.0",
  "lazy_static",
  "masp_primitives",
  "minreq",
@@ -1540,12 +1529,6 @@ name = "nonempty"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9e591e719385e6ebaeb5ce5d3887f7d5676fceca6411d1925ccc95745f3d6f7"
-
-[[package]]
-name = "nonempty"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "549e471b99ccaf2f89101bec68f4d244457d5a95a9c3d0672e9564124397741d"
 
 [[package]]
 name = "num-bigint"
@@ -2950,7 +2933,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3654116ae23ab67dd1f849b01f8821a8a156f884807ff665eac109bf28306c4d"
 dependencies = [
  "core2",
- "nonempty 0.7.0",
+ "nonempty",
 ]
 
 [[package]]
