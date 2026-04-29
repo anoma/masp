@@ -31,7 +31,7 @@ impl SaplingVerificationContext {
         &mut self,
         cv: jubjub::ExtendedPoint,
         anchor: bls12_381::Scalar,
-        nullifier: &[u8; 32],
+        nullifier: bls12_381::Scalar,
         rk: PublicKey,
         sighash_value: &[u8; 32],
         spend_auth_sig: Signature,

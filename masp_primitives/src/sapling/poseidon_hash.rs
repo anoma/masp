@@ -8,6 +8,8 @@ pub enum Domain {
     NoteCommitment,
     AllowedConversion,
     NullifierRho,
+    CRHIvk,
+    PRFNf,
 }
 
 impl Domain {
@@ -16,6 +18,8 @@ impl Domain {
             Domain::NoteCommitment => bls12_381::Scalar::from(1u64),
             Domain::AllowedConversion => bls12_381::Scalar::from(2u64),
             Domain::NullifierRho => bls12_381::Scalar::from(3u64),
+            Domain::CRHIvk => bls12_381::Scalar::from(4u64),
+            Domain::PRFNf => bls12_381::Scalar::from(5u64),
         }
     }
 }

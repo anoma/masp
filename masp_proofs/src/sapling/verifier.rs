@@ -1,6 +1,6 @@
 #![allow(clippy::new_without_default)]
 
-use bellman::{gadgets::multipack, groth16::Proof};
+use bellman::groth16::Proof;
 use bls12_381::Bls12;
 use group::{Curve, GroupEncoding};
 use masp_primitives::{
@@ -37,14 +37,14 @@ impl SaplingVerificationContextInner {
         &mut self,
         cv: jubjub::ExtendedPoint,
         anchor: bls12_381::Scalar,
-        nullifier: &[u8; 32],
+        nullifier: bls12_381::Scalar,
         rk: PublicKey,
         sighash_value: &[u8; 32],
         spend_auth_sig: Signature,
         zkproof: Proof<Bls12>,
         verifier_ctx: &mut C,
         spend_auth_sig_verifier: impl FnOnce(&mut C, PublicKey, [u8; 64], Signature) -> bool,
-        proof_verifier: impl FnOnce(&mut C, Proof<Bls12>, [bls12_381::Scalar; 7]) -> bool,
+        proof_verifier: impl FnOnce(&mut C, Proof<Bls12>, [bls12_381::Scalar; 6]) -> bool,
     ) -> bool {
         if (cv.is_small_order() | rk.0.is_small_order()).into() {
             return false;
@@ -52,9 +52,6 @@ impl SaplingVerificationContextInner {
 
         // Accumulate the value commitment in the context
         self.cv_sum += cv;
-
-        // Grab the nullifier as a sequence of bytes
-        let nullifier = &nullifier[..];
 
         // Compute the signature's message for rk/spend_auth_sig
         let mut data_to_be_signed = [0u8; 64];
@@ -68,7 +65,7 @@ impl SaplingVerificationContextInner {
         }
 
         // Construct public input for circuit
-        let mut public_input = [bls12_381::Scalar::default(); 7];
+        let mut public_input = [bls12_381::Scalar::default(); 6];
         {
             let affine = rk_affine;
             let (u, v) = (affine.get_u(), affine.get_v());
@@ -83,16 +80,7 @@ impl SaplingVerificationContextInner {
         }
         public_input[4] = anchor;
 
-        // Add the nullifier through multiscalar packing
-        {
-            let nullifier = multipack::bytes_to_bits_le(nullifier);
-            let nullifier = multipack::compute_multipacking(&nullifier);
-
-            assert_eq!(nullifier.len(), 2);
-
-            public_input[5] = nullifier[0];
-            public_input[6] = nullifier[1];
-        }
+        public_input[5] = nullifier;
 
         // Verify the proof
         proof_verifier(verifier_ctx, zkproof, public_input)

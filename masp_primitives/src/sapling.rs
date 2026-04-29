@@ -8,11 +8,10 @@ pub mod prover;
 pub mod redjubjub;
 pub mod util;
 
-use blake2s_simd::Params as Blake2sParams;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ff::{Field, PrimeField};
-use group::{Group, GroupEncoding, cofactor::CofactorGroup};
+use group::{Curve, Group, GroupEncoding, cofactor::CofactorGroup};
 use incrementalmerkletree::{self, Level};
 use lazy_static::lazy_static;
 use rand_core::{CryptoRng, RngCore};
@@ -21,7 +20,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "serde")]
 use serde_hex::{SerHex, Strict};
 use std::{
-    array::TryFromSliceError,
     cmp::Ordering,
     convert::TryFrom,
     fmt::{Display, Formatter},
@@ -42,7 +40,8 @@ use crate::{
 use self::{
     group_hash::group_hash,
     poseidon_hash::{
-        Domain, hash_bits_with_suffix_scalars, merkle_hash as poseidon_merkle_hash, nullifier_rho,
+        Domain, hash_bits_with_suffix_scalars, hash_scalars, merkle_hash as poseidon_merkle_hash,
+        nullifier_rho,
     },
     redjubjub::{PrivateKey, PublicKey, Signature},
 };
@@ -318,22 +317,17 @@ impl ViewingKey {
     }
 
     pub fn ivk(&self) -> SaplingIvk {
-        let mut h = [0; 32];
-        h.copy_from_slice(
-            Blake2sParams::new()
-                .hash_length(32)
-                .personal(constants::CRH_IVK_PERSONALIZATION)
-                .to_state()
-                .update(&self.ak.to_bytes())
-                .update(&self.nk.0.to_bytes())
-                .finalize()
-                .as_bytes(),
+        let ivk = hash_scalars(
+            Domain::CRHIvk,
+            &[
+                jubjub::ExtendedPoint::from(self.ak).to_affine().get_u(),
+                jubjub::ExtendedPoint::from(self.nk.0).to_affine().get_u(),
+            ],
         );
+        let mut wide = [0u8; 64];
+        wide[..32].copy_from_slice(&ivk.to_repr());
 
-        // Drop the most significant five bits, so it can be interpreted as a scalar.
-        h[31] &= 0b0000_0111;
-
-        SaplingIvk(jubjub::Fr::from_repr(h).unwrap())
+        SaplingIvk(jubjub::Fr::from_bytes_wide(&wide))
     }
 
     pub fn to_payment_address(&self, diversifier: Diversifier) -> Option<PaymentAddress> {
@@ -684,40 +678,87 @@ impl BorshDeserialize for Rseed {
 }
 
 /// Typesafe wrapper for nullifier values.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    BorshSerialize,
-    BorshDeserialize,
-    BorshSchema,
-)]
-pub struct Nullifier(pub [u8; 32]);
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Nullifier(pub bls12_381::Scalar);
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for Nullifier {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let wide: [u8; 64] = u.arbitrary()?;
+        Ok(Nullifier(bls12_381::Scalar::from_bytes_wide(&wide)))
+    }
+}
 
 impl Nullifier {
-    pub fn from_slice(bytes: &[u8]) -> Result<Nullifier, TryFromSliceError> {
-        bytes.try_into().map(Nullifier)
+    pub fn from_slice(bytes: &[u8]) -> io::Result<Nullifier> {
+        let bytes: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid nullifier length"))?;
+        let scalar = Option::from(bls12_381::Scalar::from_repr(bytes))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "nullifier not in field"))?;
+        Ok(Nullifier(scalar))
+    }
+
+    pub fn to_repr(&self) -> [u8; 32] {
+        self.0.to_repr()
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_vec()
+        self.to_repr().to_vec()
     }
 }
-impl AsRef<[u8]> for Nullifier {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
+
+impl Hash for Nullifier {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.to_repr().hash(state);
+    }
+}
+
+impl PartialOrd for Nullifier {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Nullifier {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.to_repr().cmp(&other.to_repr())
     }
 }
 
 impl ConstantTimeEq for Nullifier {
     fn ct_eq(&self, other: &Self) -> Choice {
-        self.0.ct_eq(&other.0)
+        self.to_repr().ct_eq(&other.to_repr())
+    }
+}
+
+impl BorshSerialize for Nullifier {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.to_repr())
+    }
+}
+
+impl BorshDeserialize for Nullifier {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut repr = [0u8; 32];
+        reader.read_exact(&mut repr)?;
+        let scalar = Option::from(bls12_381::Scalar::from_repr(repr))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "nullifier not in field"))?;
+        Ok(Nullifier(scalar))
+    }
+}
+
+impl BorshSchema for Nullifier {
+    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
+        let definition = Definition::Struct {
+            fields: Fields::UnnamedFields(vec![<[u8; 32]>::declaration()]),
+        };
+        add_definition(Self::declaration(), definition, definitions);
+        <[u8; 32]>::add_definitions_recursively(definitions);
+    }
+
+    fn declaration() -> Declaration {
+        "Nullifier".into()
     }
 }
 
@@ -795,19 +836,14 @@ impl Note {
     /// note position
     pub fn nf(&self, nk: &NullifierDerivingKey, position: u64) -> Nullifier {
         let rho = nullifier_rho(self.cmu_inner(), position);
-
-        // Compute nf = BLAKE2s(nk | rho)
-        Nullifier::from_slice(
-            Blake2sParams::new()
-                .hash_length(32)
-                .personal(constants::PRF_NF_PERSONALIZATION)
-                .to_state()
-                .update(&nk.0.to_bytes())
-                .update(&rho.to_repr())
-                .finalize()
-                .as_bytes(),
-        )
-        .unwrap()
+        let nf = hash_bits_with_suffix_scalars(
+            Domain::PRFNf,
+            nk.0.to_bytes()
+                .iter()
+                .flat_map(|byte| (0..8).map(move |i| ((byte >> i) & 1) == 1)),
+            &[rho],
+        );
+        Nullifier(nf)
     }
 
     /// Computes the note commitment

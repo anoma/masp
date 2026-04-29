@@ -1159,10 +1159,18 @@ impl Ord for PseudoExtendedKey {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_vectors::SAPLING_ZIP32_IVK_FIXTURES_JSON;
 
     use super::{DiversifiableFullViewingKey, ExtendedSpendingKey};
     use ff::PrimeField;
     use group::GroupEncoding;
+    fn parse_hex_32(value: &str) -> [u8; 32] {
+        let bytes = hex::decode(value).expect("fixture hex must decode");
+        bytes
+            .as_slice()
+            .try_into()
+            .expect("fixture hex must decode to 32 bytes")
+    }
 
     #[test]
     #[allow(deprecated)]
@@ -1370,6 +1378,7 @@ mod tests {
     #[test]
     #[allow(deprecated)]
     fn test_vectors() {
+        #[allow(dead_code)]
         struct TestVector {
             ask: Option<[u8; 32]>,
             nsk: Option<[u8; 32]>,
@@ -1396,7 +1405,14 @@ mod tests {
             internal_fp: [u8; 32],
         }
 
+        struct IvkVector {
+            ivk: [u8; 32],
+            internal_ivk: [u8; 32],
+        }
+
         // From https://github.com/zcash-hackworks/zcash-test-vectors/blob/master/sapling_zip32.py
+        // ivk/internal_ivk fields are checked against local JSON fixtures regenerated for
+        // the current protocol-specific ivk derivation.
         let test_vectors = vec![
             TestVector {
                 ask: Some([
@@ -2067,7 +2083,21 @@ mod tests {
             m_1_2hv, // Appears twice so we can de-duplicate test code below
             m_1_2hv_3,
         ];
+        let ivk_vectors: Vec<IvkVector> =
+            serde_json::from_str::<Vec<serde_json::Value>>(SAPLING_ZIP32_IVK_FIXTURES_JSON)
+                .expect("ivk fixtures must parse")
+                .into_iter()
+                .map(|entry| IvkVector {
+                    ivk: parse_hex_32(entry["ivk"].as_str().expect("ivk fixture must be string")),
+                    internal_ivk: parse_hex_32(
+                        entry["internal_ivk"]
+                            .as_str()
+                            .expect("internal_ivk fixture must be string"),
+                    ),
+                })
+                .collect();
         assert_eq!(test_vectors.len(), xfvks.len());
+        assert_eq!(ivk_vectors.len(), xfvks.len());
 
         let xsks = [m, m_1, m_1_2h];
 
@@ -2098,7 +2128,11 @@ mod tests {
             assert_eq!(&ser[..], &tv.internal_xsk.unwrap()[..]);
         }
 
-        for (xfvk, tv) in xfvks.iter().zip(test_vectors.iter()) {
+        for ((xfvk, tv), ivk_tv) in xfvks
+            .iter()
+            .zip(test_vectors.iter())
+            .zip(ivk_vectors.iter())
+        {
             assert_eq!(xfvk.fvk.vk.ak.to_bytes(), tv.ak);
             assert_eq!(xfvk.fvk.vk.nk.0.to_bytes(), tv.nk);
 
@@ -2106,7 +2140,7 @@ mod tests {
             assert_eq!(xfvk.dk.0, tv.dk);
             assert_eq!(xfvk.chain_code.0, tv.c);
 
-            assert_eq!(xfvk.fvk.vk.ivk().to_repr().as_ref(), tv.ivk);
+            assert_eq!(xfvk.fvk.vk.ivk().to_repr(), ivk_tv.ivk);
 
             let mut ser = vec![];
             xfvk.write(&mut ser).unwrap();
@@ -2150,10 +2184,7 @@ mod tests {
             assert_eq!(internal_xfvk.dk.0, tv.internal_dk);
             assert_eq!(internal_xfvk.chain_code.0, tv.c);
 
-            assert_eq!(
-                internal_xfvk.fvk.vk.ivk().to_repr().as_ref(),
-                tv.internal_ivk
-            );
+            assert_eq!(internal_xfvk.fvk.vk.ivk().to_repr(), ivk_tv.internal_ivk);
 
             let mut ser = vec![];
             internal_xfvk.write(&mut ser).unwrap();

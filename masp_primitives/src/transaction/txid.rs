@@ -96,7 +96,7 @@ pub(crate) fn hash_sapling_spends<A: sapling::Authorization + PartialEq>(
         let mut nh = hasher(ZCASH_SAPLING_SPENDS_NONCOMPACT_HASH_PERSONALIZATION);
         for s_spend in shielded_spends {
             // we build the hash of nullifiers separately for compact blocks.
-            ch.write_all(s_spend.nullifier.as_ref()).unwrap();
+            ch.write_all(&s_spend.nullifier.to_repr()).unwrap();
 
             nh.write_all(&s_spend.cv.to_bytes()).unwrap();
             nh.write_all(&s_spend.anchor.to_repr()).unwrap();

@@ -1,9 +1,8 @@
 use super::masp_compute_value_balance;
 use crate::circuit::convert::Convert;
 use crate::circuit::sapling::{Output, Spend};
-use bellman::{
-    gadgets::multipack,
-    groth16::{Parameters, PreparedVerifyingKey, Proof, create_random_proof, verify_proof},
+use bellman::groth16::{
+    Parameters, PreparedVerifyingKey, Proof, create_random_proof, verify_proof,
 };
 use bls12_381::Bls12;
 use group::ff::Field;
@@ -118,7 +117,7 @@ impl SaplingProvingContext {
 
         // Try to verify the proof:
         // Construct public input for circuit
-        let mut public_input = [bls12_381::Scalar::ZERO; 7];
+        let mut public_input = [bls12_381::Scalar::ZERO; 6];
         {
             let affine = rk.0.to_affine();
             let (u, v) = (affine.get_u(), affine.get_v());
@@ -133,16 +132,7 @@ impl SaplingProvingContext {
         }
         public_input[4] = anchor;
 
-        // Add the nullifier through multiscalar packing
-        {
-            let nullifier = multipack::bytes_to_bits_le(&nullifier.0);
-            let nullifier = multipack::compute_multipacking(&nullifier);
-
-            assert_eq!(nullifier.len(), 2);
-
-            public_input[5] = nullifier[0];
-            public_input[6] = nullifier[1];
-        }
+        public_input[5] = nullifier.0;
 
         // Verify the proof
         verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())?;

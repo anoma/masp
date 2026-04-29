@@ -220,9 +220,9 @@ pub fn read_zkproof<R: Read>(mut reader: R) -> io::Result<GrothProofBytes> {
 
 impl SpendDescription<Authorized> {
     pub fn read_nullifier<R: Read>(mut reader: R) -> io::Result<Nullifier> {
-        let mut nullifier = Nullifier([0u8; 32]);
-        reader.read_exact(&mut nullifier.0)?;
-        Ok(nullifier)
+        let mut repr = [0u8; 32];
+        reader.read_exact(&mut repr)?;
+        Nullifier::from_slice(&repr)
     }
 
     /// Consensus rules (§4.4):
@@ -241,7 +241,7 @@ impl SpendDescription<Authorized> {
 
     pub fn write_v5_without_witness_data<W: Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_all(&self.cv.to_bytes())?;
-        writer.write_all(&self.nullifier.0)?;
+        writer.write_all(&self.nullifier.to_repr())?;
         self.rk.write(&mut writer)
     }
 }
@@ -658,7 +658,7 @@ pub mod testing {
                 .prop_map(|v| <[u8;32]>::try_from(v.as_slice()).unwrap())
                 .prop_map(|v| bls12_381::Scalar::from_bytes_le(&v).unwrap()),
             nullifier in prop::array::uniform32(any::<u8>())
-                .prop_map(|v| Nullifier::from_slice(&v).unwrap()),
+                .prop_map(|v| Nullifier::from_slice(&v).expect("nullifier bytes in field")),
             zkproof in vec(any::<u8>(), GROTH_PROOF_SIZE)
                 .prop_map(|v| <[u8;GROTH_PROOF_SIZE]>::try_from(v.as_slice()).unwrap()),
             rng_seed in prop::array::uniform32(prop::num::u8::ANY),

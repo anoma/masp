@@ -15,7 +15,7 @@ use crate::circuit::gadgets;
 use crate::constants::{
     PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
 };
-use bellman::gadgets::{Assignment, blake2s, boolean, multipack, num};
+use bellman::gadgets::{Assignment, blake2s, boolean, num};
 use group::ff::Field;
 
 pub const TREE_DEPTH: usize = SAPLING_COMMITMENT_TREE_DEPTH;
@@ -188,36 +188,13 @@ impl Circuit<bls12_381::Scalar> for Spend {
             )?;
         }
 
-        // This is the "viewing key" preimage for CRH^ivk
-        let mut ivk_preimage = vec![];
-
-        // Place ak in the preimage for CRH^ivk
-        ivk_preimage.extend(ak.repr(cs.namespace(|| "representation of ak"))?);
-
-        // This is the nullifier preimage for PRF^nf
-        let mut nf_preimage = vec![];
-
-        // Extend ivk and nf preimages with the representation of
-        // nk.
-        {
-            let repr_nk = nk.repr(cs.namespace(|| "representation of nk"))?;
-
-            ivk_preimage.extend(repr_nk.iter().cloned());
-            nf_preimage.extend(repr_nk);
-        }
-
-        assert_eq!(ivk_preimage.len(), 512);
-        assert_eq!(nf_preimage.len(), 256);
-
-        // Compute the incoming viewing key ivk
-        let mut ivk = blake2s::blake2s(
+        let ivk_scalar = poseidon_hash::hash_allocated_scalars(
             cs.namespace(|| "computation of ivk"),
-            &ivk_preimage,
-            constants::CRH_IVK_PERSONALIZATION,
+            poseidon_hash::Domain::CRHIvk,
+            &[ak.get_u().clone(), nk.get_u().clone()],
         )?;
-
-        // drop_5 to ensure it's in the field
-        ivk.truncate(jubjub::Fr::CAPACITY as usize);
+        let ivk = ivk_scalar.to_bits_le_strict(cs.namespace(|| "ivk bits"))?;
+        assert_eq!(ivk.len(), 255);
 
         // Witness g_d, checking that it's on the curve.
         let g_d = {
@@ -392,21 +369,16 @@ impl Circuit<bls12_381::Scalar> for Spend {
             )?;
         }
 
-        // Let's compute nf = BLAKE2s(nk || rho)
-        let mut rho_repr = rho.to_bits_le_strict(cs.namespace(|| "representation of rho"))?;
-        rho_repr.push(boolean::Boolean::constant(false));
-        nf_preimage.extend(rho_repr);
-
-        assert_eq!(nf_preimage.len(), 512);
-
-        // Compute nf
-        let nf = blake2s::blake2s(
+        let nk_preimage = nk.repr(cs.namespace(|| "representation of nk"))?;
+        assert_eq!(nk_preimage.len(), 256);
+        let nf = poseidon_hash::hash_bits_with_suffix_scalars(
             cs.namespace(|| "nf computation"),
-            &nf_preimage,
-            constants::PRF_NF_PERSONALIZATION,
+            poseidon_hash::Domain::PRFNf,
+            &nk_preimage,
+            &[rho],
         )?;
 
-        multipack::pack_into_inputs(cs.namespace(|| "pack nullifier"), &nf)
+        nf.inputize(cs.namespace(|| "nullifier"))
     }
 }
 
@@ -687,10 +659,7 @@ fn test_input_circuit_with_bls12_381() {
                 }
             }
 
-            let expected_nf = note.nf(&viewing_key.nk, position);
-            let expected_nf = multipack::bytes_to_bits_le(&expected_nf.0);
-            let expected_nf = multipack::compute_multipacking(&expected_nf);
-            assert_eq!(expected_nf.len(), 2);
+            let expected_nf = note.nf(&viewing_key.nk, position).0;
 
             let mut cs = TestConstraintSystem::new();
 
@@ -711,12 +680,12 @@ fn test_input_circuit_with_bls12_381() {
             } else {
                 assert!(!cs.is_satisfied());
             }
-            assert_eq!(cs.num_constraints(), 83807);
+            assert_eq!(cs.num_constraints(), 44009);
             if i < 20 {
                 assert_eq!(cs.get_input(5, "anchor/input variable"), cur);
             }
 
-            assert_eq!(cs.num_inputs(), 8);
+            assert_eq!(cs.num_inputs(), 7);
             assert_eq!(cs.get_input(0, "ONE"), bls12_381::Scalar::ONE);
             assert_eq!(cs.get_input(1, "rk/u/input variable"), rk.get_u());
             assert_eq!(cs.get_input(2, "rk/v/input variable"), rk.get_v());
@@ -730,10 +699,9 @@ fn test_input_circuit_with_bls12_381() {
             );
             assert_eq!(cs.get_input(5, "anchor/input variable"), cur);
             if i < 20 {
-                assert_eq!(cs.get_input(6, "pack nullifier/input 0"), expected_nf[0]);
-                assert_eq!(cs.get_input(7, "pack nullifier/input 1"), expected_nf[1]);
+                assert_eq!(cs.get_input(6, "nullifier/input variable"), expected_nf);
             } else {
-                assert_ne!(cs.get_input(6, "pack nullifier/input 0"), expected_nf[0]);
+                assert_ne!(cs.get_input(6, "nullifier/input variable"), expected_nf);
             }
         }
     }
@@ -867,10 +835,7 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
                 }
             }
 
-            let expected_nf = note.nf(&viewing_key.nk, position);
-            let expected_nf = multipack::bytes_to_bits_le(&expected_nf.0);
-            let expected_nf = multipack::compute_multipacking(&expected_nf);
-            assert_eq!(expected_nf.len(), 2);
+            let expected_nf = note.nf(&viewing_key.nk, position).0;
 
             let mut cs = TestConstraintSystem::new();
 
@@ -887,11 +852,11 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
             instance.synthesize(&mut cs).unwrap();
 
             assert!(cs.is_satisfied());
-            assert_eq!(cs.num_constraints(), 83807);
+            assert_eq!(cs.num_constraints(), 44009);
 
             assert_eq!(cs.get_input(5, "anchor/input variable"), cur);
 
-            assert_eq!(cs.num_inputs(), 8);
+            assert_eq!(cs.num_inputs(), 7);
             assert_eq!(cs.get_input(0, "ONE"), bls12_381::Scalar::ONE);
             assert_eq!(cs.get_input(1, "rk/u/input variable"), rk.get_u());
             assert_eq!(cs.get_input(2, "rk/v/input variable"), rk.get_v());
@@ -904,8 +869,7 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
                 expected_value_commitment.get_v()
             );
             assert_eq!(cs.get_input(5, "anchor/input variable"), cur);
-            assert_eq!(cs.get_input(6, "pack nullifier/input 0"), expected_nf[0]);
-            assert_eq!(cs.get_input(7, "pack nullifier/input 1"), expected_nf[1]);
+            assert_eq!(cs.get_input(6, "nullifier/input variable"), expected_nf);
         }
     }
 }

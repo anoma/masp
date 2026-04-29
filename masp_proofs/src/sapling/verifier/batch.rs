@@ -92,7 +92,7 @@ impl BatchValidator {
             let consensus_rules_passed = ctx.check_spend(
                 spend.cv,
                 spend.anchor,
-                &spend.nullifier.0,
+                spend.nullifier.0,
                 spend.rk,
                 &sighash,
                 spend.spend_auth_sig,
