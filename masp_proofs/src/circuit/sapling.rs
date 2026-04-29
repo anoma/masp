@@ -4,9 +4,8 @@ use group::{Curve, ff::PrimeField};
 
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
 
-use masp_primitives::{
-    constants,
-    sapling::{PaymentAddress, ProofGenerationKey, SAPLING_COMMITMENT_TREE_DEPTH, ValueCommitment},
+use masp_primitives::sapling::{
+    PaymentAddress, ProofGenerationKey, SAPLING_COMMITMENT_TREE_DEPTH, ValueCommitment,
 };
 
 use super::ecc;
@@ -15,7 +14,7 @@ use crate::circuit::gadgets;
 use crate::constants::{
     PROOF_GENERATION_KEY_GENERATOR, SPENDING_KEY_GENERATOR, VALUE_COMMITMENT_RANDOMNESS_GENERATOR,
 };
-use bellman::gadgets::{Assignment, blake2s, boolean, num};
+use bellman::gadgets::{Assignment, boolean, num};
 use group::ff::Field;
 
 pub const TREE_DEPTH: usize = SAPLING_COMMITMENT_TREE_DEPTH;
@@ -51,8 +50,8 @@ pub struct Output {
     /// Value commitment to the value being spent
     pub value_commitment: Option<ValueCommitment>,
 
-    /// Asset Type (256 bit identifier)
-    pub asset_identifier: Vec<Option<bool>>,
+    /// Asset Type scalar identifier
+    pub asset_id: Option<bls12_381::Scalar>,
 
     /// The payment address of the recipient
     pub payment_address: Option<PaymentAddress>,
@@ -69,7 +68,14 @@ pub struct Output {
 pub fn expose_value_commitment<CS>(
     mut cs: CS,
     value_commitment: Option<ValueCommitment>,
-) -> Result<(Vec<boolean::Boolean>, Vec<boolean::Boolean>), SynthesisError>
+) -> Result<
+    (
+        ecc::EdwardsPoint,
+        Vec<boolean::Boolean>,
+        Vec<boolean::Boolean>,
+    ),
+    SynthesisError,
+>
 where
     CS: ConstraintSystem<bls12_381::Scalar>,
 {
@@ -78,6 +84,7 @@ where
         cs.namespace(|| "asset_generator"),
         value_commitment.as_ref().map(|vc| vc.asset_generator),
     )?;
+    let witnessed_asset_generator = asset_generator.clone();
 
     // Booleanize the asset type
     let asset_generator_bits = asset_generator.repr(cs.namespace(|| "unpack asset_generator"))?;
@@ -131,7 +138,7 @@ where
     // Expose the commitment as an input to the circuit
     cv.inputize(cs.namespace(|| "commitment point"))?;
 
-    Ok((asset_generator_bits, value_bits))
+    Ok((witnessed_asset_generator, asset_generator_bits, value_bits))
 }
 
 impl Circuit<bls12_381::Scalar> for Spend {
@@ -224,7 +231,7 @@ impl Circuit<bls12_381::Scalar> for Spend {
         let mut value_num = num::Num::zero();
         {
             // Get the value in little-endian bit order
-            let (asset_generator_bits, value_bits) = expose_value_commitment(
+            let (_, asset_generator_bits, value_bits) = expose_value_commitment(
                 cs.namespace(|| "value commitment"),
                 self.value_commitment,
             )?;
@@ -393,73 +400,38 @@ impl Circuit<bls12_381::Scalar> for Output {
 
         let mut note_contents = vec![];
 
-        // Reserve 256 bits for the preimage
-        let mut asset_generator_preimage = Vec::with_capacity(256);
+        let asset_id =
+            num::AllocatedNum::alloc(cs.namespace(|| "asset_id"), || Ok(*self.asset_id.get()?))?;
 
-        // Ensure the input identifier is 32 bytes
-        assert_eq!(256, self.asset_identifier.len());
-
-        for (i, bit) in self.asset_identifier.iter().enumerate() {
-            let cs = &mut cs.namespace(|| format!("witness asset type bit {}", i));
-
-            //  Witness each bit of the asset identifier
-            let asset_identifier_preimage_bit = boolean::Boolean::from(
-                boolean::AllocatedBit::alloc(cs.namespace(|| "asset type bit"), *bit)?,
-            );
-
-            // Push this boolean for asset generator computation later
-            asset_generator_preimage.push(asset_identifier_preimage_bit.clone());
-        }
-
-        // Ensure the preimage of the generator is 32 bytes
-        assert_eq!(256, asset_generator_preimage.len());
-
-        // Compute the asset generator from the asset identifier
-        let asset_generator_image = blake2s::blake2s(
-            cs.namespace(|| "value base computation"),
-            &asset_generator_preimage,
-            constants::VALUE_COMMITMENT_GENERATOR_PERSONALIZATION,
+        let expected_v = poseidon_hash::hash_allocated_scalars(
+            cs.namespace(|| "asset generator v from asset_id"),
+            poseidon_hash::Domain::AssetGen,
+            &[asset_id],
         )?;
 
         // Expose the value commitment
-        let (asset_generator_bits, value_bits) =
+        let (asset_generator, asset_generator_bits, value_bits) =
             expose_value_commitment(cs.namespace(|| "value commitment"), self.value_commitment)?;
 
         // Ensure the witnessed asset generator is 32 bytes
         assert_eq!(256, asset_generator_bits.len());
 
-        // Ensure the computed asset generator is 32 bytes
-        assert_eq!(256, asset_generator_image.len());
+        cs.enforce(
+            || "asset generator v binding",
+            |lc| lc + expected_v.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + asset_generator.get_v().get_variable(),
+        );
 
-        // Check integrity of the asset generator
-        // Batch bit equality constraints into packed chunks to reduce
-        // constraint count while preserving exact bitwise equality.
-        const ASSET_GENERATOR_EQ_CHUNK_BITS: usize = 128;
-        for (chunk_idx, (asset_generator_chunk, asset_generator_image_chunk)) in
-            asset_generator_bits
-                .chunks(ASSET_GENERATOR_EQ_CHUNK_BITS)
-                .zip(asset_generator_image.chunks(ASSET_GENERATOR_EQ_CHUNK_BITS))
-                .enumerate()
-        {
-            let mut diff = num::Num::zero();
-            let mut coeff = bls12_381::Scalar::ONE;
-
-            for (asset_generator_bit, asset_generator_image_bit) in asset_generator_chunk
-                .iter()
-                .zip(asset_generator_image_chunk.iter())
-            {
-                diff = diff.add_bool_with_coeff(CS::one(), asset_generator_bit, coeff);
-                diff = diff.add_bool_with_coeff(CS::one(), asset_generator_image_bit, -coeff);
-                coeff = coeff.double();
-            }
-
-            cs.enforce(
-                || format!("integrity of asset generator chunk {}", chunk_idx),
-                |lc| lc + &diff.lc(bls12_381::Scalar::ONE),
-                |lc| lc + CS::one(),
-                |lc| lc,
-            );
-        }
+        let asset_generator_u_bits = asset_generator
+            .get_u()
+            .to_bits_le_strict(cs.namespace(|| "asset generator u bits"))?;
+        let expected_v_bits = expected_v.to_bits_le_strict(cs.namespace(|| "expected v bits"))?;
+        boolean::Boolean::enforce_equal(
+            cs.namespace(|| "asset generator sign convention"),
+            &asset_generator_u_bits[0],
+            &expected_v_bits[0],
+        )?;
 
         // Place the asset generator in the note commitment
         note_contents.extend(asset_generator_bits);
@@ -727,36 +699,31 @@ fn test_input_circuit_with_bls12_381_external_test_vectors() {
 
     let expected_commitment_us = [
         "15274760159508878651789682992925045402656388195689586056903525226511870631006",
-        "17926082480702379779301751040578316677060182517930108360303758506447415843229",
-        "47560733217722603616763811825500591868568811326811130069535870262273364981945",
-        "3800891689291852208719409763066191375952446148569504124915840587177301316887",
-        "42605451358726896269346670960800907068736580931770467343442333651979812783507",
-        "2186124196248736405363923904916329765421958395459957351012037099196644523519",
-        "1141914194379178008776608799121446552214386159445356778422457950073807217391",
-        "4723282540978794624483635488138659467675602905263923545920612233258386488162",
-        "9817985978230076566482131380463677459892992710371329861360645363311468893053",
-        "27618789340710350120647137095252986938132361388195675764406370494688910938013",
+        "45992465934531060074736693067968076280300230571440765841013526826501090738633",
+        "28921438733382671289070874655598597294204024238879586086869125740695138998826",
+        "41390517778080894874408352194678442164739178036737991791573740798185877064776",
+        "43545010091250869500573366914020088679265774215795230142168154314989142592497",
+        "23401463873438802538313824242070889990718302431733423352725905907752835716330",
+        "39659459663487421969451958946116087960974345166701559077548284474406140201978",
+        "18238848282024955087253865920619367922891586542139844864569735541440186657652",
+        "29276202007111275980664236393496730053433365707784601803324631146386822058240",
+        "14367704494846181541477920090037721867263218531985514316059560921974500634268",
     ];
 
     let expected_commitment_vs = [
         "34821791232396287888199995100305255761362584209078006239735148846881442279277",
-        "25119990066174545608121950753413857831099772082356729649061420500567639159355",
-        "37379068700729686079521798425830021519833420633231595656391703260880647751299",
-        "41866535334944468208261223722134220321702695454463459117958311496151517396608",
-        "22815243378235771837066051140494563507512924813701395974049305004556621752999",
-        "32580943391199462206001867000285792160642911175912464838584939697793150575579",
-        "19466322163466228937035549603042240330689838936758470332197790607062875140040",
-        "37409705443279116387495124812424670311932220465698221026006921521796611194301",
-        "4817145647901840172966045688653436033808505237142136464043537162611284452519",
-        "33112537425917174283144333017659536059363113223507009786626165162100944911092",
+        "48272277204637165942153572265491043400013962194675809678737998017618039125397",
+        "16202997041631728963808457164045485462397972659648945314962588955913461211784",
+        "21713333251902282295108594469979862004965708297319852411754757822048207203587",
+        "40628590458395200535948555536319290011181361311776845198271454459300624704538",
+        "10962772961748236845251651174228919890115358936077144736331082640641147819983",
+        "44683990139627784521007630031298782511011869955408697710512787486376651970890",
+        "9314562909946989173988375131177778774822088850112526864494971804479342539939",
+        "9522923511385365711656084498012130186133026440490470345199464427456624315168",
+        "32035933408357991683798158667959733711450665308523729445338772565028560047349",
     ];
 
-    // b'default' under repeated hashing (different than AssetType::new)
-    // hex '734f0ec56f731e02cc737e6b693db52b821f6f6e4cd7fe3c764353f263669fbe'
-    let asset_type = AssetType::from_identifier(
-        b"sO\x0e\xc5os\x1e\x02\xccs~ki=\xb5+\x82\x1fonL\xd7\xfe<vCS\xf2cf\x9f\xbe",
-    )
-    .unwrap();
+    let asset_type = AssetType::new(b"default").unwrap();
 
     for i in 0..10 {
         let value_commitment = asset_type.value_commitment(i, jubjub::Fr::from(1000 * (i + 1)));
@@ -937,7 +904,7 @@ fn test_output_circuit_with_bls12_381() {
                 payment_address: Some(payment_address),
                 commitment_randomness: Some(commitment_randomness),
                 esk: Some(esk),
-                asset_identifier: asset_type.identifier_bits(),
+                asset_id: Some(asset_type.asset_id()),
             };
 
             instance.synthesize(&mut cs).unwrap();
@@ -948,7 +915,7 @@ fn test_output_circuit_with_bls12_381() {
                 assert!(!cs.is_satisfied());
             }
 
-            assert_eq!(cs.num_constraints(), 31047);
+            assert_eq!(cs.num_constraints(), 11401);
 
             let expected_cmu = payment_address
                 .create_note(

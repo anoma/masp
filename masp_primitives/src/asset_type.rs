@@ -1,14 +1,14 @@
 use crate::{
-    constants::{
-        ASSET_IDENTIFIER_LENGTH, ASSET_IDENTIFIER_PERSONALIZATION, GH_FIRST_BLOCK,
-        VALUE_COMMITMENT_GENERATOR_PERSONALIZATION,
-    },
+    constants::{ASSET_IDENTIFIER_LENGTH, ASSET_IDENTIFIER_PERSONALIZATION, GH_FIRST_BLOCK},
     sapling::ValueCommitment,
+    sapling::poseidon_hash,
 };
-use blake2s_simd::Params as Blake2sParams;
+use blake2b_simd::Params as Blake2bParams;
 use borsh::BorshSchema;
 use borsh::{BorshDeserialize, BorshSerialize};
-use group::{Group, GroupEncoding, cofactor::CofactorGroup};
+use ff::Field;
+use ff::PrimeField;
+use group::{Group, cofactor::CofactorGroup};
 use std::{
     cmp::Ordering,
     fmt::{Display, Formatter},
@@ -19,7 +19,6 @@ use std::{
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq, BorshSchema)]
 pub struct AssetType {
     identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
-    #[borsh(skip)]
     nonce: Option<u8>,
 }
 
@@ -40,25 +39,26 @@ impl AssetType {
     /// Attempt to create a new AssetType from a unique asset name and fixed nonce
     /// Not yet constant-time; assume not-constant-time
     pub fn new_with_nonce(name: &[u8], nonce: u8) -> Option<AssetType> {
-        use std::slice::from_ref;
-
         // Check the personalization is acceptable length
         assert_eq!(ASSET_IDENTIFIER_PERSONALIZATION.len(), 8);
 
-        // Create a new BLAKE2s state for deriving the asset identifier
-        let h = Blake2sParams::new()
-            .hash_length(ASSET_IDENTIFIER_LENGTH)
-            .personal(ASSET_IDENTIFIER_PERSONALIZATION)
+        // Create a new BLAKE2b state for deriving the asset identifier scalar.
+        let h = Blake2bParams::new()
+            .hash_length(64)
             .to_state()
+            .update(ASSET_IDENTIFIER_PERSONALIZATION)
             .update(GH_FIRST_BLOCK)
             .update(name)
-            .update(from_ref(&nonce))
+            .update(&[nonce])
             .finalize();
 
+        let asset_id = reduce_wide_le(h.as_array());
+        let identifier = asset_id.to_repr();
+
         // If the hash state is a valid asset identifier, use it
-        if AssetType::hash_to_point(h.as_array()).is_some() {
+        if AssetType::hash_to_point_from_asset_id(asset_id).is_some() {
             Some(AssetType {
-                identifier: *h.as_array(),
+                identifier,
                 nonce: Some(nonce),
             })
         } else {
@@ -68,42 +68,54 @@ impl AssetType {
 
     // Attempt to hash an identifier to a curve point
     fn hash_to_point(identifier: &[u8; ASSET_IDENTIFIER_LENGTH]) -> Option<jubjub::ExtendedPoint> {
-        // Check the personalization is acceptable length
-        assert_eq!(VALUE_COMMITMENT_GENERATOR_PERSONALIZATION.len(), 8);
+        let asset_id = Option::from(bls12_381::Scalar::from_repr(*identifier))?;
+        Self::hash_to_point_from_asset_id(asset_id)
+    }
 
-        // Check to see that scalar field is 255 bits
-        use ff::PrimeField;
+    fn hash_to_point_from_asset_id(asset_id: bls12_381::Scalar) -> Option<jubjub::ExtendedPoint> {
         assert_eq!(bls12_381::Scalar::NUM_BITS, 255);
 
-        let h = Blake2sParams::new()
-            .hash_length(32)
-            .personal(VALUE_COMMITMENT_GENERATOR_PERSONALIZATION)
-            .to_state()
-            .update(identifier)
-            .finalize();
+        let v = poseidon_hash::hash_scalars(poseidon_hash::Domain::AssetGen, &[asset_id]);
+        let v2 = v.square();
+        let mut numerator = v2;
+        numerator -= bls12_381::Scalar::ONE;
+        let mut denominator = v2;
+        denominator *= jubjub_edwards_d();
+        denominator += bls12_381::Scalar::ONE;
 
-        // Check to see if the BLAKE2s hash of the identifier is on the curve
-        let p = jubjub::ExtendedPoint::from_bytes(h.as_array());
-        if p.is_some().into() {
-            // <ExtendedPoint as CofactorGroup>::clear_cofactor is implemented using
-            // ExtendedPoint::mul_by_cofactor in the jubjub crate.
-            let p = p.unwrap();
-            let p_prime = CofactorGroup::clear_cofactor(&p);
+        let inv = denominator.invert();
+        if bool::from(inv.is_none()) {
+            return None;
+        }
 
-            if p_prime.is_identity().into() {
-                None
-            } else {
-                // If not small order, return *without* clearing the cofactor
-                Some(p)
-            }
+        let u2 = numerator * inv.unwrap();
+        let sqrt = u2.sqrt();
+        if bool::from(sqrt.is_none()) {
+            return None;
+        }
+
+        let mut u = sqrt.unwrap();
+        if bool::from(u.is_odd()) != bool::from(v.is_odd()) {
+            u = -u;
+        }
+
+        let p: jubjub::ExtendedPoint = jubjub::AffinePoint::from_raw_unchecked(u, v).into();
+        let p_prime = CofactorGroup::clear_cofactor(&p);
+        if p_prime.is_identity().into() {
+            None
         } else {
-            None // invalid asset identifier
+            Some(p)
         }
     }
 
     /// Return the identifier of this asset type
     pub fn get_identifier(&self) -> &[u8; ASSET_IDENTIFIER_LENGTH] {
         &self.identifier
+    }
+
+    pub fn asset_id(&self) -> bls12_381::Scalar {
+        bls12_381::Scalar::from_repr(self.identifier)
+            .expect("AssetType internal identifier state inconsistent")
     }
 
     /// Attempt to construct an asset type from an existing asset identifier
@@ -121,21 +133,13 @@ impl AssetType {
 
     /// Produces an asset generator without cofactor cleared
     pub fn asset_generator(&self) -> jubjub::ExtendedPoint {
-        AssetType::hash_to_point(self.get_identifier())
+        AssetType::hash_to_point_from_asset_id(self.asset_id())
             .expect("AssetType internal identifier state inconsistent")
     }
 
     /// Produces a value commitment generator with cofactor cleared
     pub fn value_commitment_generator(&self) -> jubjub::SubgroupPoint {
         CofactorGroup::clear_cofactor(&self.asset_generator())
-    }
-
-    /// Get the asset identifier as a vector of bools
-    pub fn identifier_bits(&self) -> Vec<Option<bool>> {
-        self.get_identifier()
-            .iter()
-            .flat_map(|&v| (0..8).map(move |i| Some((v >> i) & 1 == 1)))
-            .collect()
     }
 
     /// Construct a value commitment from given value and randomness
@@ -159,6 +163,25 @@ impl AssetType {
             std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid asset type")
         })
     }
+}
+
+fn jubjub_edwards_d() -> bls12_381::Scalar {
+    bls12_381::Scalar::from_u64s_le(&[
+        0x0106_5fd6_d634_3eb1,
+        0x292d_7f6d_3757_9d26,
+        0xf5fd_9207_e6bd_7fd4,
+        0x2a93_18e7_4bfa_2b48,
+    ])
+    .unwrap()
+}
+
+fn reduce_wide_le(bytes: &[u8; 64]) -> bls12_381::Scalar {
+    let mut acc = bls12_381::Scalar::ZERO;
+    for byte in bytes.iter().rev() {
+        acc *= bls12_381::Scalar::from(256u64);
+        acc += bls12_381::Scalar::from(*byte as u64);
+    }
+    acc
 }
 
 impl PartialEq for AssetType {

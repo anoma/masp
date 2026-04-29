@@ -10,6 +10,7 @@ pub enum Domain {
     NullifierRho,
     CRHIvk,
     PRFNf,
+    AssetGen,
 }
 
 impl Domain {
@@ -20,6 +21,7 @@ impl Domain {
             Domain::NullifierRho => bls12_381::Scalar::from(3u64),
             Domain::CRHIvk => bls12_381::Scalar::from(4u64),
             Domain::PRFNf => bls12_381::Scalar::from(5u64),
+            Domain::AssetGen => bls12_381::Scalar::from(6u64),
         }
     }
 }

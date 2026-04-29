@@ -36,7 +36,7 @@ impl Circuit<bls12_381::Scalar> for Convert {
         let mut value_num = num::Num::zero();
 
         // Get the value in little-endian bit order
-        let (asset_generator_bits, value_bits) =
+        let (_, asset_generator_bits, value_bits) =
             expose_value_commitment(cs.namespace(|| "value commitment"), self.value_commitment)?;
 
         {

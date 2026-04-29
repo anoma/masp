@@ -26,8 +26,6 @@ pub const SPENDING_KEY_GENERATOR_PERSONALIZATION: &[u8; 8] = b"MASP__G_";
 /// BLAKE2s Personalization for the proof generation key base point
 pub const PROOF_GENERATION_KEY_BASE_GENERATOR_PERSONALIZATION: &[u8; 8] = b"MASP__H_";
 
-/// BLAKE2s Personalization for the value commitment generator for the value
-pub const VALUE_COMMITMENT_GENERATOR_PERSONALIZATION: &[u8; 8] = b"MASP__v_";
 pub const VALUE_COMMITMENT_RANDOMNESS_PERSONALIZATION: &[u8; 8] = b"MASP__r_";
 
 /// BLAKE2s Personalization for the nullifier position generator (for computing rho)
@@ -36,7 +34,7 @@ pub const NULLIFIER_POSITION_IN_TREE_GENERATOR_PERSONALIZATION: &[u8; 8] = b"MAS
 /// Length in bytes of the asset identifier
 pub const ASSET_IDENTIFIER_LENGTH: usize = 32;
 
-/// BLAKE2s Personalization for deriving asset identifier from asset name
+/// Personalization prefix for deriving asset identifier from asset name
 pub const ASSET_IDENTIFIER_PERSONALIZATION: &[u8; 8] = b"MASP__t_";
 
 /// The prover will demonstrate knowledge of discrete log with respect to this base when
