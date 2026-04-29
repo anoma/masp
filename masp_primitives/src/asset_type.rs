@@ -18,7 +18,7 @@ use std::{
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone, Copy, Eq, BorshSchema)]
 pub struct AssetType {
-    identifier: [u8; ASSET_IDENTIFIER_LENGTH], //32 byte asset type preimage
+    identifier: [u8; ASSET_IDENTIFIER_LENGTH], // canonical asset-id bytes
     nonce: Option<u8>,
 }
 
@@ -42,7 +42,7 @@ impl AssetType {
         // Check the personalization is acceptable length
         assert_eq!(ASSET_IDENTIFIER_PERSONALIZATION.len(), 8);
 
-        // Create a new BLAKE2b state for deriving the asset identifier scalar.
+        // Create a new BLAKE2b state for deriving the asset-id scalar.
         let h = Blake2bParams::new()
             .hash_length(64)
             .to_state()
@@ -55,7 +55,7 @@ impl AssetType {
         let asset_id = reduce_wide_le(h.as_array());
         let identifier = asset_id.to_repr();
 
-        // If the hash state is a valid asset identifier, use it
+        // If the hash state maps to a valid asset generator, use it
         if AssetType::hash_to_point_from_asset_id(asset_id).is_some() {
             Some(AssetType {
                 identifier,
@@ -66,7 +66,7 @@ impl AssetType {
         }
     }
 
-    // Attempt to hash an identifier to a curve point
+    // Attempt to map an asset-id encoding to a curve point.
     fn hash_to_point(identifier: &[u8; ASSET_IDENTIFIER_LENGTH]) -> Option<jubjub::ExtendedPoint> {
         let asset_id = Option::from(bls12_381::Scalar::from_repr(*identifier))?;
         Self::hash_to_point_from_asset_id(asset_id)
@@ -108,7 +108,7 @@ impl AssetType {
         }
     }
 
-    /// Return the identifier of this asset type
+    /// Return the canonical asset-id bytes for this asset type.
     pub fn get_identifier(&self) -> &[u8; ASSET_IDENTIFIER_LENGTH] {
         &self.identifier
     }
@@ -118,7 +118,7 @@ impl AssetType {
             .expect("AssetType internal identifier state inconsistent")
     }
 
-    /// Attempt to construct an asset type from an existing asset identifier
+    /// Attempt to construct an asset type from an existing asset-id encoding.
     pub fn from_identifier(identifier: &[u8; ASSET_IDENTIFIER_LENGTH]) -> Option<AssetType> {
         // Attempt to hash to point
         if AssetType::hash_to_point(identifier).is_some() {
@@ -127,7 +127,7 @@ impl AssetType {
                 nonce: None,
             })
         } else {
-            None // invalid asset identifier
+            None // invalid asset-id encoding
         }
     }
 
