@@ -80,6 +80,11 @@ name = "convert"
 harness = false
 required-features = ["local-prover"]
 
+[[bench]]
+name = "output"
+harness = false
+required-features = ["local-prover"]
+
 [[example]]
 name = "get-params-path"
 required-features = ["directories"]
