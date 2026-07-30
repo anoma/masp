@@ -220,22 +220,99 @@ impl BatchValidator {
         let prepared_out_key = groth16::prepare_verifying_key(output_vk);
         let mut verify_proofs = |batch: &Batch, vk| batch.verify(vk, &mut rng);
 
-        if verify_proofs(&self.spend_proofs, &prepared_spend_key).is_err() {
-            tracing::debug!("Spend proof batch validation failed");
+        if !proof_batch_is_valid(
+            verify_proofs(&self.spend_proofs, &prepared_spend_key),
+            "Spend",
+        ) {
             return false;
         }
 
-        if verify_proofs(&self.convert_proofs, &prepared_conv_key).is_err() {
-            tracing::debug!("Convert proof batch validation failed");
+        if !proof_batch_is_valid(
+            verify_proofs(&self.convert_proofs, &prepared_conv_key),
+            "Convert",
+        ) {
             return false;
         }
 
-        if verify_proofs(&self.output_proofs, &prepared_out_key).is_err() {
-            tracing::debug!("Output proof batch validation failed");
+        if !proof_batch_is_valid(
+            verify_proofs(&self.output_proofs, &prepared_out_key),
+            "Output",
+        ) {
             return false;
         }
 
         true
+    }
+}
+
+fn proof_batch_is_valid(result: Result<bool, SynthesisError>, proof_kind: &str) -> bool {
+    match result {
+        Ok(true) => true,
+        Ok(false) => {
+            tracing::debug!("{} proof batch validation failed", proof_kind);
+            false
+        }
+        Err(error) => {
+            tracing::debug!("{} proof batch validation errored: {}", proof_kind, error);
+            false
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Batch, proof_batch_is_valid};
+    use bellman::SynthesisError;
+    use bellman::groth16::{Proof, VerifyingKey, prepare_verifying_key};
+    use bls12_381::{G1Affine, G2Affine};
+    use group::prime::PrimeCurveAffine;
+    use rand_core::SeedableRng;
+    use rand_xorshift::XorShiftRng;
+
+    #[test]
+    fn accepts_a_valid_proof_batch() {
+        assert!(proof_batch_is_valid(Ok(true), "Spend"));
+    }
+
+    #[test]
+    fn rejects_an_invalid_proof_batch() {
+        assert!(!proof_batch_is_valid(Ok(false), "Spend"));
+    }
+
+    #[test]
+    fn rejects_a_well_formed_false_groth16_proof() {
+        let verifying_key = VerifyingKey {
+            alpha_g1: G1Affine::generator(),
+            beta_g1: G1Affine::generator(),
+            beta_g2: G2Affine::generator(),
+            gamma_g2: G2Affine::generator(),
+            delta_g1: G1Affine::generator(),
+            delta_g2: G2Affine::generator(),
+            ic: vec![G1Affine::generator()],
+        };
+        let false_proof = Proof {
+            a: G1Affine::identity(),
+            b: G2Affine::identity(),
+            c: G1Affine::identity(),
+        };
+        let mut batch = Batch::default();
+        batch.queue(false_proof, vec![]);
+
+        let mut rng = XorShiftRng::from_seed([7; 16]);
+        let result = batch
+            .verify(&prepare_verifying_key(&verifying_key), &mut rng)
+            .expect("the false proof is well-formed");
+
+        assert!(!result);
+        assert!(!proof_batch_is_valid(Ok(result), "Spend"));
+    }
+
+    #[test]
+    fn rejects_a_proof_batch_error() {
+        assert!(!proof_batch_is_valid(
+            Err(SynthesisError::MalformedVerifyingKey),
+            "Spend"
+        ));
     }
 }
 
