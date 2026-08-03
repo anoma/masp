@@ -1595,7 +1595,7 @@ pub mod testing {
     }
 
     #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    pub(crate) struct TestNode(pub(crate) u64);
+    pub struct TestNode(pub u64);
 
     impl Hashable for TestNode {
         fn read<R: Read>(mut reader: R) -> io::Result<TestNode> {
