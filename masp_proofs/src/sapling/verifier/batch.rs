@@ -292,7 +292,7 @@ mod tests {
     /// Batch verification of a well-formed proof against the wrong public inputs
     /// returns `Ok(false)`, not `Err`; the batch must still be rejected.
     #[test]
-    fn validate_rejects_proofs_verifying_to_false() {
+    fn validate_rejects_spend_proofs_verifying_to_false() {
         // The spend circuit has 7 public inputs.
         let (params, proof) = dummy_params_and_proof::<7>();
 
@@ -301,6 +301,34 @@ mod tests {
         validator
             .spend_proofs
             .queue(proof, vec![bls12_381::Scalar::ZERO; 7]);
+
+        assert!(!validator.validate(&params.vk, &params.vk, &params.vk, TestRng::new()));
+    }
+
+    #[test]
+    fn validate_rejects_convert_proofs_verifying_to_false() {
+        // The convert circuit has 3 public inputs.
+        let (params, proof) = dummy_params_and_proof::<3>();
+
+        let mut validator = BatchValidator::new();
+        validator.bundles_added = true;
+        validator
+            .convert_proofs
+            .queue(proof, vec![bls12_381::Scalar::ZERO; 3]);
+
+        assert!(!validator.validate(&params.vk, &params.vk, &params.vk, TestRng::new()));
+    }
+
+    #[test]
+    fn validate_rejects_output_proofs_verifying_to_false() {
+        // The output circuit has 5 public inputs.
+        let (params, proof) = dummy_params_and_proof::<5>();
+
+        let mut validator = BatchValidator::new();
+        validator.bundles_added = true;
+        validator
+            .output_proofs
+            .queue(proof, vec![bls12_381::Scalar::ZERO; 5]);
 
         assert!(!validator.validate(&params.vk, &params.vk, &params.vk, TestRng::new()));
     }
