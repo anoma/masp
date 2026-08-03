@@ -18,18 +18,22 @@ jobs:
         os: [ubuntu-latest, windows-latest, macOS-latest]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           lfs: true
       - name: Checkout LFS objects
         run: git lfs checkout
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ""
       - name: Fetch path to MASP parameters
         working-directory: ./masp_proofs
         shell: bash
         run: echo "MASP_PARAMS=$(cargo run --release --example get-params-path --features directories)" >> $GITHUB_ENV
       - name: Cache MASP parameters
         id: cache-params
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ env.MASP_PARAMS }}
           key: ${{ runner.os }}-params
@@ -52,13 +56,16 @@ jobs:
           - {tag: wasm32-wasi, name: wasm32-wasip2}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           lfs: true
       - name: Checkout LFS objects
         run: git lfs checkout
-      - name: Add target
-        run: rustup target add ${{ matrix.target.name }}
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target.name }}
+          rustflags: ""
       - run: cargo fetch
       - name: Build masp_proofs for target
         working-directory: ./masp_proofs
@@ -69,7 +76,11 @@ jobs:
     name: Bitrot check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ""
       # Build benchmarks to prevent bitrot
       - name: Build benchmarks
         run: cargo build --all --benches
@@ -79,13 +90,14 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Run clippy
-        uses: actions-rs/clippy-check@v1
+      - uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          name: Clippy (MSRV)
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features --all-targets -- -D warnings
+          components: clippy
+          rustflags: ""
+      - name: Run clippy
+        run: cargo clippy --all-features --all-targets -- -D warnings
 
   clippy-beta:
     name: Nightly lint # Clippy (beta)
@@ -93,23 +105,26 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@beta
-        id: toolchain
-      - run: rustup override set ${{steps.toolchain.outputs.name}}
-      - name: Run Clippy (beta)
-        uses: actions-rs/clippy-check@v1
-        continue-on-error: true
+      - uses: actions/checkout@v7
+      - name: Install Rust toolchain (beta)
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          name: Clippy (beta)
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features --all-targets -- -W clippy::all
+          toolchain: beta
+          components: clippy
+          rustflags: ""
+      - name: Run Clippy (beta)
+        continue-on-error: true
+        run: cargo clippy --all-features --all-targets -- -W clippy::all
 
   doc-links:
     name: Intra-doc links
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ""
       - run: cargo fetch
       # Requires #![deny(rustdoc::broken_intra_doc_links)] in crates.
       - name: Check intra-doc links
@@ -120,19 +135,24 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt
+          rustflags: ""
       - name: Check formatting
         run: cargo fmt --all -- --check
 
   security:
     name: Security - Cargo Audit
     runs-on: ubuntu-latest
-    container:
-      image: rustlang/rust:nightly
     steps:
-    - uses: actions/checkout@v3
-    - name: Add target
-      run: rustup toolchain install 1.81.0-x86_64-unknown-linux-gnu
+    - uses: actions/checkout@v7
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        rustflags: ""
     - name: Install cargo-audit
       run: cargo install cargo-audit --locked
     - name: Cargo Audit
