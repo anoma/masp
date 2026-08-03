@@ -891,7 +891,7 @@ impl Note {
         }
     }
 
-    /// Returns [`self.cmu`] in the correct representation for inclusion in the Sapling
+    /// Returns `self.cmu` in the correct representation for inclusion in the Sapling
     /// note commitment tree.
     pub fn commitment(&self) -> Node {
         Node {

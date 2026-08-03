@@ -218,19 +218,21 @@ impl BatchValidator {
         let prepared_spend_key = groth16::prepare_verifying_key(spend_vk);
         let prepared_conv_key = groth16::prepare_verifying_key(convert_vk);
         let prepared_out_key = groth16::prepare_verifying_key(output_vk);
-        let mut verify_proofs = |batch: &Batch, vk| batch.verify(vk, &mut rng);
+        // `verify_proofs_batch` only returns `Err` for a malformed verifying key; an
+        // invalid proof yields `Ok(false)`. Both must be treated as a failure.
+        let mut verify_proofs = |batch: &Batch, vk| matches!(batch.verify(vk, &mut rng), Ok(true));
 
-        if verify_proofs(&self.spend_proofs, &prepared_spend_key).is_err() {
+        if !verify_proofs(&self.spend_proofs, &prepared_spend_key) {
             tracing::debug!("Spend proof batch validation failed");
             return false;
         }
 
-        if verify_proofs(&self.convert_proofs, &prepared_conv_key).is_err() {
+        if !verify_proofs(&self.convert_proofs, &prepared_conv_key) {
             tracing::debug!("Convert proof batch validation failed");
             return false;
         }
 
-        if verify_proofs(&self.output_proofs, &prepared_out_key).is_err() {
+        if !verify_proofs(&self.output_proofs, &prepared_out_key) {
             tracing::debug!("Output proof batch validation failed");
             return false;
         }
@@ -277,5 +279,29 @@ impl BatchValidator {
     ) -> Result<bool, bellman::SynthesisError> {
         let prepared = prepare_verifying_key(output_vk);
         self.output_proofs.verify(&prepared, rng)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ff::Field;
+
+    use super::BatchValidator;
+    use crate::sapling::verifier::test_util::{TestRng, dummy_params_and_proof};
+
+    /// Batch verification of a well-formed proof against the wrong public inputs
+    /// returns `Ok(false)`, not `Err`; the batch must still be rejected.
+    #[test]
+    fn validate_rejects_proofs_verifying_to_false() {
+        // The spend circuit has 7 public inputs.
+        let (params, proof) = dummy_params_and_proof::<7>();
+
+        let mut validator = BatchValidator::new();
+        validator.bundles_added = true;
+        validator
+            .spend_proofs
+            .queue(proof, vec![bls12_381::Scalar::ZERO; 7]);
+
+        assert!(!validator.validate(&params.vk, &params.vk, &params.vk, TestRng::new()));
     }
 }

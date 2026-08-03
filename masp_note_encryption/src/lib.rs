@@ -702,10 +702,10 @@ pub fn try_output_recovery_with_ock<D: Domain, Output: ShieldedOutput<D, ENC_CIP
 
     // ZIP 212: Check that the esk provided to this function is consistent with the esk we
     // can derive from the note.
-    if let Some(derived_esk) = D::derive_esk(&note) {
-        if (!derived_esk.ct_eq(&esk)).into() {
-            return None;
-        }
+    if let Some(derived_esk) = D::derive_esk(&note)
+        && (!derived_esk.ct_eq(&esk)).into()
+    {
+        return None;
     }
 
     if let NoteValidity::Valid =

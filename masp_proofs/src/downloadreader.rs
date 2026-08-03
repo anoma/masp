@@ -44,30 +44,23 @@ impl io::Read for ResponseLazyReader {
 
                 // Read from the response
                 Response(response) => {
-                    for (i, buf_byte) in buf.iter_mut().enumerate() {
-                        match response.next() {
-                            // Load a byte into the buffer.
-                            Some(Ok((byte, _length))) => {
-                                *buf_byte = byte;
-                            }
-
-                            // The whole response has been processed.
-                            None => {
-                                *self = Complete(Ok(()));
-                                return Ok(i);
-                            }
-
-                            // The response is corrupted.
-                            Some(Err(error)) => {
-                                let error = format!("download response failed: {:?}", error);
-
-                                *self = Complete(Err(error.clone()));
-                                return Err(io::Error::other(error));
-                            }
+                    return match io::Read::read(response, buf) {
+                        // The whole response has been processed.
+                        Ok(0) => {
+                            *self = Complete(Ok(()));
+                            Ok(0)
                         }
-                    }
 
-                    return Ok(buf.len());
+                        Ok(read) => Ok(read),
+
+                        // The response is corrupted.
+                        Err(error) => {
+                            let error = format!("download response failed: {:?}", error);
+
+                            *self = Complete(Err(error.clone()));
+                            Err(io::Error::other(error))
+                        }
+                    };
                 }
 
                 Complete(result) => {

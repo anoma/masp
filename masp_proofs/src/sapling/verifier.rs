@@ -202,3 +202,84 @@ impl SaplingVerificationContextInner {
         binding_sig_verifier(bvk, sighash_value, binding_sig)
     }
 }
+
+#[cfg(test)]
+mod test_util {
+    use bellman::groth16::{self, Parameters};
+    use bellman::{Circuit, ConstraintSystem, SynthesisError};
+    use bls12_381::{Bls12, Scalar};
+    use ff::Field;
+    use rand_core::{CryptoRng, RngCore, SeedableRng};
+    use rand_xorshift::XorShiftRng;
+
+    const TEST_SEED: [u8; 16] = [
+        0x59, 0x62, 0xbe, 0x5d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06, 0xbc,
+        0xe5,
+    ];
+
+    /// A circuit with `N` public inputs and no meaningful constraints. It is used to
+    /// produce well-formed Groth16 proofs for public inputs that differ from the ones
+    /// the verifier checks them against, so that verification fails by returning
+    /// `Ok(false)` rather than an error.
+    struct DummyCircuit<const N: usize>;
+
+    impl<const N: usize> Circuit<Scalar> for DummyCircuit<N> {
+        fn synthesize<CS: ConstraintSystem<Scalar>>(
+            self,
+            cs: &mut CS,
+        ) -> Result<(), SynthesisError> {
+            for i in 0..N {
+                let var = cs.alloc_input(|| format!("input {i}"), || Ok(Scalar::ONE))?;
+                cs.enforce(
+                    || format!("constraint {i}"),
+                    |lc| lc + var,
+                    |lc| lc + CS::one(),
+                    |lc| lc + var,
+                );
+            }
+            Ok(())
+        }
+    }
+
+    /// A deterministic RNG that claims to be cryptographically secure, for tests that
+    /// need to call APIs bounded on [`CryptoRng`].
+    pub(super) struct TestRng(XorShiftRng);
+
+    impl TestRng {
+        pub(super) fn new() -> Self {
+            TestRng(XorShiftRng::from_seed(TEST_SEED))
+        }
+    }
+
+    impl RngCore for TestRng {
+        fn next_u32(&mut self) -> u32 {
+            self.0.next_u32()
+        }
+
+        fn next_u64(&mut self) -> u64 {
+            self.0.next_u64()
+        }
+
+        fn fill_bytes(&mut self, dest: &mut [u8]) {
+            self.0.fill_bytes(dest)
+        }
+
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+            self.0.try_fill_bytes(dest)
+        }
+    }
+
+    impl CryptoRng for TestRng {}
+
+    /// Generates Groth16 parameters for a circuit with `N` public inputs, along with a
+    /// proof for the assignment where every public input is one.
+    pub(super) fn dummy_params_and_proof<const N: usize>()
+    -> (Parameters<Bls12>, groth16::Proof<Bls12>) {
+        let mut rng = TestRng::new();
+        let params =
+            groth16::generate_random_parameters::<Bls12, _, _>(DummyCircuit::<N>, &mut rng)
+                .unwrap();
+        let proof = groth16::create_random_proof(DummyCircuit::<N>, &params, &mut rng).unwrap();
+        (params, proof)
+    }
+}

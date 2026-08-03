@@ -1405,7 +1405,7 @@ mod tests {
             }
 
             match &batch::try_note_decryption(
-                &[ivk.clone()],
+                std::slice::from_ref(&ivk),
                 &[(
                     SaplingDomain::for_height(TEST_NETWORK, height),
                     output.clone(),
@@ -1422,7 +1422,7 @@ mod tests {
             }
 
             match &batch::try_compact_note_decryption(
-                &[ivk.clone()],
+                std::slice::from_ref(&ivk),
                 &[(
                     SaplingDomain::for_height(TEST_NETWORK, height),
                     CompactOutputDescription::from(output.clone()),
@@ -1485,7 +1485,7 @@ mod tests {
         let valid_ivk = PreparedIncomingViewingKey::new(&valid_ivk);
 
         // Check that batched trial decryptions with invalid_ivk fails.
-        let res = batch::try_note_decryption(&[invalid_ivk.clone()], &outputs);
+        let res = batch::try_note_decryption(std::slice::from_ref(&invalid_ivk), &outputs);
         assert_eq!(res.len(), 10);
         assert_eq!(&res[..], &vec![None; 10][..]);
 

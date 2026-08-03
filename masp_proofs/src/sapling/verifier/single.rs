@@ -57,7 +57,10 @@ impl SaplingVerificationContext {
                 )
             },
             |_, proof, public_inputs| {
-                verify_proof(verifying_key, &proof, &public_inputs[..]).is_ok()
+                matches!(
+                    verify_proof(verifying_key, &proof, &public_inputs[..]),
+                    Ok(true)
+                )
             },
         )
     }
@@ -74,7 +77,10 @@ impl SaplingVerificationContext {
     ) -> bool {
         self.inner
             .check_convert(cv, anchor, zkproof, &mut (), |_, proof, public_inputs| {
-                verify_proof(verifying_key, &proof, &public_inputs[..]).is_ok()
+                matches!(
+                    verify_proof(verifying_key, &proof, &public_inputs[..]),
+                    Ok(true)
+                )
             })
     }
 
@@ -90,7 +96,10 @@ impl SaplingVerificationContext {
     ) -> bool {
         self.inner
             .check_output(cv, cmu, epk, zkproof, |proof, public_inputs| {
-                verify_proof(verifying_key, &proof, &public_inputs[..]).is_ok()
+                matches!(
+                    verify_proof(verifying_key, &proof, &public_inputs[..]),
+                    Ok(true)
+                )
             })
     }
 
@@ -121,5 +130,47 @@ impl SaplingVerificationContext {
                 )
             },
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bellman::groth16::prepare_verifying_key;
+    use ff::Field;
+    use group::Group;
+
+    use super::SaplingVerificationContext;
+    use crate::sapling::verifier::test_util::dummy_params_and_proof;
+
+    fn non_small_order_point() -> jubjub::ExtendedPoint {
+        jubjub::SubgroupPoint::generator().into()
+    }
+
+    /// A well-formed proof for the wrong public inputs makes `verify_proof` return
+    /// `Ok(false)`, not `Err`; it must still be rejected.
+    #[test]
+    fn check_output_rejects_proof_verifying_to_false() {
+        // The output circuit has 5 public inputs.
+        let (params, proof) = dummy_params_and_proof::<5>();
+        let pvk = prepare_verifying_key(&params.vk);
+
+        let mut ctx = SaplingVerificationContext::new(true);
+        assert!(!ctx.check_output(
+            non_small_order_point(),
+            bls12_381::Scalar::ONE,
+            non_small_order_point(),
+            proof,
+            &pvk,
+        ));
+    }
+
+    #[test]
+    fn check_convert_rejects_proof_verifying_to_false() {
+        // The convert circuit has 3 public inputs.
+        let (params, proof) = dummy_params_and_proof::<3>();
+        let pvk = prepare_verifying_key(&params.vk);
+
+        let mut ctx = SaplingVerificationContext::new(true);
+        assert!(!ctx.check_convert(non_small_order_point(), bls12_381::Scalar::ONE, proof, &pvk,));
     }
 }

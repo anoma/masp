@@ -145,7 +145,9 @@ impl SaplingProvingContext {
         }
 
         // Verify the proof
-        verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())?;
+        if !verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())? {
+            return Err(());
+        }
 
         // Compute value commitment
         let value_commitment: jubjub::ExtendedPoint = value_commitment.commitment().into();
@@ -263,7 +265,9 @@ impl SaplingProvingContext {
         public_input[2] = anchor;
 
         // Verify the proof
-        verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())?;
+        if !verify_proof(verifying_key, &proof, &public_input[..]).map_err(|_| ())? {
+            return Err(());
+        }
 
         // Compute value commitment
         let value_commitment: jubjub::ExtendedPoint = value_commitment.commitment().into();
@@ -303,7 +307,7 @@ impl SaplingProvingContext {
                 })
                 .try_fold(self.cv_sum, |tmp, value_balance| {
                     // Compute cv_sum minus sum of all value balances
-                    Ok(tmp - value_balance.ok_or(())?)
+                    Ok::<_, ()>(tmp - value_balance.ok_or(())?)
                 })?;
 
             // The result should be the same, unless the provided valueBalance is wrong.

@@ -229,7 +229,7 @@ mod test {
 
                 let expected = jubjub::ExtendedPoint::from(pedersen_hash::pedersen_hash(
                     Personalization::MerkleTree(1),
-                    input.clone().into_iter(),
+                    input.clone(),
                 ))
                 .to_affine();
 
@@ -239,7 +239,7 @@ mod test {
                 // Test against the output of a different personalization
                 let unexpected = jubjub::ExtendedPoint::from(pedersen_hash::pedersen_hash(
                     Personalization::MerkleTree(0),
-                    input.into_iter(),
+                    input,
                 ))
                 .to_affine();
 
