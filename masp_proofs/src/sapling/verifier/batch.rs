@@ -261,13 +261,34 @@ fn proof_batch_is_valid(result: Result<bool, SynthesisError>, proof_kind: &str) 
 
 #[cfg(test)]
 mod tests {
-    use super::{Batch, proof_batch_is_valid};
+    use super::{Batch, BatchValidator, proof_batch_is_valid};
     use bellman::SynthesisError;
     use bellman::groth16::{Proof, VerifyingKey, prepare_verifying_key};
-    use bls12_381::{G1Affine, G2Affine};
+    use bls12_381::{Bls12, G1Affine, G2Affine};
     use group::prime::PrimeCurveAffine;
-    use rand_core::SeedableRng;
+    use pairing::Engine;
+    use rand_core::{OsRng, SeedableRng};
     use rand_xorshift::XorShiftRng;
+
+    fn trivial_vk() -> VerifyingKey<Bls12> {
+        VerifyingKey {
+            alpha_g1: G1Affine::generator(),
+            beta_g1: G1Affine::generator(),
+            beta_g2: G2Affine::generator(),
+            gamma_g2: G2Affine::generator(),
+            delta_g1: G1Affine::generator(),
+            delta_g2: G2Affine::generator(),
+            ic: vec![G1Affine::generator()],
+        }
+    }
+
+    fn false_proof() -> Proof<Bls12> {
+        Proof {
+            a: G1Affine::identity(),
+            b: G2Affine::identity(),
+            c: G1Affine::identity(),
+        }
+    }
 
     #[test]
     fn accepts_a_valid_proof_batch() {
@@ -281,26 +302,12 @@ mod tests {
 
     #[test]
     fn rejects_a_well_formed_false_groth16_proof() {
-        let verifying_key = VerifyingKey {
-            alpha_g1: G1Affine::generator(),
-            beta_g1: G1Affine::generator(),
-            beta_g2: G2Affine::generator(),
-            gamma_g2: G2Affine::generator(),
-            delta_g1: G1Affine::generator(),
-            delta_g2: G2Affine::generator(),
-            ic: vec![G1Affine::generator()],
-        };
-        let false_proof = Proof {
-            a: G1Affine::identity(),
-            b: G2Affine::identity(),
-            c: G1Affine::identity(),
-        };
         let mut batch = Batch::default();
-        batch.queue(false_proof, vec![]);
+        batch.queue(false_proof(), vec![]);
 
         let mut rng = XorShiftRng::from_seed([7; 16]);
         let result = batch
-            .verify(&prepare_verifying_key(&verifying_key), &mut rng)
+            .verify(&prepare_verifying_key(&trivial_vk()), &mut rng)
             .expect("the false proof is well-formed");
 
         assert!(!result);
@@ -313,6 +320,51 @@ mod tests {
             Err(SynthesisError::MalformedVerifyingKey),
             "Spend"
         ));
+    }
+
+    struct ProofInput {
+        proof: Proof<Bls12>,
+        inputs: Vec<<Bls12 as Engine>::Fr>,
+    }
+
+    type ProofValidationStrategy = fn(ProofInput) -> bool;
+
+    fn validate_spend_via_batch(input: ProofInput) -> bool {
+        let mut bv = BatchValidator::new();
+        bv.bundles_added = true;
+        bv.spend_proofs.queue(input.proof, input.inputs);
+        bv.validate(&trivial_vk(), &trivial_vk(), &trivial_vk(), OsRng)
+    }
+
+    fn validate_convert_via_batch(input: ProofInput) -> bool {
+        let mut bv = BatchValidator::new();
+        bv.bundles_added = true;
+        bv.convert_proofs.queue(input.proof, input.inputs);
+        bv.validate(&trivial_vk(), &trivial_vk(), &trivial_vk(), OsRng)
+    }
+
+    fn validate_output_via_batch(input: ProofInput) -> bool {
+        let mut bv = BatchValidator::new();
+        bv.bundles_added = true;
+        bv.output_proofs.queue(input.proof, input.inputs);
+        bv.validate(&trivial_vk(), &trivial_vk(), &trivial_vk(), OsRng)
+    }
+
+    #[test]
+    fn batch_validator_rejects_well_formed_false_proofs() {
+        let cases: &[(&str, ProofValidationStrategy)] = &[
+            ("spend", validate_spend_via_batch),
+            ("convert", validate_convert_via_batch),
+            ("output", validate_output_via_batch),
+        ];
+
+        for (name, strategy) in cases {
+            let got = strategy(ProofInput {
+                proof: false_proof(),
+                inputs: vec![],
+            });
+            assert!(!got, "{name}: well-formed false proof was accepted");
+        }
     }
 }
 
